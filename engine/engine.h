@@ -1,5 +1,5 @@
 #pragma once
-namespace chika
+namespace ChikaEngine
 {
     class Engine
     {
@@ -9,4 +9,4 @@ namespace chika
         void shutdown();
         void run();
     };
-} // namespace chika
+} // namespace ChikaEngine
