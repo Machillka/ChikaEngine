@@ -12,3 +12,4 @@ BreakBeforeBraces: Allman
 IndentAccessModifiers: false
 SortIncludes: true
 IncludeBlocks: Regroup
+PointerAlignment: Left
