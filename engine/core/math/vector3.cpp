@@ -101,6 +101,13 @@ namespace ChikaEngine::Math
 
     Vector3& Vector3::operator/=(float scalar)
     {
-        
+        if (scalar != 0.0f)
+        {
+            x /= scalar;
+            y /= scalar;
+            z /= scalar;
+        }
+
+        return *this;
     }
 } // namespace ChikaEngine::Math
