@@ -1,5 +1,7 @@
 #pragma once
-
+#include "debug/log_system.h"
+#define CHIKA_DEBUG
+//::指从全局开始查找命名空间
 // Debug 日志：只在 Debug 模式输出
 #ifdef CHIKA_DEBUG
 #define LOG_DEBUG(module, msg) ::ChikaEngine::Debug::Log(::ChikaEngine::Debug::LogLevel::Debug, module, msg)

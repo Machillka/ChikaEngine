@@ -17,8 +17,10 @@ namespace ChikaEngine::Debug
         if (msg)
             oss << "Message: " << msg << "\n";
         std::string text = oss.str();
-        // 将方法名称写作 Assert
+        // 将方法名称写作 Assert 并且 广播给所有sink
         LogSystem::Instance().Log(LogLevel::Error, "Assert", text);
-        std::cout << text;
+        // 添加 Windows 弹窗
+#ifdef _WIN32
+#endif
     }
 } // namespace ChikaEngine::Debug

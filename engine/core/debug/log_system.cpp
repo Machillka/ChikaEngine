@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <ctime>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -75,6 +76,7 @@ namespace ChikaEngine::Debug
 
         std::string finalStr = oss.str();
 
+        // 广播
         std::lock_guard lock(_mutex);
         for (auto& sink : _sinks)
         {
