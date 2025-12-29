@@ -1,5 +1,7 @@
 #include "math/vector3.h"
 
+#include "debug/assert.h"
+
 #include <cmath>
 
 namespace ChikaEngine::Math
@@ -23,9 +25,8 @@ namespace ChikaEngine::Math
     Vector3 Vector3::Normalize() const
     {
         float len = Length();
-        if (len > 0.0f)
-            return Vector3(x / len, y / len, z / len);
-        return Vector3::zero;
+        CHIKA_ASSERT(len > 0.0f, "Vector length less than zero");
+        return Vector3(x / len, y / len, z / len);
     }
 
     float Vector3::Dot(const Vector3& a, const Vector3& b)
@@ -60,9 +61,8 @@ namespace ChikaEngine::Math
 
     Vector3 operator/(const Vector3& vec, float scalar)
     {
-        if (scalar != 0.0f)
-            return Vector3(vec.x / scalar, vec.y / scalar, vec.z / scalar);
-        return vec;
+        CHIKA_ASSERT(scalar != 0.0f, "Division by zero error");
+        return Vector3(vec.x / scalar, vec.y / scalar, vec.z / scalar);
     }
 
     bool operator==(const Vector3& lhs, const Vector3& rhs)
@@ -101,12 +101,11 @@ namespace ChikaEngine::Math
 
     Vector3& Vector3::operator/=(float scalar)
     {
-        if (scalar != 0.0f)
-        {
-            x /= scalar;
-            y /= scalar;
-            z /= scalar;
-        }
+        CHIKA_ASSERT(scalar != 0.0f, "Division by zero error");
+
+        x /= scalar;
+        y /= scalar;
+        z /= scalar;
 
         return *this;
     }

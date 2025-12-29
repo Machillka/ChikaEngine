@@ -13,3 +13,7 @@ IndentAccessModifiers: false
 SortIncludes: true
 IncludeBlocks: Regroup
 PointerAlignment: Left
+BinPackParameters: false
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllArgumentsOnNextLine: true
+BinPackArguments: false
