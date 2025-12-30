@@ -2,9 +2,9 @@
 
 #include "math/mat4.h"
 #include "render/camera.h"
+#include "render/material.h"
 
 #include <cstdint>
-
 namespace ChikaEngine::Render
 {
     struct RenderObject

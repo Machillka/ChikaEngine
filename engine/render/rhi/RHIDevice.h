@@ -23,6 +23,6 @@ namespace ChikaEngine::Render
 
         virtual void BeginFrame() = 0;
         virtual void EndFrame() = 0;
-        virtual void DrawVertexArray() = 0;
+        virtual void DrawVertexArray(const IRHIVertexArray& VAO, std::uint32_t indexCount) = 0;
     };
 } // namespace ChikaEngine::Render

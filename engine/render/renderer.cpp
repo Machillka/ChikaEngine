@@ -8,7 +8,7 @@
 
 namespace ChikaEngine::Render
 {
-    void Renderer::Init(RenderAPI api, ::ChikaEngine::Platform::WindowSystem* window)
+    void Renderer::Init(RenderAPI api, ::ChikaEngine::Platform::IWindowSystem* window)
     {
         if (api == RenderAPI::None)
         {

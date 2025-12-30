@@ -10,7 +10,7 @@ namespace ChikaEngine::Render
     class Renderer
     {
       public:
-        static void Init(RenderAPI api, ::ChikaEngine::Platform::WindowSystem* window);
+        static void Init(RenderAPI api, ::ChikaEngine::Platform::IWindowSystem* window);
         static void Shutdown();
 
         // 渲染逻辑 全局单例

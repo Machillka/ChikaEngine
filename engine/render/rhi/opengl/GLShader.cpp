@@ -3,7 +3,6 @@
 #include "glheader.h"
 #include "math/mat4.h"
 #include "math/vector3.h"
-#include "render/shader_source.h"
 
 #include <stdexcept>
 
