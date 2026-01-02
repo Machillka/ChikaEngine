@@ -1,21 +1,21 @@
 #pragma once
 
+#include "GLHeader.h"
 #include "render/rhi/RHIResources.h"
-
-#include <memory>
 namespace ChikaEngine::Render
 {
     class GLPipeline final : public IRHIPipeline
     {
       public:
-        explicit GLPipeline(std::shared_ptr<IRHIShader> shader) noexcept;
-
-        void Bind() const override;
-        void UnBind() const override;
-
-        [[nodiscard]] std::shared_ptr<IRHIShader> GetShader() const noexcept;
+        GLPipeline(const char* vsSource, const char* fsSource);
+        ~GLPipeline() override;
+        GLuint Program() const
+        {
+            return _program;
+        }
 
       private:
-        std::shared_ptr<IRHIShader> _shader;
+        GLuint _program = 0;
+        GLuint CompileShader(GLenum type, const char* src);
     };
 } // namespace ChikaEngine::Render

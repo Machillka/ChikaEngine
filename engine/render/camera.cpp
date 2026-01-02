@@ -5,7 +5,14 @@
 
 namespace ChikaEngine::Render
 {
-
+    Camera::Camera() 
+    {
+        // 设置默认相机参数
+        _position = Math::Vector3(0.0f, 0.0f, 2.0f);
+        _target = Math::Vector3(0.0f, 0.0f, 0.0f);
+        _up = Math::Vector3(0.0f, 1.0f, 0.0f);
+        _projection = Math::Mat4::Perspective(3.14159f / 3.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+    }
     Camera::Camera(float fovRadians, float aspect, float zNear, float zFar)
     {
         SetPerspective(fovRadians, aspect, zNear, zFar);
@@ -38,7 +45,7 @@ namespace ChikaEngine::Render
 
     Math::Mat4 Camera::ViewProjectionMat() const
     {
-        return _projection * ViewMat();
+        return _projection * this->ViewMat();
     }
 
     Math::Mat4 Camera::ProjectionMat() const

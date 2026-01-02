@@ -1,0 +1,9 @@
+# ChikaEngine Changelog
+
+简单记录开发过程，非标 changelog
+
+## 2026-01-01
+
+GO -> Transform (World Position)
+
+Scene层收集所有可渲染对象（Mesh Material等）然后进行渲染（丢给Renderer抽象层，然后使用OpenGL作为示例底层）

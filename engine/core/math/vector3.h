@@ -10,12 +10,15 @@ namespace ChikaEngine::Math
         constexpr Vector3(float x, float y, float z) : x(x), y(y), z(z) {}
 
         float Length() const;
-        Vector3 Normalize() const;
+        Vector3 Normalized() const;
 
+        float Dot(Vector3 other) const;
+        Vector3 Cross(Vector3 other) const;
         // global function
         static float Dot(const Vector3& a, const Vector3& b);
         static float Distance(const Vector3& a, const Vector3& b);
         static Vector3 Lerp(const Vector3& a, const Vector3& b, float t);
+        static Vector3 Cross(const Vector3& a, const Vector3& b);
 
         // Operations
         friend Vector3 operator+(const Vector3& lhs, const Vector3& rhs);
@@ -41,6 +44,8 @@ namespace ChikaEngine::Math
         static const Vector3 down;
         static const Vector3 forward;
         static const Vector3 back;
+        static const Vector3 left;
+        static const Vector3 right;
     };
 
 } // namespace ChikaEngine::Math

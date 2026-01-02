@@ -11,6 +11,8 @@ namespace ChikaEngine::Math
     const Vector3 Vector3::down = Vector3(0.0f, -1.0f, 0.0f);
     const Vector3 Vector3::forward = Vector3(0.0f, 0.0f, 1.0f);
     const Vector3 Vector3::back = Vector3(0.0f, 0.0f, -1.0f);
+    const Vector3 Vector3::left = Vector3(-1.0f, 0.0f, 0.0f);
+    const Vector3 Vector3::right = Vector3(1.0f, 0.0f, 0.0f);
 
     float Vector3::Length() const
     {
@@ -22,11 +24,25 @@ namespace ChikaEngine::Math
         return (a - b).Length();
     }
 
-    Vector3 Vector3::Normalize() const
+    Vector3 Vector3::Normalized() const
     {
         float len = Length();
         CHIKA_ASSERT(len > 0.0f, "Vector length less than zero");
         return Vector3(x / len, y / len, z / len);
+    }
+
+    float Vector3::Dot(Vector3 other) const
+    {
+        return Vector3::Dot(*this, other);
+    }
+
+    Vector3 Vector3::Cross(Vector3 other) const
+    {
+        return Vector3::Cross(*this, other);
+    }
+    Vector3 Vector3::Cross(const Vector3& a, const Vector3& b)
+    {
+        return Vector3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
     }
 
     float Vector3::Dot(const Vector3& a, const Vector3& b)

@@ -6,10 +6,10 @@
 struct GLFWwindow; // 占位
 namespace ChikaEngine::Platform
 {
-    class GlfwWindow final : IWindowSystem
+    class GlfwWindow final : public IWindow
     {
       public:
-        GlfwWindow(const WindowDesc& desc);
+        explicit GlfwWindow(const WindowDesc& desc);
         ~GlfwWindow() override;
         void PollEvents() override;
         void SwapBuffers() override;

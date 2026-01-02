@@ -1,21 +1,54 @@
+// GLPipeline.cpp
 #include "GLPipeline.h"
 
-#include <memory>
+#include "debug/log_macros.h"
 
 namespace ChikaEngine::Render
 {
-    GLPipeline::GLPipeline(std::shared_ptr<IRHIShader> shader) noexcept : _shader(std::move(shader)) {}
-    void GLPipeline::Bind() const
+    GLuint GLPipeline::CompileShader(GLenum type, const char* src)
     {
-        _shader->Bind();
-    }
-    void GLPipeline::UnBind() const
-    {
-        _shader->Unbind();
-    }
-    std::shared_ptr<IRHIShader> GLPipeline::GetShader() const noexcept
-    {
-        return _shader;
+        GLuint shader = glCreateShader(type);
+        glShaderSource(shader, 1, &src, nullptr);
+        glCompileShader(shader);
+
+        GLint success;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+        if (!success)
+        {
+            char info[512];
+            glGetShaderInfoLog(shader, 512, nullptr, info);
+            // std::cerr << "Shader compile error: " << info << std::endl;
+        }
+
+        return shader;
     }
 
+    GLPipeline::GLPipeline(const char* vsSource, const char* fsSource)
+    {
+        GLuint vs = CompileShader(GL_VERTEX_SHADER, vsSource);
+        GLuint fs = CompileShader(GL_FRAGMENT_SHADER, fsSource);
+
+        _program = glCreateProgram();
+        glAttachShader(_program, vs);
+        glAttachShader(_program, fs);
+        glLinkProgram(_program);
+
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+
+        GLint success;
+        glGetProgramiv(_program, GL_LINK_STATUS, &success);
+        if (!success)
+        {
+            char info[512];
+            glGetProgramInfoLog(_program, 512, nullptr, info);
+            // std::cerr << "Program link error: " << info << std::endl;
+            LOG_ERROR("Render", info);
+        }
+    }
+
+    GLPipeline::~GLPipeline()
+    {
+        glDeleteProgram(_program);
+    }
 } // namespace ChikaEngine::Render

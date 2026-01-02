@@ -1,14 +1,17 @@
 #include "renderer.h"
 
+#include "debug/assert.h"
+#include "math/mat4.h"
+#include "render/rhi/opengl/GLRHIDevice.h"
+#include "render/rhi/opengl/GLRenderDevice.h"
 #include "render_api.h"
-#include "rhi/opengl/GLDevice.h"
 
 #include <memory>
 #include <stdexcept>
 
 namespace ChikaEngine::Render
 {
-    void Renderer::Init(RenderAPI api, ::ChikaEngine::Platform::IWindowSystem* window)
+    void Renderer::Init(RenderAPI api)
     {
         if (api == RenderAPI::None)
         {
@@ -18,38 +21,47 @@ namespace ChikaEngine::Render
         switch (api)
         {
         case RenderAPI::OpenGL:
-            s_device = std::make_unique<GLDevice>(*window);
+            _rhiDevice = std::make_unique<GLRHIDevice>();
+            CHIKA_ASSERT(_rhiDevice != nullptr, "null rhi device");
+            _renderDevice = std::make_unique<GLRenderDevice>(_rhiDevice.get());
             break;
         default:
             throw std::runtime_error("Unknow RenderAPI");
         }
-        s_device->Init();
+        _renderDevice->Init();
     }
 
     void Renderer::Shutdown()
     {
-        if (s_device)
+        if (_renderDevice)
         {
-            s_device->Shutdown();
-            s_device.reset();
+            _renderDevice->Shutdown();
+            _renderDevice.reset();
+            _rhiDevice.reset();
         }
     }
 
     void Renderer::BeginFrame()
     {
-        if (s_device)
-            s_device->BeginFrame();
+        if (_renderDevice)
+            _renderDevice->BeginFrame();
     }
 
     void Renderer::EndFrame()
     {
-        if (s_device)
-            s_device->EndFrame();
+        if (_renderDevice)
+            _renderDevice->EndFrame();
     }
 
-    void Renderer::Submit(const RenderObject& obj)
+    void Renderer::RenderObjects(const std::vector<RenderObject>& ros, const Camera& camera)
     {
-        if (s_device)
-            s_device->DrawObject(obj);
+        if (!_renderDevice)
+            return;
+        Math::Mat4 view = camera.ViewMat();
+        Math::Mat4 proj = camera.ProjectionMat();
+        for (const auto& obj : ros)
+        {
+            _renderDevice->DrawObject(obj, view, proj);
+        }
     }
 } // namespace ChikaEngine::Render

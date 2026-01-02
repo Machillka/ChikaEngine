@@ -9,6 +9,6 @@ set(CMAKE_CXX_COMPILE_FEATURES ON)
 
 set(PROJECT_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_compile_definitions($<$<CONFIG:Debug>:CHIKA_DEBUG>)
+add_compile_definitions(CHIKA_DEBUG)
 
 add_subdirectory(engine)

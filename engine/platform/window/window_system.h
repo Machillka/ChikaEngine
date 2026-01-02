@@ -4,10 +4,10 @@
 namespace ChikaEngine::Platform
 {
     // 实现跨平台窗口系统抽象接口
-    class IWindowSystem
+    class IWindow
     {
       public:
-        virtual ~IWindowSystem() = default;
+        virtual ~IWindow() = default;
 
         virtual std::uint32_t GetWidth() const = 0;
         virtual std::uint32_t GetHeight() const = 0;
@@ -22,4 +22,5 @@ namespace ChikaEngine::Platform
         virtual void SetVSync(bool enabled) = 0;
         virtual bool IsVSync() const = 0;
     };
+
 } // namespace ChikaEngine::Platform

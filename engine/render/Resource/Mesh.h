@@ -1,20 +1,22 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <vector>
 namespace ChikaEngine::Render
 {
     struct Vertex
     {
-        float position[3];
-        float normal[3];
-        float uv[2];
+        std::array<float, 3> position;
+        std::array<float, 3> normal;
+        std::array<float, 2> uv;
     };
 
-    struct MeshData
+    struct Mesh
     {
         std::vector<Vertex> vertices;
         std::vector<std::uint32_t> indices;
     };
-    
+
+    using MeshHandle = std::uint32_t;
 } // namespace ChikaEngine::Render
