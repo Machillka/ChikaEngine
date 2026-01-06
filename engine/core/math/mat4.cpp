@@ -2,6 +2,9 @@
 
 #include "debug/assert.h"
 #include "math/vector3.h"
+
+#include <cmath>
+
 namespace ChikaEngine::Math
 {
     float& Mat4::operator()(int row, int col)

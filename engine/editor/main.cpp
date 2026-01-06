@@ -1,8 +1,10 @@
-#include "debug/assert.h"
 #include "debug/console_sink.h"
+#include "debug/log_macros.h"
 #include "debug/log_sink.h"
 #include "debug/log_system.h"
-#include "math/mat4.h"
+#include "input/GlfwInputBackend.h"
+#include "input/InputCodes.h"
+#include "input/InputSystem.h"
 #include "math/vector3.h"
 #include "platform/window/window_desc.h"
 #include "platform/window/window_factory.h"
@@ -16,20 +18,36 @@
 #include "render/renderer.h"
 #include "render/renderobject.h"
 
+#include <iomanip>
+#include <ios>
 #include <memory>
 #include <numbers>
+#include <sstream>
+
 unsigned char whitePixel[4] = {255, 255, 255, 255};
-const char* basicVS =
-    R"( #version 330 core layout(location = 0) in vec3 aPos; layout(location = 1) in vec3 aNormal; layout(location = 2) in vec2 aUV; uniform mat4 uMVP; out vec2 vUV; void main() { vUV = aUV; gl_Position = uMVP * vec4(aPos, 1.0); } )";
-const char* basicFS =
-    R"( #version 330 core in vec2 vUV; out vec4 FragColor; uniform sampler2D uTex; void main() { FragColor = texture(uTex, vUV); } )";
+const char* basicVS = R"(
+#version 330 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aUV;
+uniform mat4 uMVP;
+out vec2 vUV;
+void main() { vUV = aUV; gl_Position = uMVP * vec4(aPos, 1.0); }
+)";
+const char* basicFS = R"(
+#version 330 core
+in vec2 vUV;
+out vec4 FragColor;
+uniform sampler2D uTex;
+void main() { FragColor = texture(uTex, vUV); }
+)";
+void UpdateCamera(ChikaEngine::Render::Camera& camera, float deltaTime);
 int main()
 {
     std::unique_ptr<ChikaEngine::Debug::ILogSink> consoleSink = std::make_unique<ChikaEngine::Debug::ConsoleLogSink>();
     ChikaEngine::Debug::LogSystem::Instance().AddSink(std::move(consoleSink));
 
-    ChikaEngine::Platform::WindowDesc winDesc{
-        .title = "Chika Engine Editor", .width = 1280, .height = 720, .vSync = false};
+    ChikaEngine::Platform::WindowDesc winDesc{.title = "Chika Engine Editor", .width = 1280, .height = 720, .vSync = false};
     //  创建窗口
     auto window = ChikaEngine::Platform::CreateWindow(winDesc, ChikaEngine::Platform::WindowBackend::GLFW);
     // 初始化渲染器
@@ -55,15 +73,61 @@ int main()
     cube.modelMat.RotateX(std::numbers::pi / 3);
     cube.modelMat.RotateY(std::numbers::pi / 3);
 
-    ChikaEngine::Render::Camera camera;
+    auto windowHandle = window->GetNativeHandle();
+    ChikaEngine::Input::InputSystem::Init(std::make_unique<ChikaEngine::Input::GlfwInputBackend>(static_cast<GLFWwindow*>(windowHandle)));
 
+    ChikaEngine::Render::Camera camera;
+    double lastTime = glfwGetTime();
     while (!window->ShouldClose())
     {
+        // 时间更新
+        // TODO: time system
+        double currentTime = glfwGetTime();
+        float deltaTime = static_cast<float>(currentTime - lastTime);
+        lastTime = currentTime;
+
         window->PollEvents();
+        ChikaEngine::Input::InputSystem::Update();
+        UpdateCamera(camera, deltaTime);
         ChikaEngine::Render::Renderer::BeginFrame();
         ChikaEngine::Render::Renderer::RenderObjects({cube}, camera);
         ChikaEngine::Render::Renderer::EndFrame();
         window->SwapBuffers();
     }
     return 0;
+}
+
+void UpdateCamera(ChikaEngine::Render::Camera& camera, float deltaTime)
+{
+    const float speed = 5.0f;
+    ChikaEngine::Math::Vector3 move{};
+
+    using namespace ChikaEngine::Input;
+    if (InputSystem::GetKey(KeyCode::W))
+        move += camera.Front();
+    if (InputSystem::GetKey(KeyCode::S))
+        move -= camera.Front();
+    if (InputSystem::GetKey(KeyCode::A))
+        move -= camera.Front().Cross(ChikaEngine::Math::Vector3::up).Normalized();
+    if (InputSystem::GetKey(KeyCode::D))
+        move += camera.Front().Cross(ChikaEngine::Math::Vector3::up).Normalized();
+    // vertical movement
+    if (InputSystem::GetKey(KeyCode::Space))
+        move += ChikaEngine::Math::Vector3::up;
+    if (InputSystem::GetKey(KeyCode::LeftShift))
+        move -= ChikaEngine::Math::Vector3::up;
+
+    if (move.Length() > 0.0f)
+        camera.transform->Translate(move.Normalized() * speed * deltaTime);
+
+    // 鼠标视角（右键按住时）
+    if (InputSystem::GetMouseButton(ChikaEngine::Input::MouseButton::Right))
+    {
+        auto [dx, dy] = InputSystem::GetMouseDelta();
+        camera.ProcessMouseMovement(static_cast<float>(dx), static_cast<float>(dy));
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(2);
+        ss << "Mouse Δ: (" << dx << ", " << dy << "), Pos: (" << InputSystem::GetMousePosition().first << ", " << InputSystem::GetMousePosition().second << ")";
+        LOG_INFO("main", ss.str());
+    }
 }

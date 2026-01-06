@@ -2,6 +2,7 @@
 
 #include "math/vector3.h"
 
+#include <cmath>
 #include <stddef.h>
 
 namespace ChikaEngine::Math
