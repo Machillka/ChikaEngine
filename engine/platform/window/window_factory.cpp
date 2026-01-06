@@ -2,6 +2,9 @@
 
 #include "window/glfw/GlfwWindow.h"
 
+#include <stdexcept>
+
+
 namespace ChikaEngine::Platform
 {
     std::unique_ptr<IWindow> CreateWindow(const WindowDesc& desc, WindowBackend backendType)

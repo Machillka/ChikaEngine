@@ -1,11 +1,12 @@
 #pragma once
 
+#include "framework/GameObject.h"
 #include "math/mat4.h"
 #include "math/vector3.h"
 
 namespace ChikaEngine::Render
 {
-    class Camera
+    class Camera : public ChikaEngine::Framework::GameObject
     {
       public:
         Camera(float fovRadians, float aspect, float zNear, float zFar);
@@ -19,11 +20,19 @@ namespace ChikaEngine::Render
         Math::Mat4 ProjectionMat() const;
         Math::Mat4 ViewProjectionMat() const;
         // TODO: 实现正交等相机模式
+        // 鼠标/视角控制
+        void ProcessMouseMovement(float deltaX, float deltaY, bool constrainPitch = true);
+        Math::Vector3 Front() const;
+
       private:
-        Math::Vector3 _position;
         Math::Vector3 _target;
         Math::Vector3 _up;
         Math::Mat4 _projection = Math::Mat4::Identity();
+
+        // 自由相机朝向参数
+        float _yaw = -3.14159265f / 2.0f; // 初始朝向为 -Z
+        float _pitch = 0.0f;
+        Math::Vector3 _front = Math::Vector3::back; // 默认朝向
 
         // TODO: 进行封装 暴露修改接口
         float fovDegrees = 60.0f;    // 视野角度
