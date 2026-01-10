@@ -1,3 +1,12 @@
 set(TARGET_NAME ChikaEditor)
 add_executable(${TARGET_NAME} main.cpp)
-target_link_libraries(${TARGET_NAME} PRIVATE ChikaCore ChikaPlatform ChikaRender ChikaFramework ChikaInput)
+target_link_libraries(
+    ${TARGET_NAME}
+    PRIVATE 
+        ChikaCore
+        ChikaPlatform
+        ChikaRender
+        ChikaFramework
+        ChikaInput
+        ChikaTime
+)

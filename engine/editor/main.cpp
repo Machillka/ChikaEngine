@@ -1,3 +1,7 @@
+#include "GLFW/glfw3.h"
+#include "InputDesc.h"
+#include "TimeDesc.h"
+#include "TimeSystem.h"
 #include "debug/console_sink.h"
 #include "debug/log_macros.h"
 #include "debug/log_sink.h"
@@ -18,6 +22,7 @@
 #include "render/renderer.h"
 #include "render/renderobject.h"
 
+#include <fstream>
 #include <iomanip>
 #include <ios>
 #include <memory>
@@ -74,20 +79,29 @@ int main()
     cube.modelMat.RotateY(std::numbers::pi / 3);
 
     auto windowHandle = window->GetNativeHandle();
-    ChikaEngine::Input::InputSystem::Init(std::make_unique<ChikaEngine::Input::GlfwInputBackend>(static_cast<GLFWwindow*>(windowHandle)));
+    // ChikaEngine::Input::InputSystem::Init(std::make_unique<ChikaEngine::Input::GlfwInputBackend>(static_cast<GLFWwindow*>(windowHandle)));
+    ChikaEngine::Input::InputDesc desc{.backendType = ChikaEngine::Input::InputBackendTypes::GLFW};
+    ChikaEngine::Input::InputSystem::Init(desc, windowHandle);
+    // ChikaEngine::Input::InputDesc inputDesc = {ChikaEngine::Input::InputBackendTypes::GLFW};
+    // ChikaEngine::Input::InputSystem::Init(inputDesc, windowHandle);
 
     ChikaEngine::Render::Camera camera;
-    double lastTime = glfwGetTime();
+    ChikaEngine::Time::TimeSystem::Init(ChikaEngine::Time::TimeDesc{.backend = ChikaEngine::Time::TimeBackendTypes::GLFW});
+    using Time = ChikaEngine::Time::TimeSystem;
     while (!window->ShouldClose())
     {
         // 时间更新
         // TODO: time system
         double currentTime = glfwGetTime();
-        float deltaTime = static_cast<float>(currentTime - lastTime);
-        lastTime = currentTime;
-
+        float deltaTime = Time::GetDeltaTime();
         window->PollEvents();
         ChikaEngine::Input::InputSystem::Update();
+
+        std::stringstream ss;
+        ss << "DeltaTime: " << Time::GetDeltaTime() << "FPS:" << Time::GetFPS() << std::endl;
+        LOG_INFO("time", ss.str());
+
+        Time::Update();
         UpdateCamera(camera, deltaTime);
         ChikaEngine::Render::Renderer::BeginFrame();
         ChikaEngine::Render::Renderer::RenderObjects({cube}, camera);

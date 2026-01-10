@@ -1,7 +1,6 @@
 #include "Transform.h"
 
-#include "math/Quaternion.h"
-#include "math/vector2.h"
+#include "math/quaternion.h"
 #include "math/vector3.h"
 
 namespace ChikaEngine::Framework
