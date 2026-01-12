@@ -1,5 +1,4 @@
 #pragma once
-
 #include "InputCodes.h"
 
 #include <memory>
@@ -7,12 +6,14 @@
 namespace ChikaEngine::Input
 {
     class IInputBackend;
+    class InputDesc;
     // TODO: 加入回调
     class InputSystem
     {
       public:
         // 传递后端实现
         static void Init(std::unique_ptr<IInputBackend> backend);
+        static void Init(InputDesc desc, void* window);
         static void Shutdown();
         static void Update();
         static bool GetKeyDown(KeyCode key);
@@ -26,6 +27,6 @@ namespace ChikaEngine::Input
         static std::pair<double, double> GetMouseDelta();
 
       private:
-        static std::unique_ptr<IInputBackend> s_backend;
+        inline static std::unique_ptr<IInputBackend> s_backend{};
     };
 } // namespace ChikaEngine::Input

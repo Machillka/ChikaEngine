@@ -6,7 +6,7 @@
 namespace ChikaEngine::Input
 {
     GlfwInputBackend::GlfwInputBackend(GLFWwindow* window) : _window(window) {}
-
+    GlfwInputBackend::GlfwInputBackend(void* window) : _window(static_cast<GLFWwindow*>(window)) {}
     void GlfwInputBackend::Update()
     {
         _prevKeys = _currentKeys;

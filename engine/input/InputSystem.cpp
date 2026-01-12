@@ -1,6 +1,8 @@
 #include "InputSystem.h"
 
 #include "IInputBackend.h"
+#include "InputDesc.h"
+#include "InputFactory.h"
 #include "debug/ChikaDebug.h"
 
 #include <cassert>
@@ -9,8 +11,10 @@
 
 namespace ChikaEngine::Input
 {
-    std::unique_ptr<IInputBackend> InputSystem::s_backend;
-
+    void InputSystem::Init(InputDesc desc, void* windowHandle)
+    {
+        InputSystem::Init(InputBackendFactory(desc, windowHandle));
+    }
     void InputSystem::Init(std::unique_ptr<IInputBackend> backend)
     {
         s_backend = std::move(backend);

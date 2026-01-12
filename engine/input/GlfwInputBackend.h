@@ -12,7 +12,7 @@ namespace ChikaEngine::Input
     {
       public:
         explicit GlfwInputBackend(GLFWwindow* window);
-
+        explicit GlfwInputBackend(void* window);
         void Update() override;
 
         bool GetKeyDown(KeyCode key) const override;
