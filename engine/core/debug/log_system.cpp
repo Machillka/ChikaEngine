@@ -49,9 +49,9 @@ namespace ChikaEngine::Debug
         case LogLevel::Debug:
             return "DEBUG";
         case LogLevel::Info:
-            return "INFO ";
+            return "INFO";
         case LogLevel::Warn:
-            return "WARN ";
+            return "WARN";
         case LogLevel::Error:
             return "ERROR";
         case LogLevel::Fatal:

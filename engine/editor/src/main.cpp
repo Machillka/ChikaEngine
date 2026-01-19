@@ -1,11 +1,13 @@
+#include "Editor.h"
 #include "GLFW/glfw3.h"
 #include "InputDesc.h"
-#include "TimeDesc.h"
-#include "TimeSystem.h"
 #include "debug/console_sink.h"
+#include "debug/editor_sink.h"
 #include "debug/log_macros.h"
 #include "debug/log_sink.h"
 #include "debug/log_system.h"
+#include "editor/adapter/imgui/ImguiAdapter.h"
+#include "editor/adapter/imgui/ImguiLogPanel.h"
 #include "input/GlfwInputBackend.h"
 #include "input/InputCodes.h"
 #include "input/InputSystem.h"
@@ -21,13 +23,17 @@
 #include "render/render_api.h"
 #include "render/renderer.h"
 #include "render/renderobject.h"
+#include "time/TimeDesc.h"
+#include "time/TimeSystem.h"
 
 #include <fstream>
 #include <iomanip>
 #include <ios>
+#include <iostream>
 #include <memory>
 #include <numbers>
 #include <sstream>
+#include <utility>
 
 unsigned char whitePixel[4] = {255, 255, 255, 255};
 const char* basicVS = R"(
@@ -50,13 +56,24 @@ void UpdateCamera(ChikaEngine::Render::Camera& camera, float deltaTime);
 int main()
 {
     std::unique_ptr<ChikaEngine::Debug::ILogSink> consoleSink = std::make_unique<ChikaEngine::Debug::ConsoleLogSink>();
+    std::unique_ptr<ChikaEngine::Debug::ILogSink> editorSink = std::make_unique<ChikaEngine::Debug::EditorLogSink>();
+    auto editorSinkRaw = editorSink.get();
     ChikaEngine::Debug::LogSystem::Instance().AddSink(std::move(consoleSink));
-
+    ChikaEngine::Debug::LogSystem::Instance().AddSink(std::move(editorSink));
     ChikaEngine::Platform::WindowDesc winDesc{.title = "Chika Engine Editor", .width = 1280, .height = 720, .vSync = false};
     //  创建窗口
     auto window = ChikaEngine::Platform::CreateWindow(winDesc, ChikaEngine::Platform::WindowBackend::GLFW);
+    auto windowHandle = window->GetNativeHandle();
+    ChikaEngine::Editor::Editor editor;
+    auto ui = std::make_unique<ChikaEngine::Editor::ImGuiAdapter>(windowHandle);
+    auto logPanel = std::make_unique<ChikaEngine::Editor::ImguiLogPanel>();
+    logPanel->SetEditorSink(static_cast<ChikaEngine::Debug::EditorLogSink*>(editorSinkRaw));
+    editor.Init(std::move(ui), windowHandle);
+    editor.RegisterPanel(std::move(logPanel));
+
     // 初始化渲染器
     ChikaEngine::Render::Renderer::Init(ChikaEngine::Render::RenderAPI::OpenGL);
+
     // 生成美术资产
     ChikaEngine::Render::Shader shader;
     shader.vertexSource = basicVS;
@@ -77,8 +94,6 @@ int main()
     cube.modelMat = ChikaEngine::Math::Mat4::Identity();
     cube.modelMat.RotateX(std::numbers::pi / 3);
     cube.modelMat.RotateY(std::numbers::pi / 3);
-
-    auto windowHandle = window->GetNativeHandle();
     // ChikaEngine::Input::InputSystem::Init(std::make_unique<ChikaEngine::Input::GlfwInputBackend>(static_cast<GLFWwindow*>(windowHandle)));
     ChikaEngine::Input::InputDesc desc{.backendType = ChikaEngine::Input::InputBackendTypes::GLFW};
     ChikaEngine::Input::InputSystem::Init(desc, windowHandle);
@@ -100,7 +115,7 @@ int main()
         std::stringstream ss;
         ss << "DeltaTime: " << Time::GetDeltaTime() << "FPS:" << Time::GetFPS() << std::endl;
         LOG_INFO("time", ss.str());
-
+        editor.Tick();
         Time::Update();
         UpdateCamera(camera, deltaTime);
         ChikaEngine::Render::Renderer::BeginFrame();

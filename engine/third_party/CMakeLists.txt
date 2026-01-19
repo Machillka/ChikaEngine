@@ -13,4 +13,4 @@ include(${THIRD_PARTY_PATH}/imgui.cmake)
 
 # Output
 add_library(${TARGET_NAME} INTERFACE)
-target_link_libraries(${TARGET_NAME} INTERFACE glfw glad)
+target_link_libraries(${TARGET_NAME} INTERFACE glfw glad imgui)
