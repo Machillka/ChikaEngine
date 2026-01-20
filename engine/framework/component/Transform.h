@@ -17,6 +17,7 @@ namespace ChikaEngine::Framework
 
         // 世界空间对应操作
         void Translate(const Math::Vector3& delta);
+        void Translate(float x, float y, float z);
         void Rotate(const Math::Quaternion& q);
         void Rotate(const Math::Vector3& eulerAngle);
         void Scale(const Math::Vector3& factor);

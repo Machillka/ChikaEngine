@@ -3,11 +3,17 @@
 #include "render/rhi/RHIDevice.h"
 #include "render_api.h"
 #include "render_device.h"
+#include "renderobject.h"
+#include "rhi/RHIResources.h"
 
 #include <memory>
 
 namespace ChikaEngine::Render
 {
+    enum class RenderObjectPrefabs
+    {
+        Cube
+    };
     class Renderer
     {
       public:
@@ -20,9 +26,14 @@ namespace ChikaEngine::Render
         // 渲染scene中所有物体
         // TODO: 加入scene
         static void RenderObjects(const std::vector<RenderObject>& ros, const Camera& camera);
+        static void RenderObjectsToTarget(IRHIRenderTarget* target, const std::vector<RenderObject>& ros, const Camera& camera);
+        static IRHIRenderTarget* CreateRenderTarget(int width, int height);
         static void EndFrame();
+        // 提供一些 RO preset
+        static RenderObject CreateRO(RenderObjectPrefabs prefab);
 
       private:
+        static RenderObject CreateCubeRO();
         static inline std::unique_ptr<IRenderDevice> _renderDevice{};
         static inline std::unique_ptr<IRHIDevice> _rhiDevice{};
     };

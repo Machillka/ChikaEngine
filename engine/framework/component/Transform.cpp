@@ -10,6 +10,12 @@ namespace ChikaEngine::Framework
         position += delta;
     }
 
+    void Transform::Translate(float x, float y, float z)
+    {
+        Math::Vector3 delta = Math::Vector3(x, y, z);
+        position += delta;
+    }
+
     void Transform::Rotate(const Math::Quaternion& q)
     {
         rotation = (q * rotation).Normalized();
