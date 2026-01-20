@@ -14,6 +14,7 @@ namespace ChikaEngine::Render
         IRHIBuffer* CreateIndexBuffer(std::size_t size, const void* data) override;
         IRHITexture2D* CreateTexture2D(int width, int height, const void* data) override;
         IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) override;
+        IRHIRenderTarget* CreateRenderTarget(int width, int height) override;
         void DrawIndexed(const DrawIndexedCommand& cmd) override;
     };
 } // namespace ChikaEngine::Render

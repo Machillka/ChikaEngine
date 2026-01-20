@@ -1,6 +1,7 @@
 #include "GLRHIDevice.h"
 
 #include "GLHeader.h"
+#include "GLRenderTarget.h"
 #include "GLResource.h"
 namespace ChikaEngine::Render
 {
@@ -31,6 +32,10 @@ namespace ChikaEngine::Render
     IRHIPipeline* GLRHIDevice::CreatePipeline(const char* vsSource, const char* fsSource)
     {
         return new GLPipeline(vsSource, fsSource);
+    }
+    IRHIRenderTarget* GLRHIDevice::CreateRenderTarget(int width, int height)
+    {
+        return new GLRenderTarget(width, height);
     }
     void GLRHIDevice::DrawIndexed(const DrawIndexedCommand& cmd)
     {

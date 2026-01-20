@@ -1,12 +1,20 @@
 #include "ImguiLogPanel.h"
 
 #include "debug/editor_sink.h"
+#include "debug/log_system.h"
 #include "imgui.h"
 
 #include <cstring>
 
 namespace ChikaEngine::Editor
 {
+    ImguiLogPanel::ImguiLogPanel()
+    {
+        auto sink = std::make_unique<ChikaEngine::Debug::EditorLogSink>();
+        _editorSink = sink.get();
+        ChikaEngine::Debug::LogSystem::Instance().AddSink(std::move(sink));
+    }
+
     void ImguiLogPanel::SetEditorSink(ChikaEngine::Debug::EditorLogSink* sink)
     {
         _editorSink = sink;

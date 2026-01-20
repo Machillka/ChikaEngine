@@ -12,6 +12,7 @@ namespace ChikaEngine::Editor
     class ImguiLogPanel : public IEditorPanel
     {
       public:
+        ImguiLogPanel();
         ~ImguiLogPanel() = default;
         const char* Name() const override
         {

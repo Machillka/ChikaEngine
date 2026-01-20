@@ -11,12 +11,9 @@ namespace ChikaEngine::Render
         GLTexture2D(int width, int height, const void* data);
         ~GLTexture2D() override;
 
-        GLuint Handle() const
-        {
-            return m_tex;
-        }
+        std::uintptr_t Handle() const override;
 
       private:
-        GLuint m_tex = 0;
+        GLuint _tex = 0;
     };
 } // namespace ChikaEngine::Render

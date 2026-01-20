@@ -12,11 +12,5 @@ target_include_directories(${TARGET_NAME} PUBLIC $<BUILD_INTERFACE:${CURRENT_DIR
 target_link_libraries(
     ${TARGET_NAME}
     PRIVATE
-        ChikaThirdParty
-        ChikaCore
-        ChikaPlatform
-        ChikaRender
-        ChikaFramework
-        ChikaInput
-        ChikaTime
+    ChikaEngine
 )

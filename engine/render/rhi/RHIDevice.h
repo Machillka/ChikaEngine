@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RHIResources.h"
 #include "RHITypes.h"
 
 #include <cstddef>
@@ -21,7 +22,7 @@ namespace ChikaEngine::Render
         const IRHITexture2D* tex = nullptr;
         uint32_t indexCount = 0;
         IndexType indexType = IndexType::Uint32;
-        const float* mvpMatrix = nullptr;  // 4x4 MVP矩阵数据
+        const float* mvpMatrix = nullptr; // 4x4 MVP矩阵数据
     };
 
     class IRHIDevice
@@ -38,6 +39,7 @@ namespace ChikaEngine::Render
         virtual IRHIBuffer* CreateIndexBuffer(std::size_t size, const void* data) = 0;
         virtual IRHITexture2D* CreateTexture2D(int w, int h, const void* data) = 0;
         virtual IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) = 0;
+        virtual IRHIRenderTarget* CreateRenderTarget(int width, int height) = 0;
 
         virtual void BeginFrame() = 0;
         virtual void EndFrame() = 0;
