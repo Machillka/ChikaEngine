@@ -1,5 +1,6 @@
 #include "GLRenderDevice.h"
 
+#include "debug/log_macros.h"
 #include "render/Resource/MaterialPool.h"
 #include "render/Resource/MeshPool.h"
 #include "render/Resource/ShaderPool.h"
@@ -25,19 +26,17 @@ namespace ChikaEngine::Render
         _glRHIDevice->EndFrame();
     }
 
-    void GLRenderDevice::DrawObject(const RenderObject& obj, const Math::Mat4& view, const Math::Mat4& proj)
+    void GLRenderDevice::DrawObject(const RenderObject& obj, const Camera& camera)
     {
+        LOG_INFO("GLRenderDevice", "Drawing object mesh={} material={}", obj.mesh, obj.material);
         const RHIMesh& mesh = MeshPool::Get(obj.mesh);
-        const RHIMaterial& mat = MaterialPool::Get(obj.material);
-        Math::Mat4 mvp = proj * view * obj.modelMat;
-        DrawIndexedCommand cmd;
-        cmd.vao = mesh.vao;
-        cmd.pipe = mat.pipeline;
-        cmd.tex = mat.texture;
-        cmd.indexCount = mesh.indexCount;
-        cmd.indexType = mesh.indexType;
-        cmd.mvpMatrix = mvp.m.data();  // 传递 MVP 矩阵
-        _glRHIDevice->DrawIndexed(cmd);
+        RHIMaterial& mat = MaterialPool::Get(obj.material);
+        Math::Mat4 mvp = camera.ProjectionMat() * camera.ViewMat() * obj.modelMat;
+        mat.uniformMat4s["u_MVP"] = mvp;
+        mat.uniformMat4s["u_Model"] = obj.modelMat;
+        mat.uniformVec3s["u_CameraPos"] = {camera.Position().x, camera.Position().y, camera.Position().z};
+        MaterialPool::Apply(obj.material);
+        _glRHIDevice->DrawIndexed(mesh);
     }
 
     void GLRenderDevice::Shutdown()

@@ -1,8 +1,10 @@
 #include "GLRHIDevice.h"
 
-#include "GLHeader.h"
 #include "GLRenderTarget.h"
 #include "GLResource.h"
+#include "glheader.h"
+
+
 namespace ChikaEngine::Render
 {
     GLRHIDevice::~GLRHIDevice() {}
@@ -37,32 +39,30 @@ namespace ChikaEngine::Render
     {
         return new GLRenderTarget(width, height);
     }
-    void GLRHIDevice::DrawIndexed(const DrawIndexedCommand& cmd)
+
+    void GLRHIDevice::DrawIndexed(const RHIMesh& mesh)
     {
-        auto* vao = static_cast<const GLVertexArray*>(cmd.vao);
-        auto* pipe = static_cast<const GLPipeline*>(cmd.pipe);
-        auto* tex = static_cast<const GLTexture2D*>(cmd.tex);
-        glUseProgram(pipe->Program());
-
-        // 传递 MVP 矩阵到 shader
-        GLint mvpLoc = glGetUniformLocation(pipe->Program(), "uMVP");
-        if (mvpLoc != -1 && cmd.mvpMatrix != nullptr)
-        {
-            // GL_TRUE: 因为 Mat4 使用行优先存储，OpenGL 期望列优先
-            glUniformMatrix4fv(mvpLoc, 1, GL_TRUE, cmd.mvpMatrix);
-        }
-
-        // 设置纹理采样器
-        GLint texLoc = glGetUniformLocation(pipe->Program(), "uTex");
-        if (texLoc != -1)
-        {
-            glUniform1i(texLoc, 0); // 纹理单元 0
-        }
-
+        auto* vao = static_cast<const GLVertexArray*>(mesh.vao);
         glBindVertexArray(vao->Handle());
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, tex->Handle());
-        GLenum indexType = (cmd.indexType == IndexType::Uint16) ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
-        glDrawElements(GL_TRIANGLES, cmd.indexCount, indexType, nullptr);
+
+        GLenum indexType = (mesh.indexType == IndexType::Uint16) ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+        glDrawElements(GL_TRIANGLES, mesh.indexCount, indexType, nullptr);
+    }
+    void GLRHIDevice::SetupMeshVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo, IRHIBuffer* ibo)
+    {
+        auto* glVao = static_cast<GLVertexArray*>(vao);
+        auto* glVbo = static_cast<GLBuffer*>(vbo);
+        auto* glIbo = static_cast<GLBuffer*>(ibo);
+        glBindVertexArray(glVao->Handle());
+        glBindBuffer(GL_ARRAY_BUFFER, glVbo->Handle());
+        constexpr GLsizei stride = sizeof(float) * 8;
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 3));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 6));
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glIbo->Handle());
+        glBindVertexArray(0);
     }
 } // namespace ChikaEngine::Render

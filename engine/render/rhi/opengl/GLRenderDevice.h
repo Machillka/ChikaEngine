@@ -1,3 +1,4 @@
+#include "render/camera.h"
 #include "render/render_device.h"
 #include "render/rhi/RHIDevice.h"
 
@@ -12,7 +13,7 @@ namespace ChikaEngine::Render
         void Init() override;
         void BeginFrame() override;
         void EndFrame() override;
-        void DrawObject(const RenderObject& obj, const Math::Mat4& view, const Math::Mat4& proj) override;
+        void DrawObject(const RenderObject& obj, const Camera& camera) override;
         void Shutdown() override;
 
       private:

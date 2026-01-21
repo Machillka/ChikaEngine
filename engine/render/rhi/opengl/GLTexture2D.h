@@ -1,6 +1,6 @@
 // GLTexture2D.h
 #pragma once
-#include "GLHeader.h"
+#include "glheader.h"
 #include "render/rhi/RHIResources.h"
 
 namespace ChikaEngine::Render

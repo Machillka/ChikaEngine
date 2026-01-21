@@ -1,5 +1,5 @@
 #pragma once
-#include "GLHeader.h"
+#include "glheader.h"
 #include "render/rhi/RHIResources.h"
 
 #include <cstddef>

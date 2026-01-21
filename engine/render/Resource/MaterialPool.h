@@ -1,4 +1,5 @@
 #pragma once
+#include "math/mat4.h"
 #include "render/Resource/Material.h"
 #include "render/rhi/RHIDevice.h"
 #include "render/rhi/RHIResources.h"
@@ -9,18 +10,22 @@ namespace ChikaEngine::Render
 {
     struct RHIMaterial
     {
-        const IRHIPipeline* pipeline = nullptr;
-        const IRHITexture2D* texture = nullptr;
-        std::array<float, 4> albedoColor;
+        IRHIPipeline* pipeline = nullptr;
+        std::unordered_map<std::string, IRHITexture2D*> textures;
+        std::unordered_map<std::string, float> uniformFloats;
+        std::unordered_map<std::string, std::array<float, 3>> uniformVec3s;
+        std::unordered_map<std::string, std::array<float, 4>> uniformVec4s;
+        std::unordered_map<std::string, Math::Mat4> uniformMat4s;
     };
 
     class MaterialPool
     {
       public:
         static void Init(IRHIDevice* device);
-        static MaterialHandle Create(const Material& mat, const unsigned char* texDat, int width, int height);
-        static const RHIMaterial& Get(MaterialHandle handle);
+        static MaterialHandle Create(const Material& material);
+        static RHIMaterial& Get(MaterialHandle handle);
         static void Reset();
+        static void Apply(MaterialHandle handle);
 
       private:
         static IRHIDevice* _device;

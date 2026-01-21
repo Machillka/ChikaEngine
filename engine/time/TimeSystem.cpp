@@ -8,6 +8,7 @@
 
 namespace ChikaEngine::Time
 {
+    std::unique_ptr<ITimeBackend> TimeSystem::s_backend = nullptr;
     double TimeSystem::s_startTime = 0.0;
     double TimeSystem::s_lastFrameTime = 0.0;
     float TimeSystem::s_deltaTime = 0.0f;

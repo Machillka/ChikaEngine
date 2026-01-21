@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IEditorPanel.h"
 #include "IEditorUI.h"
 
 #include <vector>
@@ -22,10 +23,12 @@ namespace ChikaEngine::Editor
         void Shutdown() override;
         void SaveLayout(const std::string& path) override;
         void LoadLayout(const std::string& path) override;
+        void UpdateContext() override;
 
       private:
         void* _window;
         std::vector<IEditorPanel*> _panels;
+        UIContext _ctx;
     };
 
 } // namespace ChikaEngine::Editor

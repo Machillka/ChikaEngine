@@ -2,8 +2,6 @@
 
 #include "Resource/ShaderPool.h"
 #include "debug/assert.h"
-#include "math/ChikaMath.h"
-#include "math/mat4.h"
 #include "render/Resource/MaterialPool.h"
 #include "render/Resource/MeshLibrary.h"
 #include "render/Resource/MeshPool.h"
@@ -68,7 +66,7 @@ namespace ChikaEngine::Render
         Math::Mat4 proj = camera.ProjectionMat();
         for (const auto& obj : ros)
         {
-            _renderDevice->DrawObject(obj, view, proj);
+            _renderDevice->DrawObject(obj, camera);
         }
     }
     void Renderer::RenderObjectsToTarget(IRHIRenderTarget* target, const std::vector<RenderObject>& ros, const Camera& camera)
@@ -82,7 +80,7 @@ namespace ChikaEngine::Render
         Math::Mat4 proj = camera.ProjectionMat();
         for (const auto& obj : ros)
         {
-            _renderDevice->DrawObject(obj, view, proj);
+            _renderDevice->DrawObject(obj, camera);
         }
         _renderDevice->EndFrame();
 
@@ -130,8 +128,7 @@ void main() { FragColor = texture(uTex, vUV); }
         auto cubeMesh = ChikaEngine::Render::MeshLibrary::Cube();
         auto meshHandle = ChikaEngine::Render::MeshPool::Create(cubeMesh);
         ChikaEngine::Render::Material mat(shaderHandle);
-        unsigned char whitePixel[4] = {255, 255, 255, 255};
-        auto materialHandle = ChikaEngine::Render::MaterialPool::Create(mat, whitePixel, 1, 1);
+        auto materialHandle = ChikaEngine::Render::MaterialPool::Create(mat);
 
         ChikaEngine::Render::RenderObject cube;
         cube.mesh = meshHandle;

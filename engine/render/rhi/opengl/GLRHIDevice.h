@@ -1,4 +1,5 @@
 #pragma once
+#include "render/Resource/MeshPool.h"
 #include "render/rhi/RHIDevice.h"
 
 namespace ChikaEngine::Render
@@ -15,6 +16,7 @@ namespace ChikaEngine::Render
         IRHITexture2D* CreateTexture2D(int width, int height, const void* data) override;
         IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) override;
         IRHIRenderTarget* CreateRenderTarget(int width, int height) override;
-        void DrawIndexed(const DrawIndexedCommand& cmd) override;
+        void SetupMeshVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo, IRHIBuffer* ibo) override;
+        void DrawIndexed(const RHIMesh& mesh) override;
     };
 } // namespace ChikaEngine::Render

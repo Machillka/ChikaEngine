@@ -4,6 +4,7 @@ namespace ChikaEngine::Editor
 {
     struct UIContext
     {
+        float deltaTime;
     };
     class IEditorPanel
     {

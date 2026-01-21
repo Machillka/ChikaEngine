@@ -1,10 +1,10 @@
 #pragma once
 
 #include "RHIResources.h"
-#include "RHITypes.h"
+#include "render/Resource/Mesh.h"
 
 #include <cstddef>
-#include <cstdint>
+
 namespace ChikaEngine::Render
 {
 
@@ -13,17 +13,6 @@ namespace ChikaEngine::Render
     class IRHIBuffer;
     class IRHITexture2D;
     class IRHIPipeline;
-
-    // 将绘制命令进行抽象，方便拓展
-    struct DrawIndexedCommand
-    {
-        const IRHIVertexArray* vao = nullptr;
-        const IRHIPipeline* pipe = nullptr;
-        const IRHITexture2D* tex = nullptr;
-        uint32_t indexCount = 0;
-        IndexType indexType = IndexType::Uint32;
-        const float* mvpMatrix = nullptr; // 4x4 MVP矩阵数据
-    };
 
     class IRHIDevice
     {
@@ -41,9 +30,12 @@ namespace ChikaEngine::Render
         virtual IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) = 0;
         virtual IRHIRenderTarget* CreateRenderTarget(int width, int height) = 0;
 
+        // 绑定 vertex
+        virtual void SetupMeshVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo, IRHIBuffer* ibo) = 0;
+
         virtual void BeginFrame() = 0;
         virtual void EndFrame() = 0;
 
-        virtual void DrawIndexed(const DrawIndexedCommand& cmd) = 0;
+        virtual void DrawIndexed(const RHIMesh& mesh) = 0;
     };
 } // namespace ChikaEngine::Render

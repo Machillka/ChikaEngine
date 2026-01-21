@@ -1,6 +1,7 @@
 #include "editor/include/Editor.h"
 
 #include "editor/adapter/imgui/ImguiAdapter.h"
+#include "editor/adapter/imgui/ImguiInspectorPanel.h"
 #include "editor/adapter/imgui/ImguiLogPanel.h"
 #include "editor/adapter/imgui/ImguiViewPanel.h"
 #include "editor/include/IEditorPanel.h"
@@ -24,7 +25,9 @@ namespace ChikaEngine::Editor
         _viewTarget = Render::Renderer::CreateRenderTarget(600, 900);
         _viewCamera = std::make_unique<Render::Camera>();
         auto viewPanel = std::make_unique<ChikaEngine::Editor::ImguiViewPanel>(_viewTarget, _viewCamera.get());
-        this->RegisterPanel(std::move(logPanel)).RegisterPanel(std::move(viewPanel));
+        auto inspector = std::make_unique<ChikaEngine::Editor::ImguiInspectorPanel>();
+        // Register panels: view center, log bottom, inspector right
+        this->RegisterPanel(std::move(viewPanel)).RegisterPanel(std::move(logPanel)).RegisterPanel(std::move(inspector));
     }
 
     // bool Editor::Init(std::unique_ptr<IEditorUI> uiImpl, void* nativeWindow)
@@ -54,6 +57,7 @@ namespace ChikaEngine::Editor
     {
         if (!_isInitalized)
             return;
+        _editorUI->UpdateContext();
         _editorUI->NewFrame();
         _editorUI->RenderAllPanels();
         _editorUI->Render();

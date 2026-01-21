@@ -4,3 +4,15 @@
 [submodule "engine/third_party/imgui"]
 	path = engine/third_party/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "engine/third_party/fmt"]
+	path = engine/third_party/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "engine/third_party/json"]
+	path = engine/third_party/json
+	url = https://github.com/nlohmann/json.git
+[submodule "engine/third_party/objloader"]
+	path = engine/third_party/objloader
+	url = https://github.com/tinyobjloader/tinyobjloader
+[submodule "engine/third_party/stb"]
+	path = engine/third_party/stb
+	url = https://github.com/nothings/stb

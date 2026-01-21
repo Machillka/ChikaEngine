@@ -9,7 +9,7 @@ namespace ChikaEngine::Render
 {
     struct RHIShader
     {
-        const IRHIPipeline* pipeline = nullptr;
+        IRHIPipeline* pipeline = nullptr;
     };
 
     class ShaderPool

@@ -1,9 +1,7 @@
 #pragma once
-#include "IInputBackend.h"
 #include "InputCodes.h"
 
 #include <memory>
-
 
 namespace ChikaEngine::Input
 {
@@ -29,6 +27,6 @@ namespace ChikaEngine::Input
         static std::pair<double, double> GetMouseDelta();
 
       private:
-        inline static std::unique_ptr<IInputBackend> s_backend{};
+        static std::unique_ptr<IInputBackend> s_backend;
     };
 } // namespace ChikaEngine::Input

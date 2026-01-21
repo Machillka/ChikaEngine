@@ -60,6 +60,7 @@ namespace ChikaEngine::Editor
 
         // 交互（旋转/平移/缩放）
         HandleMouseInteraction(imagePos, imageSize);
+        HandleKeyboardInteraction(ctx);
         ImGui::End();
     }
 
@@ -121,7 +122,32 @@ namespace ChikaEngine::Editor
             _camera->transform->Translate(moveX, moveY, 0);
         }
     }
+    void ImguiViewPanel::HandleKeyboardInteraction(UIContext& ctx)
+    {
+        const float moveSpeed = 5.0f;
 
+        ChikaEngine::Math::Vector3 move{};
+
+        if (!_enableCameraControl || !_camera)
+            return; // 只有 Scene View 聚焦时才响应键盘
+        if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+            return;
+        // float dt = ctx.DeltaTime();
+        ImGuiIO& io = ImGui::GetIO();
+        float dx = 0;
+        float dy = 0;
+        if (ImGui::IsKeyDown(ImGuiKey_W))
+            move += _camera->Front();
+        if (ImGui::IsKeyDown(ImGuiKey_S))
+            move -= _camera->Front();
+        if (ImGui::IsKeyDown(ImGuiKey_A))
+            move += _camera->Front().Cross(ChikaEngine::Math::Vector3::up).Normalized();
+        if (ImGui::IsKeyDown(ImGuiKey_D))
+            move -= _camera->Front().Cross(ChikaEngine::Math::Vector3::up).Normalized();
+
+        if (move.Length() > 0.0f)
+            _camera->transform->Translate(move.Normalized() * moveSpeed * ctx.deltaTime);
+    }
     void ImguiViewPanel::DrawOverlayControls()
     {
         if (ImGui::Button("Reset Camera"))

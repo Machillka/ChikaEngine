@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math/mat4.h"
+#include "camera.h"
 #include "render/renderobject.h"
 namespace ChikaEngine::Render
 {
@@ -12,7 +12,7 @@ namespace ChikaEngine::Render
         virtual void Init() = 0;
         virtual void BeginFrame() = 0;
         virtual void EndFrame() = 0;
-        virtual void DrawObject(const RenderObject& obj, const Math::Mat4& view, const Math::Mat4& proj) = 0;
+        virtual void DrawObject(const RenderObject& obj, const Camera& camera) = 0;
         virtual void Shutdown() = 0;
     };
 

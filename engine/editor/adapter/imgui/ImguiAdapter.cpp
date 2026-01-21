@@ -1,9 +1,11 @@
 #include "ImguiAdapter.h"
 
+#include "TimeSystem.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 #include "debug/log_macros.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 
 #include <GLFW/glfw3.h>
 #include <string>
@@ -27,7 +29,7 @@ namespace ChikaEngine::Editor
         ImGuiIO& io = ImGui::GetIO();
         (void)io;
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-        io.ConfigFlags |= ImGuiDockNodeFlags_None;
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         ImGui::StyleColorsDark();
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 330");
@@ -57,7 +59,6 @@ namespace ChikaEngine::Editor
 
     void ImGuiAdapter::RenderAllPanels()
     {
-        UIContext ctx;
         ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos);
         ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -67,16 +68,37 @@ namespace ChikaEngine::Editor
         ImGui::Begin("DockSpaceHost", nullptr, host_flags);
         ImGui::PopStyleVar();
         ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
-        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+
+        // Setup default dock layout on first frame
+        static bool initialized = false;
+        if (!initialized)
+        {
+            initialized = true;
+            ImGui::DockBuilderRemoveNode(dockspace_id); // clear any existing
+            ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+            ImGuiID dock_main_id = dockspace_id;
+            ImGuiID dock_right_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
+            ImGuiID dock_bottom_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.25f, nullptr, &dock_main_id);
+
+            // Assign panels by their names
+            ImGui::DockBuilderDockWindow("Scene View", dock_main_id);
+            ImGui::DockBuilderDockWindow("Log Panel", dock_bottom_id);
+            ImGui::DockBuilderDockWindow("Inspector", dock_right_id);
+
+            ImGui::DockBuilderFinish(dockspace_id);
+        }
+
         for (auto p : _panels)
             if (p)
-                p->OnRender(ctx);
+                p->OnRender(_ctx);
         ImGui::End();
     }
 
     void ImGuiAdapter::Render()
     {
-        LOG_INFO("Editor", "ImGui Rendering");
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
@@ -92,6 +114,11 @@ namespace ChikaEngine::Editor
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent(backup);
         }
+    }
+
+    void ImGuiAdapter::UpdateContext()
+    {
+        _ctx.deltaTime = Time::TimeSystem::GetDeltaTime();
     }
 
     void ImGuiAdapter::Shutdown()
