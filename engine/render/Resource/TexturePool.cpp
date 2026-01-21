@@ -1,8 +1,6 @@
 #include "TexturePool.h"
 
-#include "debug/log_macros.h"
-
-
+#include "debug/ChikaDebug.h"
 namespace ChikaEngine::Render
 {
 
@@ -18,14 +16,21 @@ namespace ChikaEngine::Render
         _textures.clear();
     }
     // TODO: 加入 sRGB 的判断
-    TextureHandle TexturePool::Create(const unsigned char* pixels, int width, int height, bool sRGB)
+    TextureHandle TexturePool::Create(int width, int height, int channels, const unsigned char* pixels, bool sRGB)
     {
         // 交给 RHI 创建具体的 GPU 纹理
-        IRHITexture2D* tex = _device->CreateTexture2D(width, height, pixels);
+        if (!_device)
+        {
+            LOG_ERROR("TexturePool", "Create called but _device is nullptr! Did you forget to call TexturePool::Init?");
+            throw std::runtime_error("TexturePool::_device is null");
+        }
+        IRHITexture2D* tex = _device->CreateTexture2D(width, height, channels, pixels, sRGB);
+        LOG_INFO("TexturePool", "Successfully created RHI texture");
         RHITexture2D rhiTex{};
         rhiTex.texture = tex;
         rhiTex.width = width;
         rhiTex.height = height;
+        rhiTex.channels = channels;
         rhiTex.sRGB = sRGB;
         _textures.push_back(rhiTex);
         TextureHandle h = static_cast<TextureHandle>(_textures.size() - 1);

@@ -26,13 +26,13 @@ int main()
     LOG_INFO("Main", "Entering main loop");
     while (!window->ShouldClose())
     {
-        // LOG_INFO("MainLoop", "Tick start");
+        LOG_INFO("MainLoop", "Tick start");
         window->PollEvents();
         engine.Tick();
         ChikaEngine::Render::Renderer::RenderObjectsToTarget(editor.ViewTargetHandle(), {engine.cube}, *editor.ViewCameraHandle());
         editor.Tick();
         window->SwapBuffers();
-        // LOG_INFO("MainLoop", "Tick end");
+        LOG_INFO("MainLoop", "Tick end");
     }
     return 0;
 }

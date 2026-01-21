@@ -2,6 +2,7 @@
 
 #include "GLTexture2D.h"
 #include "debug/assert.h"
+#include "debug/log_macros.h"
 #include "glheader.h"
 
 namespace ChikaEngine::Render
@@ -12,13 +13,14 @@ namespace ChikaEngine::Render
         glGenFramebuffers(1, &_fbo);
         glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
 
-        _colorTex = new GLTexture2D(width, height, nullptr);
+        _colorTex = new GLTexture2D(width, height, 4, nullptr, false);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _colorTex->Handle(), 0);
         glGenRenderbuffers(1, &_depthRb);
         glBindRenderbuffer(GL_RENDERBUFFER, _depthRb);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, _depthRb);
-
+        GLenum bufs[1] = {GL_COLOR_ATTACHMENT0};
+        glDrawBuffers(1, bufs);
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
         CHIKA_ASSERT(status == GL_FRAMEBUFFER_COMPLETE, "GLRenderTarget framebuffer is incomplete");
         // 解绑，避免污染外部状态
@@ -44,6 +46,9 @@ namespace ChikaEngine::Render
     void GLRenderTarget::Bind()
     {
         glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
+        GLint cur = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur);
+        LOG_INFO("RT", "Bind() _fbo={} current={}", _fbo, cur);
         glViewport(0, 0, _width, _height);
     }
 

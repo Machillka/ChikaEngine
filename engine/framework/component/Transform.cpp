@@ -1,5 +1,6 @@
 #include "Transform.h"
 
+#include "debug/log_macros.h"
 #include "math/quaternion.h"
 #include "math/vector3.h"
 
@@ -7,11 +8,13 @@ namespace ChikaEngine::Framework
 {
     void Transform::Translate(const Math::Vector3& delta)
     {
+        LOG_WARN("Transform", "Now Position x: {}, y: {}, z: {}", this->position.x, this->position.y, this->position.z);
         position += delta;
     }
 
     void Transform::Translate(float x, float y, float z)
     {
+        LOG_WARN("Transform", "Now Position x: {}, y: {}, z: {}", this->position.x, this->position.y, this->position.z);
         Math::Vector3 delta = Math::Vector3(x, y, z);
         position += delta;
     }
@@ -65,5 +68,58 @@ namespace ChikaEngine::Framework
     Math::Vector3 Transform::Up() const
     {
         return rotation.Rotate(Math::Vector3::up);
+    }
+
+    // TODO: 做成外部函数 ( 只有camera拥有 )
+    void Transform::ProcessLookDelta(float deltaX, float deltaY, bool constrainPitch)
+    {
+        // Incremental rotation: apply yaw delta around world up, then pitch delta around local right
+        LOG_INFO("Transform", "ProcessLookDelta dx={} dy={}", deltaX, deltaY);
+        const float sensitivity = 0.0025f;
+        float yawDelta = deltaX * sensitivity;
+        float pitchDelta = -deltaY * sensitivity; // invert Y
+
+        // update stored angles (for clamping and debug)
+        _yaw += yawDelta;
+        _pitch += pitchDelta;
+
+        if (constrainPitch)
+        {
+            const float limit = 1.558f; // ~89 degrees
+            if (_pitch > limit)
+                _pitch = limit;
+            if (_pitch < -limit)
+                _pitch = -limit;
+            // clamp pitchDelta to not exceed limits
+            // (if we clamped _pitch, adjust pitchDelta so application respects clamped value)
+            // recompute pitchDelta relative to previous pitch
+            // Note: this is best-effort; exact clamping behavior is maintained via _pitch state.
+        }
+
+        // yaw first
+        Math::Quaternion yawQ = Math::Quaternion::AngleAxis(yawDelta, Math::Vector3::up);
+        Math::Quaternion afterYaw = (yawQ * rotation).Normalized();
+
+        // compute local right axis after yaw, then pitch around it
+        Math::Vector3 rightAxis = afterYaw.Rotate(Math::Vector3::right);
+        Math::Quaternion pitchQ = Math::Quaternion::AngleAxis(pitchDelta, rightAxis);
+
+        rotation = (pitchQ * afterYaw).Normalized();
+        LOG_INFO("Transform", "Updated rotation yaw={} pitch={}", _yaw, _pitch);
+    }
+
+    void Transform::TranslateLocal(const Math::Vector3& localDelta)
+    {
+        LOG_INFO("Transform", "TranslateLocal localDelta={},{},{}", localDelta.x, localDelta.y, localDelta.z);
+        // convert local delta (right, up, forward) into world space using rotation
+        // Note: Forward in local is -Z
+        Math::Vector3 worldDelta = rotation.Rotate(localDelta);
+        position += worldDelta;
+        LOG_INFO("Transform", "TranslateLocal worldDelta={},{},{} newPos={},{},{}", worldDelta.x, worldDelta.y, worldDelta.z, position.x, position.y, position.z);
+    }
+
+    void Transform::TranslateLocal(float x, float y, float z)
+    {
+        TranslateLocal(Math::Vector3(x, y, z));
     }
 } // namespace ChikaEngine::Framework

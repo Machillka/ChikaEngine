@@ -1,11 +1,7 @@
 #pragma once
-#include "GameObject.h"
 #include "render/camera.h"
-#include "render/renderer.h"
 #include "render/renderobject.h"
 #include "resource_importer/include/ResourceSystem.h"
-
-#include <cstdint>
 
 namespace ChikaEngine::Platform
 {

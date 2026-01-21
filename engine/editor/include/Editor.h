@@ -4,9 +4,7 @@
 #include "IEditorUI.h"
 #include "render/camera.h"
 #include "render/rhi/RHIResources.h"
-
-#include <cstdint>
-
+#include "render/renderobject.h"
 
 namespace ChikaEngine::Platform
 {
@@ -39,6 +37,7 @@ namespace ChikaEngine::Editor
         Platform::IWindow* _window;
         Render::IRHIRenderTarget* _viewTarget;
         std::unique_ptr<Render::Camera> _viewCamera;
+    Render::RenderObject _testRO;
         Editor& RegisterPanel(std::unique_ptr<IEditorPanel> panel);
         std::unique_ptr<IEditorUI> _editorUI;
         std::vector<std::unique_ptr<IEditorPanel>> _editorPanels;

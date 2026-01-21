@@ -8,6 +8,8 @@
 #include "render/renderer.h"
 #include "window/window_system.h"
 
+#include <cstdlib>
+
 namespace ChikaEngine::Engine
 {
     GameEngine::GameEngine() = default;
@@ -34,26 +36,17 @@ namespace ChikaEngine::Engine
         cfg.assetRoot = "Assets";
         _resourceSystem.Init(cfg);
 
-        // try
-        // {
         // Load mesh and material from asset paths
-        auto meshHandle = _resourceSystem.LoadMesh("Meshes/dragon.obj");
-        auto matHandle = _resourceSystem.LoadMaterial("Materials/test.mat");
+        auto meshHandle = _resourceSystem.LoadMesh("Meshes/suzanne.obj");
+        auto matHandle = _resourceSystem.LoadMaterial("Materials/suzanne.mat");
 
         LOG_INFO("Engine", "Loaded resources meshHandle={} matHandle={}", meshHandle, matHandle);
-        LOG_INFO("Engine", "HasMesh={} HasMaterial={}", _resourceSystem.HasMesh("Meshes/test.obj"), _resourceSystem.HasMaterial("Materials/test.mat"));
+        LOG_INFO("Engine", "HasMesh={} HasMaterial={}", _resourceSystem.HasMesh("Meshes/suzanne.obj"), _resourceSystem.HasMaterial("Materials/suzanne.mat"));
 
         Render::RenderObject ro;
         ro.mesh = meshHandle;
         ro.material = matHandle;
         cube = ro;
-        // }
-        // catch (const std::exception& ex)
-        // {
-        //     std::string msg = std::string("Failed to load resources: ") + ex.what() + ". Using prefab cube.";
-        //     LOG_ERROR("Engine", msg.c_str());
-        //     cube = Render::Renderer::CreateRO(Render::RenderObjectPrefabs::Cube);
-        // }
     }
 
     std::vector<Render::RenderObject>* GameEngine::RenderObjects()

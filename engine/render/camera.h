@@ -1,7 +1,6 @@
 #pragma once
 
 #include "framework/GameObject.h"
-#include "math/ChikaMath.h"
 #include "math/mat4.h"
 #include "math/vector3.h"
 
@@ -15,7 +14,7 @@ namespace ChikaEngine::Render
 
         void SetPerspective(float fovRadians, float aspect, float zNear, float zFar);
         void SetLookAt(const Math::Vector3& pos);
-        void SetUp(const Math::Vector3& up);
+        // void SetUp(const Math::Vector3& up);
         const Math::Vector3& Position() const;
         Math::Mat4 ViewMat() const;
         Math::Mat4 ProjectionMat() const;
@@ -27,13 +26,8 @@ namespace ChikaEngine::Render
 
       private:
         Math::Vector3 _target;
-        Math::Vector3 _up;
+        // Math::Vector3 _up;
         Math::Mat4 _projection = Math::Mat4::Identity();
-
-        // 自由相机朝向参数
-        float _yaw = -Math::PI / 2.0f; // 初始朝向为 -Z
-        float _pitch = 0.0f;
-        Math::Vector3 _front = Math::Vector3::back; // 默认朝向
 
         // TODO: 进行封装 暴露修改接口
         float fovDegrees = 60.0f;    // 视野角度

@@ -14,6 +14,7 @@ namespace ChikaEngine::Resource::Importer
     {
         int width = 0;
         int height = 0;
+        int channels = 1;
         bool sRGB = true;
         std::vector<unsigned char> pixels;
     };
@@ -23,7 +24,8 @@ namespace ChikaEngine::Resource::Importer
         static TextureData Load(const std::string& path, bool sRGB)
         {
             int w, h, ch;
-            unsigned char* data = stbi_load(path.c_str(), &w, &h, &ch, 4);
+            unsigned char* data = stbi_load(path.c_str(), &w, &h, &ch, 0);
+
             if (!data)
             {
                 LOG_ERROR("Texture Importer", "Texture load failed: {}", path);
@@ -35,8 +37,9 @@ namespace ChikaEngine::Resource::Importer
             TextureData texture;
             texture.width = w;
             texture.height = h;
+            texture.channels = ch;
             texture.sRGB = sRGB;
-            texture.pixels.assign(data, data + w * h * 4);
+            texture.pixels.assign(data, data + w * h * ch);
             stbi_image_free(data);
             return texture;
         }

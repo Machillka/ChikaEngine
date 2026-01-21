@@ -21,7 +21,7 @@ namespace ChikaEngine::Resource::Importer
 
             if (!ifs)
             {
-                LOG_ERROR("Material Importer", "Error");
+                LOG_ERROR("Material Importer", "Error{}", path);
                 throw std::runtime_error("Material file not found: " + path);
             }
 
@@ -48,11 +48,11 @@ namespace ChikaEngine::Resource::Importer
                     }
                     else if (val.is_array() && val.size() == 3)
                     {
-                        material.uniformVec3s[name] = {val[0], val[1], val[2]};
+                        material.uniformVec3s[name] = {val[0].get<float>(), val[1].get<float>(), val[2].get<float>()};
                     }
                     else if (val.is_array() && val.size() == 4)
                     {
-                        material.uniformVec4s[name] = {val[0], val[1], val[2], val[3]};
+                        material.uniformVec4s[name] = {val[0].get<float>(), val[1].get<float>(), val[2].get<float>(), val[3].get<float>()};
                     }
                 }
             }

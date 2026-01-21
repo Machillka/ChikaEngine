@@ -84,7 +84,7 @@ namespace ChikaEngine::Render
     {
         GLint loc = GetLocation(name);
         if (loc >= 0)
-            glUniformMatrix4fv(loc, 1, GL_FALSE, m.m.data());
+            glUniformMatrix4fv(loc, 1, GL_TRUE, m.m.data());
     }
 
     void GLPipeline::SetUniformTexture(const char* name, IRHITexture2D* tex, int slot)
