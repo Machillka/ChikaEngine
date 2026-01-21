@@ -4,7 +4,14 @@
 #include "IEditorUI.h"
 #include "render/camera.h"
 #include "render/rhi/RHIResources.h"
-#include "window/window_system.h"
+
+#include <cstdint>
+
+
+namespace ChikaEngine::Platform
+{
+    class IWindow;
+}
 
 #include <memory>
 #include <vector>

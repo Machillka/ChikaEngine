@@ -1,5 +1,7 @@
 #include "ShaderPool.h"
 
+#include "debug/log_macros.h"
+
 #include <stdexcept>
 
 namespace ChikaEngine::Render
@@ -14,16 +16,24 @@ namespace ChikaEngine::Render
 
     ShaderHandle ShaderPool::Create(const Shader& shader)
     {
+        if (!_device)
+        {
+            LOG_ERROR("ShaderPool", "ShaderPool::Init must be called before Create");
+            throw std::runtime_error("ShaderPool not initialized");
+        }
         auto* pipeline = _device->CreatePipeline(shader.vertexSource.c_str(), shader.fragmentSource.c_str());
         if (pipeline == nullptr)
         {
-            std::runtime_error("Error in ShaderPool");
+            LOG_ERROR("ShaderPool", "Failed to create pipeline");
+            throw std::runtime_error("Error in ShaderPool");
         }
-        RHIShader rhiShader;
+        RHIShader rhiShader{};
         rhiShader.pipeline = pipeline;
 
         _shaders.push_back(rhiShader);
-        return static_cast<ShaderHandle>(_shaders.size() - 1);
+        ShaderHandle h = static_cast<ShaderHandle>(_shaders.size() - 1);
+        LOG_INFO("ShaderPool", "Created shader handle={} total={}", h, _shaders.size());
+        return h;
     }
     void ShaderPool::Reset()
     {

@@ -1,5 +1,6 @@
 #include "log_system.h"
 
+#include "fmt/base.h"
 #include "log_sink.h"
 
 #include <chrono>
@@ -67,15 +68,45 @@ namespace ChikaEngine::Debug
         _sinks.push_back(std::move(sink));
     }
 
-    void LogSystem::Log(LogLevel level, const std::string_view module, const std::string_view message)
+    std::string LogSystem::Prefix(LogLevel level, std::string_view module)
     {
         std::ostringstream oss;
         oss << "[" << GetTimestamp() << "]"
             << "[" << ToString(level) << "]"
             << "[" << GetThreadID() << "]"
-            << "[" << module << "]" << message;
+            << "[" << module << "]";
+        return oss.str();
+    }
 
-        std::string finalStr = oss.str();
+    template <typename... Args> void LogSystem::Log(LogLevel level, const std::string_view module, const std::string_view message, Args&&... args)
+    {
+        std::string msg = fmt::format(fmt::runtime(message), std::forward<Args>(args)...);
+        std::string finalStr = Prefix(level, module) + msg;
+
+        // 广播
+        std::lock_guard lock(_mutex);
+        for (auto& sink : _sinks)
+        {
+            sink->Write(level, finalStr);
+        }
+    }
+
+    template <typename... Args> void LogSystem::Log(LogLevel level, const std::string_view module, fmt::format_string<Args...> message, Args&&... args)
+    {
+        std::string msg = fmt::format(fmt::runtime(message), std::forward<Args>(args)...);
+        std::string finalStr = Prefix(level, module) + msg;
+
+        // 广播
+        std::lock_guard lock(_mutex);
+        for (auto& sink : _sinks)
+        {
+            sink->Write(level, finalStr);
+        }
+    }
+
+    void LogSystem::Log(LogLevel level, std::string_view module, std::string_view message)
+    {
+        std::string finalStr = Prefix(level, module).append(message);
 
         // 广播
         std::lock_guard lock(_mutex);

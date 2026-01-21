@@ -8,9 +8,8 @@ add_subdirectory(render)
 add_subdirectory(third_party)
 add_subdirectory(input)
 add_subdirectory(time)
+add_subdirectory(resource_importer)
 
-# Create a top-level engine library that aggregates core systems and provides
-# the GameEngine class implementation (engine.cpp / engine.h).
 set(ENGINE_SRC
 	${CMAKE_CURRENT_LIST_DIR}/engine.cpp
 )
@@ -34,6 +33,7 @@ target_link_libraries(ChikaEngine
 		ChikaInput
 		ChikaTime
 		ChikaThirdParty
+		ChikaResource
 )
 
 set_target_properties(ChikaEngine PROPERTIES

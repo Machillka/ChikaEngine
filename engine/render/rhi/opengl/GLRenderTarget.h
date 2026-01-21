@@ -2,7 +2,6 @@
 
 #include "GLTexture2D.h"
 #include "render/rhi/RHIResources.h"
-#include "third_party/glfw/src/internal.h"
 namespace ChikaEngine::Render
 {
 

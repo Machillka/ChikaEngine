@@ -26,8 +26,8 @@ namespace ChikaEngine::Time
         static float GetFrameTime();
 
       private:
-        // NOTE: inline ?? -> 初始化问题
-        inline static std::unique_ptr<ITimeBackend> s_backend{};
+        // backend pointer declared here, defined in cpp to avoid inline header-level statics
+        static std::unique_ptr<ITimeBackend> s_backend;
 
         static double s_startTime;
         static double s_lastFrameTime;

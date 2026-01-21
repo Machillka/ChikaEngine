@@ -1,6 +1,7 @@
 #pragma once
 
 #include "framework/GameObject.h"
+#include "math/ChikaMath.h"
 #include "math/mat4.h"
 #include "math/vector3.h"
 
@@ -30,7 +31,7 @@ namespace ChikaEngine::Render
         Math::Mat4 _projection = Math::Mat4::Identity();
 
         // 自由相机朝向参数
-        float _yaw = -3.14159265f / 2.0f; // 初始朝向为 -Z
+        float _yaw = -Math::PI / 2.0f; // 初始朝向为 -Z
         float _pitch = 0.0f;
         Math::Vector3 _front = Math::Vector3::back; // 默认朝向
 

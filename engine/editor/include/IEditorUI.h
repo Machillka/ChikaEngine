@@ -19,5 +19,6 @@ namespace ChikaEngine::Editor
         virtual void Shutdown() = 0;
         virtual void SaveLayout(const std::string& path) = 0;
         virtual void LoadLayout(const std::string& path) = 0;
+        virtual void UpdateContext() = 0;
     };
 } // namespace ChikaEngine::Editor

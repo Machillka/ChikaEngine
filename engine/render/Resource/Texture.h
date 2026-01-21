@@ -9,5 +9,6 @@ namespace ChikaEngine::Render
         int height = 0;
         int channels = 4;
     };
+
     using TextureHandle = std::uint32_t;
 } // namespace ChikaEngine::Render

@@ -4,6 +4,8 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
+#include <unordered_map>
 
 namespace ChikaEngine::Render
 {
@@ -12,18 +14,11 @@ namespace ChikaEngine::Render
     // TODO: 实现 PBR 材质
     struct Material
     {
-        // TODO: 创建默认材质和shader等 并且提供多种 preset
-        Material() {}
-        Material(ShaderHandle shaderHandle)
-        {
-            shaderHandle = shaderHandle;
-            albedoTexture = 0;
-            albedoColor = {1, 1, 1, 1};
-        }
-
-        ShaderHandle shaderHandle = 0;
-        TextureHandle albedoTexture = 0; // 漫反射贴图
-        std::array<float, 4> albedoColor;
+        ShaderHandle shaderHandle;
+        std::unordered_map<std::string, TextureHandle> textures;
+        std::unordered_map<std::string, float> uniformFloats;
+        std::unordered_map<std::string, std::array<float, 3>> uniformVec3s;
+        std::unordered_map<std::string, std::array<float, 4>> uniformVec4s;
     };
 
     using MaterialHandle = std::uint32_t;

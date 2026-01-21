@@ -1,10 +1,8 @@
 #include "GLRenderTarget.h"
 
-#include "GLHeader.h"
 #include "GLTexture2D.h"
 #include "debug/assert.h"
-
-#include <fileapi.h>
+#include "glheader.h"
 
 namespace ChikaEngine::Render
 {

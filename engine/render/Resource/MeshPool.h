@@ -3,19 +3,12 @@
 #include "Mesh.h"
 #include "render/rhi/RHIDevice.h"
 #include "render/rhi/RHIResources.h"
+#include "render/rhi/RHITypes.h"
 
 #include <vector>
 
 namespace ChikaEngine::Render
 {
-    // 对 RHI 的封装
-    struct RHIMesh
-    {
-        const IRHIVertexArray* vao = nullptr;
-        uint32_t indexCount = 0;
-        IndexType indexType = IndexType::Uint32;
-    };
-
     class MeshPool
     {
       public:

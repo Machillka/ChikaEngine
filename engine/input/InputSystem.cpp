@@ -11,6 +11,7 @@
 
 namespace ChikaEngine::Input
 {
+    std::unique_ptr<IInputBackend> InputSystem::s_backend = nullptr;
     void InputSystem::Init(InputDesc desc, void* windowHandle)
     {
         InputSystem::Init(InputBackendFactory(desc, windowHandle));

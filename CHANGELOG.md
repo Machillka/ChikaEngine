@@ -2,6 +2,23 @@
 
 简单记录开发过程，非标 changelog
 
+## 2026-01-20
+
+editor的简单实现——
+
+- View Panel：往渲染器上添加了一个方法，可以支持往一个fbo上写数据，最后传给imgui来输出就好
+- Log Panel：把 Editor Logger sink 注册到单例中，然后自己持有指针来接收数据
+
+TODO:
+
+- [ ] 整理代码框架——engine逻辑不清晰
+- [ ] 整理文件目录以及重写 cmake
+
+准备着手写资源读写层，对每一种资源写一个importer，统一丢给 resource system 处理，目前需要的资源
+
+- frag
+- vert
+
 ## 2026-01-10
 
 实现 `Input System` 和 `Time System` 工厂函数，但是需发现各个模块之间需要频繁传递 window，一种很不好的感觉
