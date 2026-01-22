@@ -37,11 +37,11 @@ namespace ChikaEngine::Engine
         _resourceSystem.Init(cfg);
 
         // Load mesh and material from asset paths
-        auto meshHandle = _resourceSystem.LoadMesh("Meshes/suzanne.obj");
+        auto meshHandle = _resourceSystem.LoadMesh("Meshes/batman.obj");
         auto matHandle = _resourceSystem.LoadMaterial("Materials/suzanne.mat");
 
         LOG_INFO("Engine", "Loaded resources meshHandle={} matHandle={}", meshHandle, matHandle);
-        LOG_INFO("Engine", "HasMesh={} HasMaterial={}", _resourceSystem.HasMesh("Meshes/suzanne.obj"), _resourceSystem.HasMaterial("Materials/suzanne.mat"));
+        LOG_INFO("Engine", "HasMesh={} HasMaterial={}", _resourceSystem.HasMesh("Meshes/batman.obj"), _resourceSystem.HasMaterial("Materials/suzanne.mat"));
 
         Render::RenderObject ro;
         ro.mesh = meshHandle;

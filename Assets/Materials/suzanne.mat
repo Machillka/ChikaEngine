@@ -1,15 +1,7 @@
 {
   "shader": {
-    "vertex": "Shaders/suzanne_pbr.vert",
+    "vertex":   "Shaders/suzanne_pbr.vert",
     "fragment": "Shaders/suzanne_pbr.frag"
   },
-  "textures": {
-    "u_AlbedoTex":   "Textures/WoodFloor064_2K-PNG_Color.png",
-    "u_NormalTex":   "Textures/WoodFloor064_2K-PNG_NormalGL.png",
-    "u_SpecularTex": "Textures/WoodFloor064_2K-PNG_Roughness.png"
-  },
-  "uniforms": {
-    "u_AmbientColor": [0.15, 0.15, 0.15],
-    "u_LightDir":     [0.5, 1.0, 0.3]
-  }
+"textures": { "u_AlbedoTex": "Textures/WoodFloor064_2K-PNG_Color.png", "u_NormalTex": "Textures/WoodFloor064_2K-PNG_NormalGL.png", "u_RoughnessTex": "Textures/WoodFloor064_2K-PNG_Roughness.png" }, "uniforms": { "u_AmbientColor": [0.25, 0.25, 0.25], "u_LightDir": [0.0, 0.6, 1.0] }
 }

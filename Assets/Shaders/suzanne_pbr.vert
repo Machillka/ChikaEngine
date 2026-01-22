@@ -19,9 +19,10 @@ void main()
     vWorldPos = worldPos.xyz;
     vUV = aUV;
 
-    vec3 T = normalize(mat3(u_Model) * aTangent);
-    vec3 B = normalize(mat3(u_Model) * aBitangent);
-    vec3 N = normalize(mat3(u_Model) * aNormal);
+    mat3 M = mat3(u_Model);
+    vec3 T = normalize(M * aTangent);
+    vec3 B = normalize(M * aBitangent);
+    vec3 N = normalize(M * aNormal);
     vTBN = mat3(T, B, N);
 
     gl_Position = u_MVP * vec4(aPos, 1.0);
