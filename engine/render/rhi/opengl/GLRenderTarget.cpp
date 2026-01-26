@@ -3,7 +3,7 @@
 #include "GLTexture2D.h"
 #include "debug/assert.h"
 #include "debug/log_macros.h"
-#include "glheader.h"
+#include "GLHeader.h"
 
 namespace ChikaEngine::Render
 {
