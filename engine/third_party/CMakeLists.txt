@@ -25,6 +25,14 @@ add_subdirectory(${THIRD_PARTY_PATH}/objloader)
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE ${THIRD_PARTY_PATH}/stb)
 
+# Jolt
+set(TARGET_UNIT_TESTS OFF CACHE BOOL "Build unit tests" FORCE)
+set(TARGET_SAMPLES OFF CACHE BOOL "Build samples" FORCE)
+set(TARGET_HELLO_WORLD OFF CACHE BOOL "Build hello world" FORCE)
+set(TARGET_VIEWER OFF CACHE BOOL "Build Jolt viewer" FORCE)
+set(GENERATE_DEBUG_SYMBOLS ON CACHE BOOL "Generate debug symbols" FORCE)
+add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
+
 
 # Output
 add_library(${TARGET_NAME} INTERFACE)
@@ -36,6 +44,7 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     nlohmann_json
     tinyobjloader
     stb
+    Jolt
 )
 
 target_include_directories(${TARGET_NAME} INTERFACE ${THIRD_PARTY_PATH})

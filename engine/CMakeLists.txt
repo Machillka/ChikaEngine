@@ -9,6 +9,7 @@ add_subdirectory(third_party)
 add_subdirectory(input)
 add_subdirectory(time)
 add_subdirectory(resource_importer)
+add_subdirectory(physics)
 
 set(ENGINE_SRC
 	${CMAKE_CURRENT_LIST_DIR}/engine.cpp

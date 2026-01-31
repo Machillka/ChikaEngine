@@ -1,11 +1,13 @@
 #pragma once
 #include "component/Transform.h"
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 namespace ChikaEngine::Framework
 {
+    using GameObjectID = std::uint32_t;
     class GameObject
     {
       public:
