@@ -24,11 +24,23 @@ namespace ChikaEngine::Framework
         void Scale(float factor);
         void LookAt(const Math::Vector3& target, const Math::Vector3& up = Math::Vector3::up);
 
+        // Camera-like helpers: process mouse look deltas (in pixels) and local-space translation
+        void ProcessLookDelta(float deltaX, float deltaY, bool constrainPitch = true);
+
+        // Translate in local space (right, up, forward) where forward is -Z in local coordinates
+        void TranslateLocal(const Math::Vector3& localDelta);
+        void TranslateLocal(float x, float y, float z);
+
         // 在世界坐标的时候 GO对应方向
         Math::Vector3 Forward() const;
         Math::Vector3 Up() const;
         Math::Vector3 Right() const;
         // 得到世界坐标的矩阵
         Math::Mat4 GetWorldMat() const;
+
+      private:
+        // store yaw/pitch for look processing (radians)
+        float _yaw = -Math::PI / 2.0f; // match previous camera default
+        float _pitch = 0.0f;
     };
 } // namespace ChikaEngine::Framework

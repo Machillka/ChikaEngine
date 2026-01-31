@@ -1,9 +1,9 @@
 #include "GLRenderDevice.h"
 
-#include "debug/log_macros.h"
 #include "render/Resource/MaterialPool.h"
 #include "render/Resource/MeshPool.h"
 #include "render/Resource/ShaderPool.h"
+#include "render/Resource/TexturePool.h"
 
 namespace ChikaEngine::Render
 {
@@ -14,6 +14,7 @@ namespace ChikaEngine::Render
         MeshPool::Init(_glRHIDevice);
         ShaderPool::Init(_glRHIDevice);
         MaterialPool::Init(_glRHIDevice);
+        TexturePool::Init(_glRHIDevice);
     }
 
     void GLRenderDevice::BeginFrame()
@@ -28,7 +29,7 @@ namespace ChikaEngine::Render
 
     void GLRenderDevice::DrawObject(const RenderObject& obj, const Camera& camera)
     {
-        LOG_INFO("GLRenderDevice", "Drawing object mesh={} material={}", obj.mesh, obj.material);
+        // LOG_INFO("GLRenderDevice", "Drawing object mesh={} material={}", obj.mesh, obj.material);
         const RHIMesh& mesh = MeshPool::Get(obj.mesh);
         RHIMaterial& mat = MaterialPool::Get(obj.material);
         Math::Mat4 mvp = camera.ProjectionMat() * camera.ViewMat() * obj.modelMat;

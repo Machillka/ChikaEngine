@@ -26,7 +26,7 @@ namespace ChikaEngine::Render
         virtual IRHIVertexArray* CreateVertexArray() = 0;
         virtual IRHIBuffer* CreateVertexBuffer(std::size_t size, const void* data) = 0;
         virtual IRHIBuffer* CreateIndexBuffer(std::size_t size, const void* data) = 0;
-        virtual IRHITexture2D* CreateTexture2D(int w, int h, const void* data) = 0;
+        virtual IRHITexture2D* CreateTexture2D(int width, int height, int channels, const void* data, bool sRGB) = 0;
         virtual IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) = 0;
         virtual IRHIRenderTarget* CreateRenderTarget(int width, int height) = 0;
 

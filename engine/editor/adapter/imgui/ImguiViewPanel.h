@@ -5,8 +5,6 @@
 #include "render/camera.h"
 #include "render/rhi/RHIResources.h"
 
-#include <memory>
-
 namespace ChikaEngine::Editor
 {
     class ImguiViewPanel : public IEditorPanel
@@ -14,7 +12,6 @@ namespace ChikaEngine::Editor
       public:
         explicit ImguiViewPanel(ChikaEngine::Render::IRHIRenderTarget* target, ChikaEngine::Render::Camera* camera);
         ImguiViewPanel(int width, int height);
-        ImguiViewPanel(ChikaEngine::Render::IRHIRenderTarget* target);
         ~ImguiViewPanel() = default;
         const char* Name() const override
         {
@@ -34,7 +31,7 @@ namespace ChikaEngine::Editor
 
       private:
         ChikaEngine::Render::IRHIRenderTarget* _target = nullptr;
-        std::unique_ptr<ChikaEngine::Render::Camera> _camera = nullptr; // 用于渲染view的摄像机
+        ChikaEngine::Render::Camera* _camera = nullptr; // 用于渲染view的摄像机
         bool _enableCameraControl = true;
         bool _rightMouseDown = false;
         bool _middleMouseDown = false;

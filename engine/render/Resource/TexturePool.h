@@ -13,6 +13,7 @@ namespace ChikaEngine::Render
         IRHITexture2D* texture = nullptr;
         int width = 0;
         int height = 0;
+        int channels = 1;
         bool sRGB = true;
     };
 
@@ -23,7 +24,7 @@ namespace ChikaEngine::Render
         static void Reset();
 
         // 从 CPU 纹理数据创建 GPU 纹理，返回句柄
-        static TextureHandle Create(const unsigned char* pixels, int width, int height, bool sRGB);
+        static TextureHandle Create(int width, int height, int channels, const unsigned char* pixels, bool sRGB);
         static const RHITexture2D& Get(TextureHandle handle);
 
       private:

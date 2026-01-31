@@ -37,10 +37,13 @@ namespace ChikaEngine::Resource::Importer
                     v.position = {attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2]};
 
                     // normal
-                    v.normal = {attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2]};
+                    if (idx.normal_index >= 0 && !attrib.normals.empty())
+                    {
+                        v.normal = {attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2]};
+                    }
 
                     // uv
-                    if (!attrib.texcoords.empty())
+                    if (idx.texcoord_index >= 0 && !attrib.texcoords.empty())
                     {
                         v.uv = {attrib.texcoords[2 * idx.texcoord_index + 0], attrib.texcoords[2 * idx.texcoord_index + 1]};
                     }
@@ -48,7 +51,6 @@ namespace ChikaEngine::Resource::Importer
                     mesh.indices.push_back((uint32_t)mesh.indices.size());
                 }
             }
-
             return mesh;
         }
     };

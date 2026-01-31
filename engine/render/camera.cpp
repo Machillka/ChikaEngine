@@ -1,10 +1,10 @@
 #include "camera.h"
 
 #include "math/mat4.h"
+#include "math/quaternion.h"
 #include "math/vector3.h"
 
 #include <cmath>
-
 
 namespace ChikaEngine::Render
 {
@@ -13,7 +13,8 @@ namespace ChikaEngine::Render
         // 设置默认相机参数
         transform->position = Math::Vector3(0.0f, 0.0f, 2.0f);
         _target = Math::Vector3(0.0f, 0.0f, 0.0f);
-        _up = Math::Vector3(0.0f, 1.0f, 0.0f);
+        // _up = Math::Vector3(0.0f, 1.0f, 0.0f);
+        // TODO: 提供修改 up 的重新计算的方法
         _projection = Math::Mat4::Perspective(3.14159f / 3.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
     }
     Camera::Camera(float fovRadians, float aspect, float zNear, float zFar)
@@ -31,11 +32,6 @@ namespace ChikaEngine::Render
         _target = target;
     }
 
-    void Camera::SetUp(const Math::Vector3& up)
-    {
-        _up = up;
-    }
-
     const Math::Vector3& Camera::Position() const
     {
         return transform->position;
@@ -43,10 +39,11 @@ namespace ChikaEngine::Render
 
     Math::Mat4 Camera::ViewMat() const
     {
-        // 使用基于朝向的相机（不依赖固定 target）
         Math::Vector3 pos = transform->position;
-        Math::Vector3 target = pos + _front;
-        return Math::Mat4::LookAt(pos, target, _up);
+        Math::Vector3 front = transform->Forward();
+        Math::Vector3 target = pos + front;
+        Math::Vector3 up = transform->Up();
+        return Math::Mat4::LookAt(pos, target, up);
     }
 
     Math::Mat4 Camera::ViewProjectionMat() const
@@ -61,29 +58,11 @@ namespace ChikaEngine::Render
 
     void Camera::ProcessMouseMovement(float deltaX, float deltaY, bool constrainPitch)
     {
-        const float sensitivity = 0.0025f;
-        _yaw += deltaX * sensitivity;
-        _pitch += -deltaY * sensitivity; // 屏幕Y向下为正 -> 反向
-
-        if (constrainPitch)
-        {
-            const float limit = 1.558f; // ~89度
-            if (_pitch > limit)
-                _pitch = limit;
-            if (_pitch < -limit)
-                _pitch = -limit;
-        }
-
-        // 计算前向向量
-        float cy = std::cos(_yaw);
-        float sy = std::sin(_yaw);
-        float cp = std::cos(_pitch);
-        float sp = std::sin(_pitch);
-        _front = Math::Vector3(cy * cp, sp, sy * cp).Normalized();
+        // Delegate orientation changes to Transform
+        transform->ProcessLookDelta(deltaX, deltaY, constrainPitch);
     }
-
     Math::Vector3 Camera::Front() const
     {
-        return _front;
+        return transform->Forward();
     }
 } // namespace ChikaEngine::Render

@@ -12,11 +12,6 @@
 
 namespace ChikaEngine::Editor
 {
-    ImguiViewPanel::ImguiViewPanel(Render::IRHIRenderTarget* target)
-    {
-        _target = target;
-        _camera = std::make_unique<ChikaEngine::Render::Camera>();
-    }
 
     ImguiViewPanel::ImguiViewPanel(ChikaEngine::Render::IRHIRenderTarget* target, ChikaEngine::Render::Camera* camera) : _target(target), _camera(camera) {}
 
@@ -41,8 +36,8 @@ namespace ChikaEngine::Editor
             ImGui::End();
             return;
         }
-
         ImTextureID texId = colorTex->Handle();
+        LOG_INFO("ViewPanel", "Texture handle = {}", texId);
         ImVec2 avail = ImGui::GetContentRegionAvail();
         ImVec2 imageSize = avail;
         ImVec2 cursorPos = ImGui::GetCursorScreenPos();
@@ -59,8 +54,9 @@ namespace ChikaEngine::Editor
         }
 
         // 交互（旋转/平移/缩放）
-        HandleMouseInteraction(imagePos, imageSize);
         HandleKeyboardInteraction(ctx);
+        HandleMouseInteraction(imagePos, imageSize);
+
         ImGui::End();
     }
 
@@ -68,7 +64,8 @@ namespace ChikaEngine::Editor
     {
         if (!_enableCameraControl || !_camera)
             return;
-
+        if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+            return;
         ImGuiIO& io = ImGui::GetIO();
         ImVec2 mousePos = io.MousePos;
 
@@ -108,7 +105,7 @@ namespace ChikaEngine::Editor
             dx *= _orbitSensitivity;
             dy *= _orbitSensitivity;
 
-            _camera->ProcessMouseMovement(static_cast<float>(dx), static_cast<float>(dy));
+            _camera->transform->ProcessLookDelta(dx, dy, true);
         }
 
         if ((_middleMouseDown && isMouseInside) || (isMouseInside && io.KeyAlt && leftDown))
@@ -125,28 +122,24 @@ namespace ChikaEngine::Editor
     void ImguiViewPanel::HandleKeyboardInteraction(UIContext& ctx)
     {
         const float moveSpeed = 5.0f;
-
+        const float dt = ctx.deltaTime;
         ChikaEngine::Math::Vector3 move{};
 
         if (!_enableCameraControl || !_camera)
-            return; // 只有 Scene View 聚焦时才响应键盘
+            return;
+        // 只有 Scene View 聚焦时才响应键盘
         if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
             return;
-        // float dt = ctx.DeltaTime();
-        ImGuiIO& io = ImGui::GetIO();
-        float dx = 0;
-        float dy = 0;
-        if (ImGui::IsKeyDown(ImGuiKey_W))
-            move += _camera->Front();
-        if (ImGui::IsKeyDown(ImGuiKey_S))
-            move -= _camera->Front();
-        if (ImGui::IsKeyDown(ImGuiKey_A))
-            move += _camera->Front().Cross(ChikaEngine::Math::Vector3::up).Normalized();
-        if (ImGui::IsKeyDown(ImGuiKey_D))
-            move -= _camera->Front().Cross(ChikaEngine::Math::Vector3::up).Normalized();
 
-        if (move.Length() > 0.0f)
-            _camera->transform->Translate(move.Normalized() * moveSpeed * ctx.deltaTime);
+        ImGuiIO& io = ImGui::GetIO();
+        if (ImGui::IsKeyDown(ImGuiKey_W))
+            _camera->transform->TranslateLocal(0, 0, -moveSpeed * dt); // -Z = Forward
+        if (ImGui::IsKeyDown(ImGuiKey_S))
+            _camera->transform->TranslateLocal(0, 0, moveSpeed * dt);
+        if (ImGui::IsKeyDown(ImGuiKey_A))
+            _camera->transform->TranslateLocal(-moveSpeed * dt, 0, 0); // -X = Left
+        if (ImGui::IsKeyDown(ImGuiKey_D))
+            _camera->transform->TranslateLocal(moveSpeed * dt, 0, 0);
     }
     void ImguiViewPanel::DrawOverlayControls()
     {

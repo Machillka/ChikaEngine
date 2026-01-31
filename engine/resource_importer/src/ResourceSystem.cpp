@@ -81,11 +81,13 @@ namespace ChikaEngine::Resource
         }
 
         auto texData = Importer::TextureImporter::Load(fullPath, sRGB);
-        TextureHandle handle = TexturePool::Create(texData.pixels.data(), texData.width, texData.height, texData.sRGB);
+        LOG_INFO("ResourceSystem", "Creating texture from loaded data width={} height={} channels={}", texData.width, texData.height, texData.channels);
+        TextureHandle handle = TexturePool::Create(texData.width, texData.height, texData.channels, texData.pixels.data(), texData.sRGB);
         {
             std::lock_guard lk(_cacheMutex);
             _textureCache[fullPath] = handle;
         }
+        LOG_INFO("ResourceSystem", "Texture loaded and created handle={}", handle);
         return handle;
     }
 
@@ -119,6 +121,7 @@ namespace ChikaEngine::Resource
                 return it->second;
         }
         Material matCPU = Importer::MaterialImporter::Load(fullPath, *this);
+        LOG_INFO("Fuck", "FUckl");
         MaterialHandle handle = MaterialPool::Create(matCPU);
         {
             std::lock_guard lk(_cacheMutex);

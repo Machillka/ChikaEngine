@@ -1,6 +1,6 @@
 // GLTexture2D.h
 #pragma once
-#include "glheader.h"
+#include "GLHeader.h"
 #include "render/rhi/RHIResources.h"
 
 namespace ChikaEngine::Render
@@ -8,7 +8,7 @@ namespace ChikaEngine::Render
     class GLTexture2D : public IRHITexture2D
     {
       public:
-        GLTexture2D(int width, int height, const void* data);
+        GLTexture2D(int width, int height, int channels, const void* data, bool sRGB);
         ~GLTexture2D() override;
 
         std::uintptr_t Handle() const override;

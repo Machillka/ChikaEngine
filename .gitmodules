@@ -16,3 +16,6 @@
 [submodule "engine/third_party/stb"]
 	path = engine/third_party/stb
 	url = https://github.com/nothings/stb
+[submodule "engine/third_party/jolt"]
+	path = engine/third_party/jolt
+	url = https://github.com/jrouwe/JoltPhysics.git

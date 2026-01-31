@@ -7,7 +7,6 @@
 
 #include <cstdint>
 
-
 namespace ChikaEngine::Render
 {
     IRHIDevice* MeshPool::_device = nullptr;

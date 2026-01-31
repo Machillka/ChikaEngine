@@ -2,15 +2,34 @@
 
 namespace ChikaEngine::Render
 {
-    GLTexture2D::GLTexture2D(int width, int height, const void* data)
+    GLTexture2D::GLTexture2D(int width, int height, int channels, const void* data, bool sRGB)
     {
         glGenTextures(1, &_tex);
         glBindTexture(GL_TEXTURE_2D, _tex);
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
+        GLenum format = GL_RGB;
+        GLenum internalFormat = GL_RGB8;
+        if (channels == 1)
+        {
+            format = GL_RED;
+            internalFormat = GL_R8;
+        }
+        else if (channels == 3)
+        {
+            format = GL_RGB;
+            internalFormat = sRGB ? GL_SRGB8 : GL_RGB8;
+        }
+        else if (channels == 4)
+        {
+            format = GL_RGBA;
+            internalFormat = sRGB ? GL_SRGB8_ALPHA8 : GL_RGBA8;
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data); // 单通道贴图需要 swizzle，否则采样会全黑
+        if (channels == 1)
+        {
+            GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
+            glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+        }
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 

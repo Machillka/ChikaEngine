@@ -1,9 +1,8 @@
 #include "GLRHIDevice.h"
 
+#include "GLHeader.h"
 #include "GLRenderTarget.h"
 #include "GLResource.h"
-#include "glheader.h"
-
 
 namespace ChikaEngine::Render
 {
@@ -27,9 +26,9 @@ namespace ChikaEngine::Render
     {
         return new GLBuffer(GLBufferType::Index, size, data);
     }
-    IRHITexture2D* GLRHIDevice::CreateTexture2D(int width, int height, const void* data)
+    IRHITexture2D* GLRHIDevice::CreateTexture2D(int width, int height, int channels, const void* data, bool sRGB)
     {
-        return new GLTexture2D(width, height, data);
+        return new GLTexture2D(width, height, channels, data, sRGB);
     }
     IRHIPipeline* GLRHIDevice::CreatePipeline(const char* vsSource, const char* fsSource)
     {

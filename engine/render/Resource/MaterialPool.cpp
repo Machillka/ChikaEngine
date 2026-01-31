@@ -28,6 +28,7 @@ namespace ChikaEngine::Render
         }
         matGPU.uniformFloats = material.uniformFloats;
         matGPU.uniformVec4s = material.uniformVec4s;
+        matGPU.uniformVec3s = material.uniformVec3s;
 
         _materials.push_back(matGPU);
 
@@ -82,6 +83,12 @@ namespace ChikaEngine::Render
         {
             mat.pipeline->SetUniformTexture(name.c_str(), texPtr, slot);
             ++slot;
+        }
+
+        LOG_INFO("MaterialPool", "vec3 count = {}", mat.uniformVec3s.size());
+        for (const auto& [name, arr] : mat.uniformVec3s)
+        {
+            LOG_INFO("MaterialPool", "vec3 uniform {} = ({}, {}, {})", name, arr[0], arr[1], arr[2]);
         }
     }
 
