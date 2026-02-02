@@ -2,7 +2,6 @@
 
 #include "Resource/ShaderPool.h"
 #include "debug/assert.h"
-#include "debug/log_macros.h"
 #include "render/Resource/MaterialPool.h"
 #include "render/Resource/MeshLibrary.h"
 #include "render/Resource/MeshPool.h"
@@ -11,7 +10,6 @@
 #include "render/rhi/opengl/GLRenderDevice.h"
 #include "render_api.h"
 #include "renderobject.h"
-#include "rhi/opengl/glheader.h"
 
 #include <memory>
 #include <stdexcept>
