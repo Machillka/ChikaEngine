@@ -1,6 +1,6 @@
 #pragma once
 
-#include "framework/GameObject.h"
+#include "framework/gameobject/GameObject.h"
 #include "math/mat4.h"
 #include "math/vector3.h"
 

@@ -1,11 +1,16 @@
 #include "include/PhysicsSystem.h"
 
 #include "debug/log_macros.h"
+#include "framework/layer/layer.h"
+#include "framework/scene/scene.h"
 #include "include/PhysicsDescs.h"
 #include "include/PhysicsJoltBackend.h"
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
+#include <queue>
+#include <utility>
 
 namespace ChikaEngine::Physics
 {
@@ -59,7 +64,118 @@ namespace ChikaEngine::Physics
         // 物理计算
         _backend->Simulate(dt);
 
-        // TODO: 更新位置
-        // TODO: 实现 scene
+        // TODO[x]: 更新位置
+        // TODO[x]: 实现 scene
+
+        // 做一次 snapshot 防止意外修改数据
+        std::vector<std::pair<PhysicsBodyHandle, Framework::GameObjectID>> snapshot;
+        snapshot.reserve(_physicsHandleToGO.size());
+        for (auto const& kv : _physicsHandleToGO)
+            snapshot.emplace_back(kv.first, kv.second);
+
+        for (auto const& p : snapshot)
+        {
+            PhysicsTransform ts;
+            if (_backend->TrySyncTransform(p.first, ts))
+            {
+                if (auto go = Framework::Scene::Instance().GetGOByID(p.second))
+                {
+                    go->transform->position = ts.pos;
+                    go->transform->rotation = ts.rot;
+                }
+            }
+        }
+
+        // TODO: 加入碰撞事件处理
+    }
+
+    // NOTE: 是否要改成批处理??
+    void PhysicsSystem::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3 v)
+    {
+        if (_backend)
+            _backend->SetLinearVelocity(handle, v);
+    }
+    void PhysicsSystem::ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse)
+    {
+        if (_backend)
+            _backend->ApplyImpulse(handle, impulse);
+    }
+
+    void PhysicsSystem::SetLayerMask(std::uint32_t layerIndex, Framework::LayerMask mask)
+    {
+        if (_backend)
+            _backend->SetLayerMask(layerIndex, mask);
+    }
+
+    Framework::LayerMask PhysicsSystem::GetLayerMask(std::uint32_t layerIndex) const
+    {
+        if (_backend)
+            return _backend->GetLayerMask(layerIndex);
+        return Framework::LayerMask(Framework::GameObjectLayer::Default);
+    }
+
+    void PhysicsSystem::RegisterRigidbody(PhysicsBodyHandle handle, Framework::GameObjectID id)
+    {
+        auto it = std::find_if(_physicsHandleToGO.begin(), _physicsHandleToGO.end(), [id](const auto& kv) { return kv.second == id; });
+
+        // 说明重复
+        if (it != _physicsHandleToGO.end())
+            return;
+        _physicsHandleToGO[handle] = id;
+    }
+
+    void PhysicsSystem::ProcessCreateRigidbodyQueue()
+    {
+        std::queue<RigidbodyCreateDesc> q;
+        {
+            std::lock_guard lock(_createRigidbodyMutex);
+            std::swap(q, _createRigidbodyQueue);
+        }
+
+        while (!q.empty())
+        {
+            auto desc = q.front();
+            q.pop();
+            // 去重
+            bool ownerHasBody = false;
+            for (const auto& kv : _physicsHandleToGO)
+            {
+                if (kv.second == desc.ownerId)
+                {
+                    ownerHasBody = true;
+                    break;
+                }
+            }
+            if (ownerHasBody)
+                continue;
+            if (!_backend)
+                continue;
+            PhysicsBodyHandle handle = _backend->CreateBodyFromDesc(desc);
+            if (handle != 0)
+            {
+                RegisterRigidbody(handle, desc.ownerId);
+            }
+        }
+    }
+
+    void PhysicsSystem::ProcessDestroyRigidbodyQueue()
+    {
+        std::queue<PhysicsBodyHandle> q;
+        {
+            std::lock_guard lock(_destroyRigidbodyMutex);
+            std::swap(q, _destroyRigidbodyQueue);
+        }
+
+        while (!_destroyRigidbodyQueue.empty())
+        {
+            auto handle = _destroyRigidbodyQueue.front();
+            _destroyRigidbodyQueue.pop();
+
+            auto it = _physicsHandleToGO.find(handle);
+            if (it != _physicsHandleToGO.end())
+                _physicsHandleToGO.erase(it);
+            if (_backend)
+                _backend->DestroyPhysicsBody(handle);
+        }
     }
 } // namespace ChikaEngine::Physics

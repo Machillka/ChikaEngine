@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GameObject.h"
+#include "framework/gameobject/GameObject.h"
 #include "include/IPhysicsBackend.h"
 #include "include/PhysicsDescs.h"
 
@@ -16,20 +16,28 @@ namespace ChikaEngine::Physics
         static PhysicsSystem& Instance();
         bool Initialize(const PhysicsSystemDesc& desc);
         void Shutdown();
-        void Tick(float dt); // 每一帧的物理运算
+        void Tick(float fixedDeltaTime); // 每一帧的物理运算
 
         // 创建 Rigidbody
         void EnqueueRigidbodyCreate(const RigidbodyCreateDesc& desc);
         // 销毁 Rigidbody
         void EnqueueRigidbodyDestroy(PhysicsBodyHandle handle);
 
+        // 提供修改速度和提供瞬时冲量
+        void SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3 v);
+        void ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse);
+
+        void SetLayerMask(std::uint32_t layerIndex, Framework::LayerMask mask);
+        Framework::LayerMask GetLayerMask(std::uint32_t layerIndex) const;
+
       private:
         PhysicsSystem() = default;
         ~PhysicsSystem() = default;
 
-        // 在 主线程中运行
+        // 在 主线程中运行 保证安全
         void ProcessCreateRigidbodyQueue();
         void ProcessDestroyRigidbodyQueue();
+        void RegisterRigidbody(PhysicsBodyHandle handle, Framework::GameObjectID id);
 
         std::unique_ptr<IPhysicsBackend> _backend = nullptr;
 

@@ -6,11 +6,10 @@ ColumnLimit: 114514
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
-
+SortIncludes: false
 NamespaceIndentation: All
 BreakBeforeBraces: Allman
 IndentAccessModifiers: false
-SortIncludes: true
 IncludeBlocks: Regroup
 PointerAlignment: Left
 BinPackParameters: false

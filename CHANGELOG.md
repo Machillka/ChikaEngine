@@ -2,6 +2,23 @@
 
 简单记录开发过程，非标 changelog
 
+## 2026-2-01
+
+因为实现物理需要依赖——Scene中对物体的收集和Layer的概念,于是稍微构建Gameplay系统
+目前实现逻辑——
+
+- Component: 在GO的AddComponent方法中创建时,自动绑定owner为GO,然后
+- GameObject(GO): 在逻辑上为组件的集合,然后有一个内部的遍历组件生命周期方法,
+- Scene: 收集所有的GO —— 实现创建,销毁等逻辑
+
+那么在物体挂载rigidbody和collider组件等时候,会调用 Physics 中的创建方法,然后借助Scene来建立一个mapping,即`<GO Handle, Rigidbody Handle>`,告诉物理系统,有一个GO身上挂载着一个物理组件.最后在Tick中更新go的transofrm组件,以达到通过物理计算修改位置的方式.
+
+Todo:
+
+- [ ] 实现 Scene Manager
+- [ ] 完善整个代理逻辑
+- [ ] 重构 Framework 和 physics 层的逻辑,目前两个耦合度太高(循环依赖),希望通过调整分离
+
 ## 2026-01-27
 
 开始着手物理层的书写
