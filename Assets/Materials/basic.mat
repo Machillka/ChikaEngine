@@ -1,0 +1,11 @@
+{
+  "shader": {
+    "vertex": "Shaders/basic.vert",
+    "fragment": "Shaders/basic.frag"
+  },
+  "textures": {
+  },
+  "uniforms": {
+    "u_Color": [1.0, 1.0, 1.0, 1.0]
+  }
+}

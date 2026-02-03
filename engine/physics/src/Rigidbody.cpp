@@ -1,10 +1,19 @@
 #include "physics/include/Rigidbody.h"
+#include "debug/log_macros.h"
 #include "framework/component/Component.h"
 #include "include/PhysicsDescs.h"
 #include "include/PhysicsSystem.h"
 
 namespace ChikaEngine::Framework
 {
+    Rigidbody::~Rigidbody()
+    {
+        if (_rigidbodyBackendHandle != 0)
+        {
+            RequestDestroy();
+        }
+    }
+
     void Rigidbody::Awake()
     {
         if (GetOwner() && GetOwner()->transform)
@@ -48,6 +57,7 @@ namespace ChikaEngine::Framework
 
     void Rigidbody::RequestCreate()
     {
+        LOG_INFO("Rigidbody", "Creating Rigidbody...");
         // TODO: 加入对 collider 的形状描述参数
         createDesc.ownerId = GetOwner() ? GetOwner()->GetID() : 0;
         Physics::PhysicsSystem::Instance().EnqueueRigidbodyCreate(createDesc);

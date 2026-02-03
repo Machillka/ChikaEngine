@@ -14,7 +14,7 @@ namespace ChikaEngine::Framework
     {
         _id = idCount++;
         transform = this->AddComponent<Transform>();
-        LOG_INFO("GameObject", "Create GO with ID", _id);
+        // LOG_INFO("GameObject", "Create GO with ID", _id);
     }
 
     GameObject::~GameObject()
@@ -27,61 +27,10 @@ namespace ChikaEngine::Framework
         LOG_INFO("GameObject", "Destroy GO, ID={}", _id);
     }
 
-    template <typename T, typename... Args> T* GameObject::AddComponent(Args&&... args)
-    {
-        auto component = std::make_unique<T>(std::forward<Args>(args)...);
-        component->SetOwner(this);
-        component->Awake();
-        T* ptr = component.get();
-        // 移交所有权
-        {
-            std::lock_guard lock(_compMutex);
-            _components.emplace_back(std::move(component));
-        }
-
-        if (_active && ptr->IsEnabled())
-            ptr->OnEnable();
-
-        return ptr;
-    }
-
-    template <typename T> T* GameObject::GetComponent()
-    {
-        std::lock_guard lock(_compMutex);
-        for (auto& comp : _components)
-        {
-            if (auto p = dynamic_cast<T*>(comp.get()))
-            {
-                return p;
-            }
-        }
-
-        return nullptr;
-    }
-
     const std::vector<std::unique_ptr<Component>>& GameObject::GetAllComponents() const
     {
         std::lock_guard lock(_compMutex);
         return _components;
-    }
-
-    template <typename T> bool GameObject::RemoveComponent()
-    {
-        std::lock_guard lock(_compMutex);
-        auto it = std::find_if(_components.begin(),
-                               _components.end(),
-                               [](const std::unique_ptr<Component>& c)
-                               {
-                                   // 返回可以动态转化成目标类型的组件(说明匹配到对应类型了)
-                                   return dynamic_cast<T*>(c);
-                               });
-        if (it != _components.end())
-        {
-            (*it)->OnDestroy();
-            _components.erase(it);
-            return true;
-        }
-        return false;
     }
 
     void GameObject::SetActive(bool active)
@@ -90,6 +39,8 @@ namespace ChikaEngine::Framework
         // 不改变状态
         if (active == _active)
             return;
+
+        _active = active;
 
         if (_active)
         {

@@ -58,6 +58,8 @@ namespace ChikaEngine::Physics
 
     void PhysicsSystem::Tick(float dt)
     {
+        LOG_INFO("Physics System", "Tick");
+
         ProcessCreateRigidbodyQueue();
         ProcessDestroyRigidbodyQueue();
 
@@ -78,11 +80,18 @@ namespace ChikaEngine::Physics
             PhysicsTransform ts;
             if (_backend->TrySyncTransform(p.first, ts))
             {
+                LOG_INFO("Physics", "{}, {}", p.first, p.second);
                 if (auto go = Framework::Scene::Instance().GetGOByID(p.second))
                 {
+                    LOG_INFO("Physics", "Update GO, ID = {}, x = {}, y = {}, z = {}", p.second, ts.pos.x, ts.pos.y, ts.pos.z);
                     go->transform->position = ts.pos;
                     go->transform->rotation = ts.rot;
                 }
+            }
+            else
+            {
+                // Diagnostic: TrySyncTransform failed for this handle — log once to help debugging
+                LOG_INFO("Physics", "TrySyncTransform failed for handle = {}, owner GO = {}", p.first, p.second);
             }
         }
 
@@ -121,6 +130,7 @@ namespace ChikaEngine::Physics
         // 说明重复
         if (it != _physicsHandleToGO.end())
             return;
+
         _physicsHandleToGO[handle] = id;
     }
 
@@ -153,6 +163,7 @@ namespace ChikaEngine::Physics
             PhysicsBodyHandle handle = _backend->CreateBodyFromDesc(desc);
             if (handle != 0)
             {
+                LOG_INFO("Physics System", "Successfully Register, id = {}", desc.ownerId);
                 RegisterRigidbody(handle, desc.ownerId);
             }
         }
@@ -166,10 +177,10 @@ namespace ChikaEngine::Physics
             std::swap(q, _destroyRigidbodyQueue);
         }
 
-        while (!_destroyRigidbodyQueue.empty())
+        while (!q.empty())
         {
-            auto handle = _destroyRigidbodyQueue.front();
-            _destroyRigidbodyQueue.pop();
+            auto handle = q.front();
+            q.pop();
 
             auto it = _physicsHandleToGO.find(handle);
             if (it != _physicsHandleToGO.end())

@@ -1,9 +1,12 @@
 #pragma once
 
+#include "framework/component/Component.h"
+#include "framework/component/Renderable.h"
 #include "framework/gameobject/GameObject.h"
 #include "render/renderobject.h"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -19,15 +22,22 @@ namespace ChikaEngine::Framework
         GameObject* CreateGO(const std::string& name = "");
         void DestroyGO(GameObjectID id);
         void DestoryGO(GameObject* go);
-        void Tick(float dt);
+        void Update(float deltaTime);
+        void FixedUpdate(float fixedDeltaTime);
         GameObject* GetGOByID(GameObjectID id);
         std::vector<GameObject> GetAllGameObjects();
         std::vector<Render::RenderObject> GetAllVisiableRenderObjects();
 
+        void RegisterRenderable(Renderable* comp);
+        void UnregisterRenderable(Renderable* comp);
+
       private:
-        Scene();
-        ~Scene();
+        Scene() = default;
+        ~Scene() = default;
         // 缓存并且管理 scene 下的所有 GO
         std::unordered_map<GameObjectID, std::unique_ptr<GameObject>> _objects;
+
+        std::mutex _renderMutex;
+        std::vector<Renderable*> _renderables;
     };
 } // namespace ChikaEngine::Framework

@@ -35,6 +35,8 @@ target_link_libraries(ChikaEngine
 		ChikaTime
 		ChikaThirdParty
 		ChikaResource
+		ChikaPhysics
+		
 )
 
 set_target_properties(ChikaEngine PROPERTIES

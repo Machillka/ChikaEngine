@@ -1,6 +1,4 @@
 #include "TimeSystem.h"
-
-#include "GlfwTimeBackend.h"
 #include "TimeBackendFactory.h"
 #include "TimeDesc.h"
 
@@ -19,6 +17,8 @@ namespace ChikaEngine::Time
     float TimeSystem::s_frameTime = 0.0f;
     float TimeSystem::s_accumulatedTime = 0.0f;
     int TimeSystem::s_frameCount = 0;
+
+    float TimeSystem::s_fixedDeltaTime = 1.0f / 60.0f;
 
     void TimeSystem::Init(TimeDesc desc)
     {
@@ -98,5 +98,14 @@ namespace ChikaEngine::Time
     float TimeSystem::GetFrameTime()
     {
         return s_frameTime;
+    }
+
+    float TimeSystem::GetFixedDeltaTime()
+    {
+        return s_fixedDeltaTime;
+    }
+    void TimeSystem::SetFixedDeltaTime(float fixedDeltaTime)
+    {
+        s_fixedDeltaTime = fixedDeltaTime;
     }
 } // namespace ChikaEngine::Time

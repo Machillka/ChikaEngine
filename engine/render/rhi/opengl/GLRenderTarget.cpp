@@ -2,7 +2,6 @@
 
 #include "GLTexture2D.h"
 #include "debug/assert.h"
-#include "debug/log_macros.h"
 #include "GLHeader.h"
 
 namespace ChikaEngine::Render
@@ -48,7 +47,7 @@ namespace ChikaEngine::Render
         glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
         GLint cur = 0;
         glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur);
-        LOG_INFO("RT", "Bind() _fbo={} current={}", _fbo, cur);
+        // LOG_INFO("RT", "Bind() _fbo={} current={}", _fbo, cur);
         glViewport(0, 0, _width, _height);
     }
 

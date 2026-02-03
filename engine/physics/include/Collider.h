@@ -10,6 +10,7 @@ namespace ChikaEngine::Framework
         Box,
         Sphere
     };
+    // TODO: 把 Collider 和 Rigidbody 解耦, 并且使得 Collider 可以独立存在成为Trigger或者其他
     class Collider : public Component
     {
       public:

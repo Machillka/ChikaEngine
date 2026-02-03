@@ -17,7 +17,8 @@ namespace ChikaEngine::Physics
     // 提供默认的物理参数
     struct PhysicsInitDesc
     {
-        Math::Vector3 gravity = Math::Vector3(0.0, 9.8, 0.0);
+        // Default gravity: downwards on Y
+        Math::Vector3 gravity = Math::Vector3(0.0f, -9.8f, 0.0f);
     };
 
     struct PhysicsSystemDesc

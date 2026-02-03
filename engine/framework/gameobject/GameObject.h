@@ -1,4 +1,5 @@
 #pragma once
+#include "debug/log_macros.h"
 #include "framework/component/Transform.h"
 
 #include <cstdint>
@@ -38,10 +39,42 @@ namespace ChikaEngine::Framework
         Transform* transform = nullptr;
 
         // 提供组件相关方法
-        template <typename T, typename... Args> T* AddComponent(Args&&... args);
-        template <typename T> T* GetComponent();
+        template <typename T, typename... Args> T* AddComponent(Args&&... args)
+        {
+            auto component = std::make_unique<T>(std::forward<Args>(args)...);
+            component->SetOwner(this);
+            component->Awake();
+            T* ptr = component.get();
+            // 移交所有权
+            {
+                std::lock_guard lock(_compMutex);
+                _components.emplace_back(std::move(component));
+            }
+
+            if (_active && ptr->IsEnabled())
+            {
+                ptr->OnEnable();
+                LOG_INFO("GameObject", "OnEnable Function Called");
+            }
+
+            return ptr;
+        }
+
+        template <typename T> T* GetComponent()
+        {
+            std::lock_guard lock(_compMutex);
+            for (auto& comp : _components)
+            {
+                if (auto p = dynamic_cast<T*>(comp.get()))
+                {
+                    return p;
+                }
+            }
+
+            return nullptr;
+        }
+
         const std::vector<std::unique_ptr<Component>>& GetAllComponents() const;
-        template <typename T> bool RemoveComponent();
 
         void SetActive(bool active);
         bool IsActive() const noexcept
@@ -61,7 +94,7 @@ namespace ChikaEngine::Framework
 
         std::vector<std::unique_ptr<Component>> _components;
         // 加入对于组件的锁
-        std::mutex _compMutex;
+        mutable std::mutex _compMutex;
 
         bool _active = true;
         // 是否执行过 start 方法

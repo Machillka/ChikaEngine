@@ -3,7 +3,7 @@
 // FIXME: 修改循环依赖问题,把 rigidbody 组件挪到 gameplay中
 
 #include "framework/component/Component.h"
-#include "include/PhysicsDescs.h"
+#include "physics/include/PhysicsDescs.h"
 #include "math/vector3.h"
 namespace ChikaEngine::Framework
 {
@@ -27,11 +27,11 @@ namespace ChikaEngine::Framework
 
         float mass = 1.0f;
         bool isKinematic = false;
-        ChikaEngine::Physics::RigidbodyCreateDesc createDesc;
+        ChikaEngine::Physics::RigidbodyCreateDesc createDesc{};
 
       private:
-        Physics::PhysicsBodyHandle _rigidbodyBackendHandle;
-        bool _isCreated = true;
+        Physics::PhysicsBodyHandle _rigidbodyBackendHandle = 0;
+        bool _isCreated = false;
         // 执行创建方法
         void RequestCreate();
         // 执行销毁方法

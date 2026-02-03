@@ -27,6 +27,7 @@
 #include "Jolt/Physics/Body/BodyID.h"
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -90,7 +91,7 @@ namespace ChikaEngine::Physics
         return snap;
     }
 
-    JPH::Shape* PhysicsJoltBackend::CreateShape(const RigidbodyCreateDesc& desc)
+    JPH::Ref<JPH::Shape> PhysicsJoltBackend::CreateShape(const RigidbodyCreateDesc& desc)
     {
         switch (desc.shape)
         {
@@ -278,14 +279,16 @@ namespace ChikaEngine::Physics
             return 0;
 
         using namespace JPH;
-        Shape* shape = CreateShape(desc);
+        JPH::Ref<JPH::Shape> shape = CreateShape(desc);
         if (!shape)
             return 0;
 
         RVec3 pos(desc.transform.pos.x, desc.transform.pos.y, desc.transform.pos.z);
         Quat rot(desc.transform.rot.x, desc.transform.rot.y, desc.transform.rot.z, desc.transform.rot.w);
         BodyCreationSettings settings;
-        settings.SetShape(Ref<Shape>(shape));
+        settings.mPosition = pos;
+        settings.mRotation = rot;
+        settings.SetShape(shape);
         settings.mMotionType = desc.isKinematic ? EMotionType::Kinematic : EMotionType::Dynamic;
         settings.mMassPropertiesOverride.mMass = desc.mass;
         settings.mAllowDynamicOrKinematic = true;
@@ -293,7 +296,8 @@ namespace ChikaEngine::Physics
         BodyID id = _bodyInterface->CreateAndAddBody(settings, EActivation::Activate);
         if (id.IsInvalid())
             return 0;
-        return id.GetIndex();
+        LOG_INFO("Physics System", "Created Successfully ID = {}", id.GetIndexAndSequenceNumber());
+        return id.GetIndexAndSequenceNumber();
     }
 
     void PhysicsJoltBackend::DestroyPhysicsBody(PhysicsBodyHandle handle)

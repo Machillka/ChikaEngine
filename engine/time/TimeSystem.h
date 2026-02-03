@@ -14,6 +14,8 @@ namespace ChikaEngine::Time
         static void Update(); // 每帧更新 并且计算 fps
 
         static float GetDeltaTime(); // deltaTime
+        static float GetFixedDeltaTime();
+        static void SetFixedDeltaTime(float fixedDeltaTime);
         static float GetTotalTime(); // Totla Time
         static float GetTimeScale();
         static void SetTimeScale(float scale);
@@ -39,5 +41,7 @@ namespace ChikaEngine::Time
         static float s_frameTime;
         static float s_accumulatedTime;
         static int s_frameCount;
+
+        static float s_fixedDeltaTime;
     };
 } // namespace ChikaEngine::Time

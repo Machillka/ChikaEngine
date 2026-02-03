@@ -1,6 +1,7 @@
 #pragma once
 #include "Component.h"
 #include "math/ChikaMath.h"
+#include "math/mat4.h"
 namespace ChikaEngine::Framework
 {
     // TODO: 加上父子层级关系
@@ -21,9 +22,10 @@ namespace ChikaEngine::Framework
         void Rotate(const Math::Quaternion& q);
         void Rotate(const Math::Vector3& eulerAngle);
         void Scale(const Math::Vector3& factor);
+        void Scale(float x, float y, float z);
         void Scale(float factor);
         void LookAt(const Math::Vector3& target, const Math::Vector3& up = Math::Vector3::up);
-
+        Math::Mat4 GetLocalMatrix() const;
         // Camera-like helpers: process mouse look deltas (in pixels) and local-space translation
         void ProcessLookDelta(float deltaX, float deltaY, bool constrainPitch = true);
 

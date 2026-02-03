@@ -246,4 +246,68 @@ namespace ChikaEngine::Math
         r(1, 1) = c;
         return r;
     }
+    Mat4 Mat4::MakeTranslationMatrix(const Vector3& pos)
+    {
+        Mat4 m = Mat4::Identity();
+        m(0, 3) = pos.x;
+        m(1, 3) = pos.y;
+        m(2, 3) = pos.z;
+        return m;
+    }
+    Mat4 Mat4::MakeScaleMatrix(const Vector3& scale)
+    {
+        Mat4 m = Mat4::Identity();
+        m(0, 0) = scale.x;
+        m(1, 1) = scale.y;
+        m(2, 2) = scale.z;
+        return m;
+    }
+    Mat4 Mat4::MakeRotationMatrix(const Quaternion& rot)
+    {
+        Mat4 m = Mat4::Identity();
+        float x = rot.x;
+        float y = rot.y;
+        float z = rot.z;
+        float w = rot.w;
+
+        float xx = x * x, yy = y * y, zz = z * z;
+        float xy = x * y, xz = x * z, yz = y * z;
+        float wx = w * x, wy = w * y, wz = w * z;
+        m(0, 0) = 1 - 2 * (yy + zz);
+        m(0, 1) = 2 * (xy - wz);
+        m(0, 2) = 2 * (xz + wy);
+        m(1, 0) = 2 * (xy + wz);
+        m(1, 1) = 1 - 2 * (xx + zz);
+        m(1, 2) = 2 * (yz - wx);
+        m(2, 0) = 2 * (xz - wy);
+        m(2, 1) = 2 * (yz + wx);
+        m(2, 2) = 1 - 2 * (xx + yy);
+
+        return m;
+    }
+    Mat4 Mat4::TRSMatrix(const Vector3& pos, const Quaternion& rot, const Vector3& scale)
+    {
+        Mat4 T = MakeTranslationMatrix(pos);
+        Mat4 R = MakeRotationMatrix(rot);
+        Mat4 S = MakeScaleMatrix(scale);
+
+        return T * R * S;
+    }
+    // Mat4 Quaternion::ToRotationMat() const
+    // {
+    //     Mat4 m = Mat4::Identity();
+    //     float xx = x * x, yy = y * y, zz = z * z;
+    //     float xy = x * y, xz = x * z, yz = y * z;
+    //     float wx = w * x, wy = w * y, wz = w * z;
+    //     m(0, 0) = 1 - 2 * (yy + zz);
+    //     m(0, 1) = 2 * (xy - wz);
+    //     m(0, 2) = 2 * (xz + wy);
+    //     m(1, 0) = 2 * (xy + wz);
+    //     m(1, 1) = 1 - 2 * (xx + zz);
+    //     m(1, 2) = 2 * (yz - wx);
+    //     m(2, 0) = 2 * (xz - wy);
+    //     m(2, 1) = 2 * (yz + wx);
+    //     m(2, 2) = 1 - 2 * (xx + yy);
+    //     return m;
+    // }
 } // namespace ChikaEngine::Math

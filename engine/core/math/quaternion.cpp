@@ -110,21 +110,22 @@ namespace ChikaEngine::Math
         Quaternion rotUp = FromToRotation(rotatedUp, up.Normalized());
         return (rotUp * r).Normalized();
     }
-    Mat4 Quaternion::ToRotationMat() const
-    {
-        Mat4 m = Mat4::Identity();
-        float xx = x * x, yy = y * y, zz = z * z;
-        float xy = x * y, xz = x * z, yz = y * z;
-        float wx = w * x, wy = w * y, wz = w * z;
-        m(0, 0) = 1 - 2 * (yy + zz);
-        m(0, 1) = 2 * (xy - wz);
-        m(0, 2) = 2 * (xz + wy);
-        m(1, 0) = 2 * (xy + wz);
-        m(1, 1) = 1 - 2 * (xx + zz);
-        m(1, 2) = 2 * (yz - wx);
-        m(2, 0) = 2 * (xz - wy);
-        m(2, 1) = 2 * (yz + wx);
-        m(2, 2) = 1 - 2 * (xx + yy);
-        return m;
-    }
+
+    // Mat4 Quaternion::ToRotationMat() const
+    // {
+    //     Mat4 m = Mat4::Identity();
+    //     float xx = x * x, yy = y * y, zz = z * z;
+    //     float xy = x * y, xz = x * z, yz = y * z;
+    //     float wx = w * x, wy = w * y, wz = w * z;
+    //     m(0, 0) = 1 - 2 * (yy + zz);
+    //     m(0, 1) = 2 * (xy - wz);
+    //     m(0, 2) = 2 * (xz + wy);
+    //     m(1, 0) = 2 * (xy + wz);
+    //     m(1, 1) = 1 - 2 * (xx + zz);
+    //     m(1, 2) = 2 * (yz - wx);
+    //     m(2, 0) = 2 * (xz - wy);
+    //     m(2, 1) = 2 * (yz + wx);
+    //     m(2, 2) = 1 - 2 * (xx + yy);
+    //     return m;
+    // }
 } // namespace ChikaEngine::Math
