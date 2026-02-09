@@ -85,11 +85,11 @@ namespace ChikaEngine::Render
             ++slot;
         }
 
-        LOG_INFO("MaterialPool", "vec3 count = {}", mat.uniformVec3s.size());
-        for (const auto& [name, arr] : mat.uniformVec3s)
-        {
-            LOG_INFO("MaterialPool", "vec3 uniform {} = ({}, {}, {})", name, arr[0], arr[1], arr[2]);
-        }
+        // LOG_INFO("MaterialPool", "vec3 count = {}", mat.uniformVec3s.size());
+        // for (const auto& [name, arr] : mat.uniformVec3s)
+        // {
+        // LOG_INFO("MaterialPool", "vec3 uniform {} = ({}, {}, {})", name, arr[0], arr[1], arr[2]);
+        // }
     }
 
     RHIMaterial& MaterialPool::Get(MaterialHandle handle)

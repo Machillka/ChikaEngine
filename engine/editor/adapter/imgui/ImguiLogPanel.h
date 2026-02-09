@@ -28,6 +28,7 @@ namespace ChikaEngine::Editor
         void ApplyMessages(const std::vector<ChikaEngine::Debug::MessagePair>& msgs);
         ChikaEngine::Debug::EditorLogSink* _editorSink = nullptr;
         // record log message for inside buff
+        // TODO: 设置最大长度
         std::vector<std::string> _lines;
 
         std::string _filterText;

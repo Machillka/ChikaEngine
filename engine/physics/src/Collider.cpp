@@ -4,7 +4,6 @@
 #include <cstdint>
 namespace ChikaEngine::Framework
 {
-
     void Collider::OnEnable()
     {
         Component::OnEnable();
@@ -13,4 +12,6 @@ namespace ChikaEngine::Framework
 
         Physics::PhysicsSystem::Instance().SetLayerMask(layerIndex, collisionMask);
     }
+            void Collider::OnDisable(){}
+        void Collider::OnDestroy(){}
 } // namespace ChikaEngine::Framework

@@ -121,7 +121,6 @@ namespace ChikaEngine::Resource
                 return it->second;
         }
         Material matCPU = Importer::MaterialImporter::Load(fullPath, *this);
-        LOG_INFO("Fuck", "FUckl");
         MaterialHandle handle = MaterialPool::Create(matCPU);
         {
             std::lock_guard lk(_cacheMutex);

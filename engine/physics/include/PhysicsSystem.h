@@ -1,8 +1,8 @@
 #pragma once
 
 #include "framework/gameobject/GameObject.h"
-#include "include/IPhysicsBackend.h"
-#include "include/PhysicsDescs.h"
+#include "physics/include/IPhysicsBackend.h"
+#include "physics/include/PhysicsDescs.h"
 
 #include <memory>
 #include <queue>

@@ -17,3 +17,4 @@ AllowAllParametersOfDeclarationOnNextLine: true
 AllowAllArgumentsOnNextLine: true
 BinPackArguments: false
 AllowShortEnumsOnASingleLine: true
+AlignEscapedNewlines: DontAlign

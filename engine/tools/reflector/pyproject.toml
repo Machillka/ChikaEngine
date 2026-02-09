@@ -1,0 +1,11 @@
+[project]
+name = "reflector"
+version = "0.1.0"
+description = "解析AST并且调用模板生成反射代码"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "jinja2>=3.1.6",
+    "libclang>=18.1.1",
+    "libcst>=1.8.6",
+]

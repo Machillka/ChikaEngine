@@ -1,4 +1,6 @@
 #pragma once
+#include "math/quaternion.h"
+#include "nlohmann/detail/meta/cpp_future.hpp"
 #include "vector3.h"
 
 #include <array>
@@ -49,5 +51,11 @@ namespace ChikaEngine::Math
         static Mat4 RotationX(float rad);
         static Mat4 RotationY(float rad);
         static Mat4 RotationZ(float rad);
+
+        // TRS
+        static Mat4 MakeTranslationMatrix(const Vector3& pos);
+        static Mat4 MakeScaleMatrix(const Vector3& scale);
+        static Mat4 MakeRotationMatrix(const Quaternion& rot);
+        static Mat4 TRSMatrix(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
     };
 } // namespace ChikaEngine::Math

@@ -10,7 +10,13 @@ set(CMAKE_CXX_COMPILE_FEATURES ON)
 set(PROJECT_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_compile_definitions(CHIKA_DEBUG)
+
+find_program(UV_EXE uv REQUIRED)
+# 添加反射逻辑
+include(engine/cmake/reflection.cmake)
+
 add_subdirectory(engine)
 target_compile_definitions(ChikaEngine PRIVATE
     JPH_USE_SSE4_1
 )
+

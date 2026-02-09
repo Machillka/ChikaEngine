@@ -1,6 +1,7 @@
 #include "Transform.h"
 
 #include "debug/log_macros.h"
+#include "math/mat4.h"
 #include "math/quaternion.h"
 #include "math/vector3.h"
 
@@ -42,6 +43,13 @@ namespace ChikaEngine::Framework
         scale = scale * factor;
     }
 
+    void Transform::Scale(float x, float y, float z)
+    {
+        scale.x *= x;
+        scale.y *= y;
+        scale.z *= z;
+    }
+
     void Transform::LookAt(const Math::Vector3& target, const Math::Vector3& up)
     {
         // 检查当前位置和目标位置是否相同
@@ -74,7 +82,7 @@ namespace ChikaEngine::Framework
     void Transform::ProcessLookDelta(float deltaX, float deltaY, bool constrainPitch)
     {
         // Incremental rotation: apply yaw delta around world up, then pitch delta around local right
-        LOG_INFO("Transform", "ProcessLookDelta dx={} dy={}", deltaX, deltaY);
+        // LOG_INFO("Transform", "ProcessLookDelta dx={} dy={}", deltaX, deltaY);
         const float sensitivity = 0.0025f;
         float yawDelta = deltaX * sensitivity;
         float pitchDelta = -deltaY * sensitivity; // invert Y
@@ -105,21 +113,26 @@ namespace ChikaEngine::Framework
         Math::Quaternion pitchQ = Math::Quaternion::AngleAxis(pitchDelta, rightAxis);
 
         rotation = (pitchQ * afterYaw).Normalized();
-        LOG_INFO("Transform", "Updated rotation yaw={} pitch={}", _yaw, _pitch);
+        // LOG_INFO("Transform", "Updated rotation yaw={} pitch={}", _yaw, _pitch);
     }
 
     void Transform::TranslateLocal(const Math::Vector3& localDelta)
     {
-        LOG_INFO("Transform", "TranslateLocal localDelta={},{},{}", localDelta.x, localDelta.y, localDelta.z);
+        // LOG_INFO("Transform", "TranslateLocal localDelta={},{},{}", localDelta.x, localDelta.y, localDelta.z);
         // convert local delta (right, up, forward) into world space using rotation
         // Note: Forward in local is -Z
         Math::Vector3 worldDelta = rotation.Rotate(localDelta);
         position += worldDelta;
-        LOG_INFO("Transform", "TranslateLocal worldDelta={},{},{} newPos={},{},{}", worldDelta.x, worldDelta.y, worldDelta.z, position.x, position.y, position.z);
+        // LOG_INFO("Transform", "TranslateLocal worldDelta={},{},{} newPos={},{},{}", worldDelta.x, worldDelta.y, worldDelta.z, position.x, position.y, position.z);
     }
 
     void Transform::TranslateLocal(float x, float y, float z)
     {
         TranslateLocal(Math::Vector3(x, y, z));
+    }
+
+    Math::Mat4 Transform::GetLocalMatrix() const
+    {
+        return Math::Mat4::TRSMatrix(position, rotation.Normalized(), scale);
     }
 } // namespace ChikaEngine::Framework

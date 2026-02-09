@@ -2,6 +2,7 @@
 
 #include "Resource/ShaderPool.h"
 #include "debug/assert.h"
+#include "debug/log_macros.h"
 #include "render/Resource/MaterialPool.h"
 #include "render/Resource/MeshLibrary.h"
 #include "render/Resource/MeshPool.h"
@@ -73,6 +74,9 @@ namespace ChikaEngine::Render
     {
         if (!target || !_renderDevice)
             return;
+
+        LOG_INFO("Renderer", "Rendering {} objects", ros.size());
+
         target->Bind();
 
         _renderDevice->BeginFrame();

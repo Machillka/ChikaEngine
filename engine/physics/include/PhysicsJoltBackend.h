@@ -21,6 +21,7 @@ namespace JPH
     class BroadPhaseLayerInterface;
     class ObjectVsBroadPhaseLayerFilter;
     class ObjectLayerPairFilter;
+    template <typename T> class Ref;
 } // namespace JPH
 
 namespace ChikaEngine::Physics
@@ -54,7 +55,7 @@ namespace ChikaEngine::Physics
 
         JPH::BodyInterface* _bodyInterface = nullptr;
 
-        JPH::Shape* CreateShape(const RigidbodyCreateDesc& desc);
+        JPH::Ref<JPH::Shape> CreateShape(const RigidbodyCreateDesc& desc);
 
         std::mutex _eventMutex;
         std::vector<CollisionEvent> _eventQueue;
