@@ -17,8 +17,11 @@ add_library(${TARGET_NAME} STATIC ${CORE_HEADER_FILES} ${CORE_SOURCE_FILES})
 
 target_include_directories(${TARGET_NAME}
     PUBLIC
-        ${CURRENT_DIR}       # 让 core/ 成为 include 根目录
+        ${CURRENT_DIR}       
+        ${CURRENT_DIR}/..       # 让 core/ 成为 include 根目录
 )
+
+reflection_generator(${TARGET_NAME})
 
 target_link_libraries(${TARGET_NAME}
     PUBLIC

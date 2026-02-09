@@ -1,11 +1,19 @@
 #pragma once
 
+#include "reflection/ReflectionMacros.h"
 namespace ChikaEngine::Math
 {
-    class Vector3
+
+    MCLASS(Vector3)
     {
+        REFLECTION_BODY(Vector3)
       public:
-        float x, y, z;
+        MFIELD()
+        float x;
+        MFIELD()
+        float y;
+        MFIELD()
+        float z;
         constexpr Vector3() : x(0.0f), y(0.0f), z(0.0f) {}
         constexpr Vector3(float x, float y, float z) : x(x), y(y), z(z) {}
 

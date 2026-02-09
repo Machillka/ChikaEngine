@@ -2,25 +2,30 @@
 #include "Component.h"
 #include "math/ChikaMath.h"
 #include "math/mat4.h"
+#include "reflection/ReflectionMacros.h"
 namespace ChikaEngine::Framework
 {
     // TODO: 加上父子层级关系
-    class Transform : public Component
+    MCLASS(Transform) : public Component
     {
       public:
         Transform() = default;
         ~Transform() override = default;
 
         // 基于 世界坐标 的变换
+        MFIELD()
         Math::Vector3 position{0.0f, 0.0f, 0.0f};
         Math::Quaternion rotation = Math::Quaternion::Identity();
         Math::Vector3 scale{1.0f, 1.0f, 1.0f};
 
         // 世界空间对应操作
+        MFUNCTION()
         void Translate(const Math::Vector3& delta);
         void Translate(float x, float y, float z);
+        MFUNCTION()
         void Rotate(const Math::Quaternion& q);
         void Rotate(const Math::Vector3& eulerAngle);
+        MFUNCTION()
         void Scale(const Math::Vector3& factor);
         void Scale(float x, float y, float z);
         void Scale(float factor);

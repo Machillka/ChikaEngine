@@ -15,7 +15,7 @@
 #include "physics/include/Rigidbody.h"
 #include "render/renderer.h"
 #include "window/window_system.h"
-
+#include "reflection/TypeRegister.h"
 #include <cstdlib>
 
 namespace ChikaEngine::Engine
@@ -28,6 +28,8 @@ namespace ChikaEngine::Engine
     {
         _window = window;
         /*====== 初始化各个系统 ======*/
+        // Reflection
+        ChikaEngine::Reflection::InitAllReflection();
 
         // Renderer
         ChikaEngine::Render::Renderer::Init(ChikaEngine::Render::RenderAPI::OpenGL);

@@ -6,11 +6,11 @@
 #define LOG_DEBUG(module, msg, ...) ::ChikaEngine::Debug::Log(::ChikaEngine::Debug::LogLevel::Debug, module, msg, ##__VA_ARGS__)
 #else
 // Release 模式下，Debug 日志直接变成空操作，不产生任何开销
-#define LOG_DEBUG(module, msg)                                                                                         \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        (void)sizeof(module);                                                                                          \
-        (void)sizeof(msg);                                                                                             \
+#define LOG_DEBUG(module, msg) \
+    do \
+    { \
+        (void)sizeof(module); \
+        (void)sizeof(msg); \
     } while (0)
 #endif
 

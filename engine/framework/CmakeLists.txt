@@ -22,3 +22,5 @@ target_link_libraries(${TARGET_NAME}
         ChikaCore
         ChikaRender
 )
+# 加入构建
+reflection_generator(${TARGET_NAME})
