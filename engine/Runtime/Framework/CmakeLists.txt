@@ -23,6 +23,7 @@ target_link_libraries(${TARGET_NAME}
         ChikaCore
         ChikaRender
         ChikaResource
+        ChikaPhysics
 )
 
 reflection_generator(${TARGET_NAME})

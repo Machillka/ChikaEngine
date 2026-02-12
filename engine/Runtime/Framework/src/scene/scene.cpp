@@ -1,5 +1,4 @@
 #include "ChikaEngine/scene/scene.h"
-#include "ChikaEngine/scene/UIDGenerator.h"
 #include <algorithm>
 #include <memory>
 #include <mutex>
@@ -9,17 +8,13 @@
 namespace ChikaEngine::Framework
 {
     Scene::Scene() = default;
-    Scene::~Scene()
-    {
-        _gameContext.clear();
-        delete _physicsWorld;
-    }
+    Scene::~Scene() = default;
 
     // TODO: 实现通过名字查找 go
     // 在创建的时候直接注册到 Scene 中
-    GameObject* Scene::CreateGO(const std::string& name)
+    GameObject* Scene::CreateGameObject(const std::string& name)
     {
-        auto go = std::make_unique<GameObject>(name, UIDGenerator::Instance().Generate());
+        auto go = std::make_unique<GameObject>(name);
         if (!name.empty())
         {
             go->SetName(name);
@@ -32,7 +27,7 @@ namespace ChikaEngine::Framework
         return ptr;
     }
 
-    GameObject* Scene::GetGOByID(GameObjectID id)
+    GameObject* Scene::GetGameObjectByID(Core::GameObjectID id)
     {
         auto go = _objects.find(id);
         return go != _objects.end() ? go->second.get() : nullptr;
@@ -106,4 +101,10 @@ namespace ChikaEngine::Framework
         return out;
     }
 
+    void Scene::OnRuntimeStart()
+    {
+        
+    }
+    void Scene::OnRuntimeUpdate(float deltaTime) {}
+    void Scene::OnRuntimeStop() {}
 } // namespace ChikaEngine::Framework

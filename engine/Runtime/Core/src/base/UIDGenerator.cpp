@@ -1,10 +1,9 @@
-#include "ChikaEngine/scene/UIDGenerator.h"
+#include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
-#include "ChikaEngine/gameobject/GameObject.h"
 #include <cstdint>
 #include <mutex>
 
-namespace ChikaEngine::Framework
+namespace ChikaEngine::Core
 {
     UIDGenerator& UIDGenerator::Instance()
     {
@@ -81,4 +80,4 @@ namespace ChikaEngine::Framework
         }
         return now;
     }
-} // namespace ChikaEngine::Framework
+} // namespace ChikaEngine::Core

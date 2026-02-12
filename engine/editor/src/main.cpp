@@ -44,7 +44,7 @@ int main()
         engine.Tick();
         // auto* class_info = ChikaEngine::Reflection::TypeRegister::Instance().GetClass("ChikaEngine::Framework::Temp");
         // class_info->FindFunction("Foo")->Invoke(temp, 42);
-        ChikaEngine::Render::Renderer::RenderObjectsToTarget(editor.ViewTargetHandle(), ChikaEngine::Framework::Scene::Instance().GetAllVisiableRenderObjects(), editor.ViewCameraHandle());
+        ChikaEngine::Render::Renderer::RenderObjectsToTarget(editor.ViewTargetHandle(), ChikaEngine::Framework::Scene::Instance().GetAllVisiableRenderObjects(), editor.ViewCameraData());
         editor.Tick();
         window->SwapBuffers();
         LOG_INFO("MainLoop", "Tick end");

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Transform.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include <cstdint>
@@ -10,19 +11,17 @@
 
 namespace ChikaEngine::Framework
 {
-    using GameObjectID = std::uint64_t; // 使用 64bits 符合雪花算法
-
     // TODO[x]: 完善这个简陋的自增 ID
-    // FIXME: 自增逻辑移动到 scene manager 中
 
-    // inline static GameObjectID idCount = 0;
+    class Scene; // 前向声明
+
     class GameObject
     {
       public:
-        GameObject(std::string name, GameObjectID id);
+        GameObject(std::string name);
         ~GameObject();
         // 基本信息 —— ID(全局唯一) 和 名字 (随意)
-        GameObjectID GetID() const
+        Core::GameObjectID GetID() const
         {
             return _id;
         }
@@ -89,9 +88,8 @@ namespace ChikaEngine::Framework
         // TODO: 加入 lateupdate
 
       private:
-        GameObjectID _id;
+        Core::GameObjectID _id;
         std::string _name;
-
         std::vector<std::unique_ptr<Component>> _components;
         // 加入对于组件的锁
         mutable std::mutex _compMutex;

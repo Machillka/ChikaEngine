@@ -7,7 +7,7 @@
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 namespace ChikaEngine::Framework
 {
-    // TODO: 把 Collider 和 Rigidbody 解耦, 并且使得 Collider 可以独立存在成为Trigger或者其他
+    // TODO[x]: 把 Collider 和 Rigidbody 解耦, 并且使得 Collider 可以独立存在成为Trigger或者其他
 
     MCLASS(Collider) : public Component
     {

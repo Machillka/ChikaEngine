@@ -39,7 +39,7 @@ namespace ChikaEngine::Engine
 
         // Physics
         Physics::PhysicsSystemDesc physicsDesc{.initDesc = Physics::PhysicsInitDesc{}, .backendType = Physics::PhysicsBackendTypes::Jolt};
-        Physics::PhysicsSystem::Instance().Initialize(physicsDesc);
+        Physics::PhysicsScene::Instance().Initialize(physicsDesc);
 
         // Resource system init and load assets from Assets/
         ChikaEngine::Resource::ResourceConfig cfg;
@@ -96,7 +96,7 @@ namespace ChikaEngine::Engine
         {
             // 提交引擎操作
             Framework::Scene::Instance().FixedUpdate(fixedDt);
-            Physics::PhysicsSystem::Instance().Tick(fixedDt);
+            Physics::PhysicsScene::Instance().Tick(fixedDt);
             accumulator -= fixedDt;
             ++steps;
         }

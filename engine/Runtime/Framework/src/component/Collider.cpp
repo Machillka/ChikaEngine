@@ -20,7 +20,7 @@ namespace ChikaEngine::Framework
         Component::OnDisable();
         if (_physicsBodyHandle != 0)
         {
-            Physics::PhysicsSystem::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
+            Physics::PhysicsScene::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
             _physicsBodyHandle = 0;
         }
     }
@@ -35,7 +35,7 @@ namespace ChikaEngine::Framework
         if (_physicsBodyHandle != 0)
         {
             // 因为覆盖 所以允许延迟删除
-            Physics::PhysicsSystem::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
+            Physics::PhysicsScene::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
             _physicsBodyHandle = 0;
         }
 
@@ -73,9 +73,9 @@ namespace ChikaEngine::Framework
         desc.restitution = restitution;
         desc.layerMask = static_cast<uint32_t>(layer);
 
-        Physics::PhysicsSystem::Instance().SetLayerMask(desc.layerMask, collisionMask);
+        Physics::PhysicsScene::Instance().SetLayerMask(desc.layerMask, collisionMask);
 
-        _physicsBodyHandle = Physics::PhysicsSystem::Instance().CreateBodyImmediate(desc);
+        _physicsBodyHandle = Physics::PhysicsScene::Instance().CreateBodyImmediate(desc);
         LOG_DEBUG("Physics", "Set {}", _physicsBodyHandle);
         if (rb)
         {

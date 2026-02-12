@@ -1,8 +1,7 @@
 #include "include/ChikaEngine/ImguiAdapter.h"
 #include "ChikaEngine/TimeSystem.h"
-#include "ChikaEngine/gameobject/GameObject.h"
-#include "ChikaEngine/scene/scene.h"
-#include "ChikaEngine/Collider.h"
+#include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -14,22 +13,9 @@ namespace ChikaEngine::Editor
 {
     ImGuiAdapter::ImGuiAdapter(void* nativeWindow) : _window(nativeWindow) {}
     ImGuiAdapter::~ImGuiAdapter() = default;
-    Framework::GameObjectID id = 0;
+    Core::GameObjectID id = 0;
     bool ImGuiAdapter::Init(void* nativeWindow)
     {
-        auto plane = Framework::Scene::Instance().CreateGO("Cube");
-        auto meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/cube.obj");
-
-        auto matHandle = Resource::ResourceSystem::Instance().LoadMaterial("Materials/suzanne.mat");
-
-        plane->transform->Scale(2, 1, 2);
-        plane->transform->Translate(Math::Vector3{0, -1, 0});
-        plane->AddComponent<Framework::Renderable>();
-        plane->GetComponent<Framework::Renderable>()->SetMaterial(matHandle);
-        plane->GetComponent<Framework::Renderable>()->SetMesh(meshHandle);
-        plane->AddComponent<Framework::Collider>();
-        id = plane->GetID();
-
         GLFWwindow* window = static_cast<GLFWwindow*>(nativeWindow);
         if (!window)
         {
@@ -132,7 +118,7 @@ namespace ChikaEngine::Editor
     void ImGuiAdapter::UpdateContext()
     {
         _ctx.deltaTime = Time::TimeSystem::GetDeltaTime();
-        _ctx.selection = {.fullName = "::ChikaEngine::Framework::Transform", .objectPtr = Framework::Scene::Instance().GetGOByID(id)->transform};
+        // _ctx.selection = {.fullName = "::ChikaEngine::Framework::Transform", .objectPtr = Framework::Scene::Instance().GetGOByID(id)->transform};
     }
 
     void ImGuiAdapter::Shutdown()

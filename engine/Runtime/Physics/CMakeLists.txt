@@ -20,7 +20,6 @@ target_link_libraries(${TARGET_NAME}
     PUBLIC
         ChikaThirdParty
         ChikaCore
-        ChikaFramework
 )
 
 reflection_generator(${TARGET_NAME})

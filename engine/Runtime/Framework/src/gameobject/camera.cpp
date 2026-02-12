@@ -1,11 +1,11 @@
 
-#include "ChikaEngine/gameobject/camera.h"
+#include "ChikaEngine/gameobject/Camera.h"
+#include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/render_device.h"
-#include <cmath>
 
 namespace ChikaEngine::Framework
 {
-    Camera::Camera()
+    Camera::Camera(std::string name, Core::GameObjectID id) : GameObject(name, id)
     {
         // 设置默认相机参数
         transform->position = Math::Vector3(0.0f, 0.0f, 2.0f);
@@ -13,10 +13,6 @@ namespace ChikaEngine::Framework
         // _up = Math::Vector3(0.0f, 1.0f, 0.0f);
         // TODO: 提供修改 up 的重新计算的方法
         _projection = Math::Mat4::Perspective(3.14159f / 3.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
-    }
-    Camera::Camera(float fovRadians, float aspect, float zNear, float zFar)
-    {
-        SetPerspective(fovRadians, aspect, zNear, zFar);
     }
 
     void Camera::SetPerspective(float fovRadians, float aspect, float zNear, float zFar)

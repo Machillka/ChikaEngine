@@ -1,14 +1,14 @@
 #include "ChikaEngine/gameobject/GameObject.h"
-#include <algorithm>
+#include "ChikaEngine/base/UIDGenerator.h"
 #include <memory>
 #include <mutex>
 #include <string>
-#include <utility>
 
 namespace ChikaEngine::Framework
 {
-    GameObject::GameObject(std::string name, GameObjectID id) : _name(name), _id(id)
+    GameObject::GameObject(std::string name) : _name(name)
     {
+        _id = Core::UIDGenerator::Instance().Generate();
         transform = this->AddComponent<Transform>();
     }
 

@@ -1,11 +1,12 @@
 #pragma once
 
-#include "ChikaEngine/gameobject/GameObject.h"
 #include <cstdint>
 #include <mutex>
 
-namespace ChikaEngine::Framework
+namespace ChikaEngine::Core
 {
+
+    using GameObjectID = std::uint64_t; // 使用 64bits 符合雪花算法
     // TODO: 创建 machine 分配到能力,使得其可以处理多线程多机器
     class UIDGenerator
     {
@@ -37,4 +38,4 @@ namespace ChikaEngine::Framework
         std::uint64_t _lastTimestamp = 0;
         std::mutex _mutex;
     };
-} // namespace ChikaEngine::Framework
+} // namespace ChikaEngine::Core

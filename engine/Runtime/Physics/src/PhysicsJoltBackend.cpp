@@ -4,6 +4,7 @@
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include "ChikaEngine/JoltLayer.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include "Jolt/Core/Reference.h"
 #include "Jolt/Core/Memory.h"
 #include "Jolt/RegisterTypes.h"

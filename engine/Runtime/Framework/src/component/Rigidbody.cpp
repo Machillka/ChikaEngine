@@ -85,12 +85,12 @@ namespace ChikaEngine::Framework
     {
         if (_physicsBodyHandle == 0)
             return;
-        Physics::PhysicsSystem::Instance().ApplyImpulse(_physicsBodyHandle, impulse);
+        Physics::PhysicsScene::Instance().ApplyImpulse(_physicsBodyHandle, impulse);
     }
     void Rigidbody::SetLinearVelocity(const ChikaEngine::Math::Vector3& vel)
     {
         if (_physicsBodyHandle == 0)
             return;
-        Physics::PhysicsSystem::Instance().SetLinearVelocity(_physicsBodyHandle, vel);
+        Physics::PhysicsScene::Instance().SetLinearVelocity(_physicsBodyHandle, vel);
     }
 } // namespace ChikaEngine::Framework

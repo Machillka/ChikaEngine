@@ -1,5 +1,5 @@
 #pragma once
-#include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/layer/layer.h"
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
@@ -71,7 +71,7 @@ namespace ChikaEngine::Physics
 
     struct PhysicsBodyCreateDesc
     {
-        Framework::GameObjectID ownerId = 0; // 用于查找 go
+        Core::GameObjectID ownerId = 0; // 用于查找 go
 
         // 变换 从 transform 中解耦
         Math::Vector3 position = {0, 0, 0};
