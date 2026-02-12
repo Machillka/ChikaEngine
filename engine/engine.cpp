@@ -1,21 +1,17 @@
 #include "engine.h"
-
-#include "InputDesc.h"
-#include "InputSystem.h"
-#include "TimeDesc.h"
-#include "TimeSystem.h"
-#include "debug/log_macros.h"
-#include "framework/component/Renderable.h"
-#include "framework/component/Transform.h"
-#include "framework/scene/scene.h"
-#include "include/Collider.h"
-#include "math/vector3.h"
-#include "physics/include/PhysicsDescs.h"
-#include "physics/include/PhysicsSystem.h"
-#include "physics/include/Rigidbody.h"
-#include "render/renderer.h"
-#include "window/window_system.h"
-#include "reflection/TypeRegister.h"
+#include "ChikaEngine/Collider.h"
+#include "ChikaEngine/InputDesc.h"
+#include "ChikaEngine/InputSystem.h"
+#include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/PhysicsSystem.h"
+#include "ChikaEngine/ResourceSystem.h"
+#include "ChikaEngine/Rigidbody.h"
+#include "ChikaEngine/TimeSystem.h"
+#include "ChikaEngine/component/Renderable.h"
+#include "ChikaEngine/reflection/TypeRegister.h"
+#include "ChikaEngine/renderer.h"
+#include "ChikaEngine/scene/scene.h"
+#include "ChikaEngine/window/window_system.h"
 #include <cstdlib>
 
 namespace ChikaEngine::Engine
@@ -43,19 +39,18 @@ namespace ChikaEngine::Engine
 
         // Physics
         Physics::PhysicsSystemDesc physicsDesc{.initDesc = Physics::PhysicsInitDesc{}, .backendType = Physics::PhysicsBackendTypes::Jolt};
-        Physics::PhysicsSystem::Instance().Initialize(physicsDesc);
+        Physics::PhysicsScene::Instance().Initialize(physicsDesc);
 
         // Resource system init and load assets from Assets/
         ChikaEngine::Resource::ResourceConfig cfg;
         cfg.assetRoot = "Assets";
-        _resourceSystem.Init(cfg);
+        Resource::ResourceSystem::Instance().Init(cfg);
 
         // Load mesh and material from asset paths
-        auto meshHandle = _resourceSystem.LoadMesh("Meshes/batman.obj");
-        auto matHandle = _resourceSystem.LoadMaterial("Materials/suzanne.mat");
-
+        auto meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/batman.obj");
+        auto matHandle = Resource::ResourceSystem::Instance().LoadMaterial("Materials/suzanne.mat");
         LOG_INFO("Engine", "Loaded resources meshHandle={} matHandle={}", meshHandle, matHandle);
-        LOG_INFO("Engine", "HasMesh={} HasMaterial={}", _resourceSystem.HasMesh("Meshes/batman.obj"), _resourceSystem.HasMaterial("Materials/suzanne.mat"));
+        LOG_INFO("Engine", "HasMesh={} HasMaterial={}", Resource::ResourceSystem::Instance().HasMesh("Meshes/batman.obj"), Resource::ResourceSystem::Instance().HasMaterial("Materials/suzanne.mat"));
 
         using namespace Framework;
 
@@ -66,16 +61,15 @@ namespace ChikaEngine::Engine
         goTest->GetComponent<Renderable>()->SetMaterial(matHandle);
         goTest->GetComponent<Renderable>()->SetMesh(meshHandle);
 
-        meshHandle = _resourceSystem.LoadMesh("Meshes/cube.obj");
+        meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/cube.obj");
 
-        auto plane = Framework::Scene::Instance().CreateGO("Cube");
-        // plane->AddComponent<Collider>();
-        plane->transform->Scale(2, 1, 2);
-        plane->transform->Translate(Math::Vector3{0, -1, 0});
-        plane->AddComponent<Renderable>();
-        plane->GetComponent<Renderable>()->SetMaterial(matHandle);
-        plane->GetComponent<Renderable>()->SetMesh(meshHandle);
-
+        // auto plane = Framework::Scene::Instance().CreateGO("Cube");
+        // // plane->AddComponent<Collider>();
+        // plane->transform->Scale(2, 1, 2);
+        // plane->transform->Translate(Math::Vector3{0, -1, 0});
+        // plane->AddComponent<Renderable>();
+        // plane->GetComponent<Renderable>()->SetMaterial(matHandle);
+        // plane->GetComponent<Renderable>()->SetMesh(meshHandle);
         // plane->GetComponent<Collider>()->halfExtents = Math::Vector3{10, 1, 10};
     }
 
@@ -102,7 +96,7 @@ namespace ChikaEngine::Engine
         {
             // 提交引擎操作
             Framework::Scene::Instance().FixedUpdate(fixedDt);
-            Physics::PhysicsSystem::Instance().Tick(fixedDt);
+            Physics::PhysicsScene::Instance().Tick(fixedDt);
             accumulator -= fixedDt;
             ++steps;
         }

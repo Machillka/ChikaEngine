@@ -13,7 +13,8 @@ reflect_map = {
     "float": "Float",
     "bool": "Bool",
     "std::string": "String",
-    "math::Vector3": "Vector3",
+    "Math::Vector3": "Vector3",
+    "Math::Quaternion": "Quaternion",
 }
 
 
@@ -145,7 +146,6 @@ class CodeRenderer:
         codes = self.template.render(
             header_path=header_path, classes=classes, unique_id=unique_id
         )
-        print(codes)
         with open(output_path, "w") as f:
             f.write(codes)
 
@@ -155,12 +155,22 @@ def get_relative_header_path(absolute_path, engine_root):
     把绝对路径转化成"相对路径"保证头文件引用正确
     e.g
     将 /.../ChikaEngine/engine/framework/temp/fuck.h
-    转换为 framework/temp/fuck.h
+    转换为 ChikaEngine/temp/fuck.h
     """
-    # 定义搜索的基准路径
-    base_dir = os.path.join(engine_root, "engine")
+    abs_path = os.path.abspath(absolute_path).replace("\\", "/")
+
+    # 寻找路径中的 "include/" 标记
+    # 因为你的 CMake target_include_directories 指向了 .../include
+    marker = "/include/"
+    if marker in abs_path:
+        # 分割路径，取 include/ 之后的部分
+        parts = abs_path.split(marker)
+        return parts[-1]  # 返回 ChikaEngine/xxx/xxx.h
+
+    # 对于其他情况
+    base_dir = os.path.join(engine_root, "engine").replace("\\", "/")
     try:
-        return os.path.relpath(absolute_path, base_dir)
+        return os.path.relpath(abs_path, base_dir).replace("\\", "/")
     except ValueError:
         return absolute_path
 
@@ -260,20 +270,31 @@ def is_reflected_function(node) -> bool:
     return False
 
 
-def find_reflection(node, namespace="", res=None):
-    if res == None:
+def is_defined_in_current_file(node, current_file_path):
+    if not node.location.file:
+        return False
+    # 转换为绝对路径进行比较
+    node_file = os.path.abspath(node.location.file.name).replace("\\", "/")
+    current_file = os.path.abspath(current_file_path).replace("\\", "/")
+    return node_file == current_file
+
+
+def find_reflection(node, current_file_path, namespace="", res=None):
+    if res is None:
         res = []
     if node.kind == CursorKind.NAMESPACE:  # pyright: ignore[reportAttributeAccessIssue]
         # TODO: 取消绝对路径
         namespace += "::" + node.spelling
-        print(f"Namespace : ----- {namespace}")
     if node.kind == CursorKind.CLASS_DECL and node.is_definition():  # pyright: ignore[reportAttributeAccessIssue]
-        if is_reflected_class(node):
+        # 仅对当前文件定义的类型进行反射代码生成 防止重复 —— 因为 include 的直接 copy
+        if is_reflected_class(node) and is_defined_in_current_file(
+            node, current_file_path
+        ):
             class_info = process_class(node, namespace)
             res.append(class_info)
     # 递归查找其他 class
     for child in node.get_children():
-        find_reflection(child, namespace, res)
+        find_reflection(child, current_file_path, namespace, res)
     return res
 
 
@@ -305,7 +326,6 @@ def read():
     ctx = ReflectionContext(build_dir)
     args = ctx.get_args_for_file(source_file)
     args.append("-D__REFLECTION_PARSER__")
-    print(args)
 
     tu = ctx.index.parse(source_file, args=args)
 
@@ -319,7 +339,7 @@ def read():
         print("解析过程中出现错误")
     else:
         print("--- 解析成功，提取数据ing ---")
-        res = find_reflection(tu.cursor)
+        res = find_reflection(tu.cursor, source_file)
         print(res)
 
     if res:

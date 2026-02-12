@@ -1,7 +1,5 @@
-#include "editor/include/CommandManager.h"
-
-#include "editor/include/ICommand.h"
-
+#include "CommandManager.h"
+#include "ICommand.h"
 #include <memory>
 
 namespace ChikaEngine::Editor

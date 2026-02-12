@@ -1,10 +1,17 @@
 #pragma once
 
+#include <string>
 namespace ChikaEngine::Editor
 {
+    struct SelectionContext
+    {
+        void* objectPtr = nullptr; // 指向选中对象的指针
+        std::string fullName;      // 完整类名
+    };
     struct UIContext
     {
         float deltaTime;
+        SelectionContext selection;
     };
     class IEditorPanel
     {

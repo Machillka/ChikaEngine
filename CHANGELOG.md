@@ -2,6 +2,22 @@
 
 简单记录开发过程，非标 changelog
 
+## 2026-02-12
+
+为了写 editor 于是需要一个射线检测来检测物体——于是需要往物理系统中添加 raycast 方法
+
+文件目录重构结束,主要分为——
+
+- Runtime
+- Editor
+- Applicatino
+- ThirdParty
+
+发现问题, 由于physics和framework高度耦合, 以及scene作为全局单例, 难以拓展, 并且实现 Play Mode, Editor Mode等,于是重构.
+
+首先是物理和gameplay的耦合——打算把 UID 和 GameObject ID 放到 Core 中, 这样两边之需要以来核心层就好.
+接着把原先的Physics System下沉到 Physics Scene,然后把Physics Scene交给场景管理,就可以非常方便快速的销毁、创建等
+
 ## 2026-02-09
 
 实现简易的编译期反射系统,由于静态全局函数或结构体无法自动执行,于是重新渲染一个代码用于执行注册函数.
