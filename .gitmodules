@@ -1,21 +1,24 @@
-[submodule "engine/third_party/glfw"]
-	path = engine/third_party/glfw
+[submodule "engine/ThirdParty/glfw"]
+	path = engine/ThirdParty/glfw
 	url = https://github.com/glfw/glfw
-[submodule "engine/third_party/imgui"]
-	path = engine/third_party/imgui
+[submodule "engine/ThirdParty/imgui"]
+	path = engine/ThirdParty/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "engine/third_party/fmt"]
-	path = engine/third_party/fmt
+[submodule "engine/ThirdParty/fmt"]
+	path = engine/ThirdParty/fmt
 	url = https://github.com/fmtlib/fmt.git
-[submodule "engine/third_party/json"]
-	path = engine/third_party/json
+[submodule "engine/ThirdParty/json"]
+	path = engine/ThirdParty/json
 	url = https://github.com/nlohmann/json.git
-[submodule "engine/third_party/objloader"]
-	path = engine/third_party/objloader
+[submodule "engine/ThirdParty/objloader"]
+	path = engine/ThirdParty/objloader
 	url = https://github.com/tinyobjloader/tinyobjloader
-[submodule "engine/third_party/stb"]
-	path = engine/third_party/stb
+[submodule "engine/ThirdParty/stb"]
+	path = engine/ThirdParty/stb
 	url = https://github.com/nothings/stb
-[submodule "engine/third_party/jolt"]
-	path = engine/third_party/jolt
+[submodule "engine/ThirdParty/jolt"]
+	path = engine/ThirdParty/jolt
 	url = https://github.com/jrouwe/JoltPhysics.git
+[submodule "engine/ThirdParty/imguizmo"]
+	path = engine/ThirdParty/imguizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo.git
