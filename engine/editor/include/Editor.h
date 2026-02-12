@@ -1,11 +1,10 @@
 #pragma once
+#include "ChikaEngine/RHI/RHIResources.h"
+#include "ChikaEngine/gameobject/camera.h"
+#include "ChikaEngine/render_device.h"
 #include "CommandManager.h"
 #include "IEditorPanel.h"
 #include "IEditorUI.h"
-#include "render/camera.h"
-#include "render/rhi/RHIResources.h"
-#include "render/renderobject.h"
-
 namespace ChikaEngine::Platform
 {
     class IWindow;
@@ -28,16 +27,15 @@ namespace ChikaEngine::Editor
         {
             return _viewTarget;
         }
-        Render::Camera* ViewCameraHandle()
+        Render::CameraData ViewCameraHandle()
         {
-            return _viewCamera.get();
+            return _viewCamera->ToRenderData();
         }
 
       private:
         Platform::IWindow* _window;
         Render::IRHIRenderTarget* _viewTarget;
-        std::unique_ptr<Render::Camera> _viewCamera;
-    Render::RenderObject _testRO;
+        std::unique_ptr<Framework::Camera> _viewCamera;
         Editor& RegisterPanel(std::unique_ptr<IEditorPanel> panel);
         std::unique_ptr<IEditorUI> _editorUI;
         std::vector<std::unique_ptr<IEditorPanel>> _editorPanels;
