@@ -1,5 +1,5 @@
 #include "Editor.h"
-#include "ChikaEngine/gameobject/camera.h"
+#include "ChikaEngine/gameobject/Camera.h"
 #include "ChikaEngine/renderer.h"
 #include "ChikaEngine/window/window_system.h"
 #include "include/ChikaEngine/ImguiAdapter.h"
@@ -11,7 +11,7 @@
 
 namespace ChikaEngine::Editor
 {
-    bool Editor::Init(Platform::IWindow* window, Framework::Camera* viewCamera)
+    bool Editor::Init(Platform::IWindow* window)
     {
         _window = window;
         _editorUI = std::make_unique<ChikaEngine::Editor::ImGuiAdapter>(window->GetNativeHandle());
@@ -20,8 +20,8 @@ namespace ChikaEngine::Editor
 
         auto logPanel = std::make_unique<ChikaEngine::Editor::ImguiLogPanel>();
         _viewTarget = Render::Renderer::CreateRenderTarget(600, 900);
-        _viewCamera = viewCamera;
-        auto viewPanel = std::make_unique<ChikaEngine::Editor::ImguiViewPanel>(_viewTarget, _viewCamera);
+        _viewCamera = std::make_unique<Framework::Camera>("View Camera");
+        auto viewPanel = std::make_unique<ChikaEngine::Editor::ImguiViewPanel>(_viewTarget, _viewCamera.get());
         auto inspector = std::make_unique<ChikaEngine::Editor::ImguiInspectorPanel>();
         // Register panels: view center, log bottom, inspector right
         this->RegisterPanel(std::move(viewPanel)).RegisterPanel(std::move(logPanel)).RegisterPanel(std::move(inspector));

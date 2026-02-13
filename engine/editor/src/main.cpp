@@ -4,7 +4,6 @@
 #include "ChikaEngine/window/window_factory.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include "ChikaEngine/renderer.h"
-#include "ChikaEngine/scene/scene.h"
 #include "ChikaEngine/window/window_desc.h"
 #include "ChikaEngine/window/window_system.h"
 #include "Editor.h"
@@ -24,7 +23,8 @@ int main()
     ChikaEngine::Engine::GameEngine engine;
     engine.Initialize(window.get());
     // LOG_INFO("Main", "Engine initialized. Cube mesh={} material={}", engine.cube.mesh, engine.cube.material);
-    ChikaEngine::Editor::Editor editor(window.get());
+    ChikaEngine::Editor::Editor editor;
+    editor.Init(window.get());
     // ChikaEngine::Framework::Temp* temp = new ChikaEngine::Framework::Temp();
     for (auto& ref : ChikaEngine::Reflection::TypeRegister::Instance()._registry)
     {
@@ -41,11 +41,8 @@ int main()
     {
         LOG_INFO("MainLoop", "Tick start");
         window->PollEvents();
-        engine.Tick();
-        // auto* class_info = ChikaEngine::Reflection::TypeRegister::Instance().GetClass("ChikaEngine::Framework::Temp");
-        // class_info->FindFunction("Foo")->Invoke(temp, 42);
-        ChikaEngine::Render::Renderer::RenderObjectsToTarget(editor.ViewTargetHandle(), ChikaEngine::Framework::Scene::Instance().GetAllVisiableRenderObjects(), editor.ViewCameraData());
-        editor.Tick();
+        // engine.Tick();
+        // ChikaEngine::Render::Renderer::RenderObjectsToTarget(editor.ViewTargetHandle(), engine._scene->GetAllVisiableRenderObjects(), editor.ViewCameraData());
         window->SwapBuffers();
         LOG_INFO("MainLoop", "Tick end");
     }

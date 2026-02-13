@@ -5,6 +5,7 @@
 #include "ChikaEngine/component/Renderable.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/renderobject.h"
+#include "ChikaEngine/serialization/Access.h"
 #include <memory>
 #include <mutex>
 #include <string>
@@ -20,8 +21,12 @@ namespace ChikaEngine::Framework
         不论是 play mode 还是 edit mode
         处理的 GO 是完全一致的,包括是否要 进行渲染
         基于此, 不需要改动 go 相关逻辑,只需要记录 edit 时候 go 的各个状态;
-        然后在 play mode 启动的时候执行一个快照
-        最后在 play mode 销毁的时候, 恢复快照
+        然后在 play mode 启动的时候执行一个快照 ( 序列化 )
+        最后在 play mode 销毁的时候, 恢复快照 ( 反序列化 )
+        因为 每个 Scene 都有自己的 play 模式和 edit 模式,所以不在此处使用单例
+        最后在上层循环中,根据当前状态来切换 update 的执行即可
+        go 的 update 逻辑不变化,
+        只是在 play mode 的时候 加入物理计算和更新位置信息
     */
     class Scene
     {
@@ -29,13 +34,12 @@ namespace ChikaEngine::Framework
         Scene();
         ~Scene();
 
+        void InitScene();
+
+        // gameobejct 管理
         GameObject* CreateGameObject(const std::string& name = "");
         void DestroyGameObject(Core::GameObjectID id);
         void DestoryGO(GameObject* go);
-
-        // 针对 GO 的循环机制
-        void UpdateGameObjects(float deltaTime);
-        void FixedUpdateGameObjects(float fixedDeltaTime);
 
         GameObject* GetGameObjectByID(Core::GameObjectID id);
         std::vector<GameObject> GetAllGameObjects();
@@ -54,19 +58,48 @@ namespace ChikaEngine::Framework
         void RegisterRenderable(Renderable* comp);
         void UnregisterRenderable(Renderable* comp);
 
-      private:
-        struct GameObjectData
+        Physics::PhysicsScene* GetRuntimeScenePhysics();
+
+        template <typename Archive> void Serialize(Archive& ar)
         {
-            Core::GameObjectID id;
-            GameObject* go;
-        };
+            using namespace ChikaEngine::Serialization;
+
+            size_t count = _objects.size();
+            ar(make_nvp("ObjectCount", count));
+
+            // 在编译器自动生成存储和拉取的代码
+            if constexpr (Archive::IsSaving)
+            {
+                for (auto& kv : _objects)
+                {
+                    // 序列化每一个 GameObject 实例
+                    ar(*kv.second);
+                }
+            }
+            else
+            {
+                ClearAllObjects();
+                for (size_t i = 0; i < count; ++i)
+                {
+                    auto go = CreateGameObject();
+                    ar(*go); // 反序列化填充 GO 数据 (包括 ID)
+                    // TODO: 完善更新逻辑
+                }
+            }
+        }
+
+      private:
+        void ClearAllObjects();
+
+      private:
         // 缓存并且管理 scene 下的所有 GO
         std::unordered_map<Core::GameObjectID, std::unique_ptr<GameObject>> _objects;
-        std::vector<GameObjectData> _runtimeSnapShot;
+
         std::mutex _renderMutex;
         std::vector<Renderable*> _renderables;
         bool _isRunning = false;
 
         std::unique_ptr<Physics::PhysicsScene> _physicsSceneOnRuntime;
+        std::vector<uint8_t> _snapshotBuffer; // 缓存
     };
 } // namespace ChikaEngine::Framework

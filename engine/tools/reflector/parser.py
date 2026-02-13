@@ -160,7 +160,6 @@ def get_relative_header_path(absolute_path, engine_root):
     abs_path = os.path.abspath(absolute_path).replace("\\", "/")
 
     # 寻找路径中的 "include/" 标记
-    # 因为你的 CMake target_include_directories 指向了 .../include
     marker = "/include/"
     if marker in abs_path:
         # 分割路径，取 include/ 之后的部分
@@ -283,8 +282,11 @@ def find_reflection(node, current_file_path, namespace="", res=None):
     if res is None:
         res = []
     if node.kind == CursorKind.NAMESPACE:  # pyright: ignore[reportAttributeAccessIssue]
-        # TODO: 取消绝对路径
-        namespace += "::" + node.spelling
+        # TODO[x]: 取消绝对路径
+        if namespace == "":
+            namespace = node.spelling
+        else:
+            namespace += "::" + node.spelling
     if node.kind == CursorKind.CLASS_DECL and node.is_definition():  # pyright: ignore[reportAttributeAccessIssue]
         # 仅对当前文件定义的类型进行反射代码生成 防止重复 —— 因为 include 的直接 copy
         if is_reflected_class(node) and is_defined_in_current_file(

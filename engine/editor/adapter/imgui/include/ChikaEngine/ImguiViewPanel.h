@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/RHI/RHIResources.h"
-#include "ChikaEngine/gameobject/camera.h"
+#include "ChikaEngine/gameobject/Camera.h"
 #include "IEditorPanel.h"
 #include "imgui.h"
 namespace ChikaEngine::Editor

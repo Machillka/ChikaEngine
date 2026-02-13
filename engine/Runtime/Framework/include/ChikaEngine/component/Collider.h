@@ -44,6 +44,8 @@ namespace ChikaEngine::Framework
         LayerMask collisionMask = MakeMask({GameObjectLayer::Default});
 
       private:
+        Physics::PhysicsScene* _physicsScene = nullptr;
+        void SetPhysicsScene();
         Physics::PhysicsBodyHandle _physicsBodyHandle = 0;
     };
 } // namespace ChikaEngine::Framework

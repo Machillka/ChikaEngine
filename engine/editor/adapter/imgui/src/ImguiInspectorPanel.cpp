@@ -1,6 +1,7 @@
 
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/reflection/TypeRegister.h"
 #include "imgui.h"
 #include "include/ChikaEngine/ImguiInspectorPanel.h"
 #include "include/ChikaEngine/ImguiInspectorHelper.h"

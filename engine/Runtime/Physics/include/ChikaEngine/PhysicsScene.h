@@ -18,6 +18,8 @@ namespace ChikaEngine::Physics
     {
       public:
         PhysicsScene(const PhysicsSystemDesc& desc);
+        ~PhysicsScene() = default;
+
         bool Initialize(const PhysicsSystemDesc& desc);
         void Shutdown();
         void Tick(float fixedDeltaTime); // 每一帧的物理运算
@@ -31,9 +33,6 @@ namespace ChikaEngine::Physics
         void SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3 v);
         void ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse);
 
-        void SetLayerMask(std::uint32_t layerIndex, Framework::LayerMask mask);
-        Framework::LayerMask GetLayerMask(std::uint32_t layerIndex) const;
-
         // 射线检测, 返回是否击中和击中信息
         bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHitInfo& outHit);
 
@@ -45,10 +44,10 @@ namespace ChikaEngine::Physics
         // 获得更新后的物理数据,交付给 Scene 来执行更新逻辑
         const std::vector<std::pair<Core::GameObjectID, PhysicsTransform>>& PollTransform();
 
-      private:
-        PhysicsScene() = default;
-        ~PhysicsScene() = default;
+        void SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask);
+        PhysicsLayerMask GetLayerCollisionMask(PhysicsLayerID layerId);
 
+      private:
         // 在 主线程中运行 保证安全
         // void ProcessCreateRigidbodyQueue();
         void ProcessDestroyRigidbodyQueue();

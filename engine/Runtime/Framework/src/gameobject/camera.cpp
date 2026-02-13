@@ -5,7 +5,7 @@
 
 namespace ChikaEngine::Framework
 {
-    Camera::Camera(std::string name, Core::GameObjectID id) : GameObject(name, id)
+    Camera::Camera(std::string name) : GameObject(name)
     {
         // 设置默认相机参数
         transform->position = Math::Vector3(0.0f, 0.0f, 2.0f);

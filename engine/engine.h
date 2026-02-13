@@ -1,8 +1,9 @@
 #pragma once
 
 #include "ChikaEngine/gameobject/GameObject.h"
-#include "ChikaEngine/gameobject/camera.h"
+#include "ChikaEngine/gameobject/Camera.h"
 #include "ChikaEngine/renderobject.h"
+#include "ChikaEngine/scene/scene.h"
 namespace ChikaEngine::Platform
 {
     class IWindow;
@@ -23,11 +24,12 @@ namespace ChikaEngine::Engine
         void Render();
         void Shutdown();
         std::vector<Render::RenderObject>* RenderObjects();
+        Framework::Scene* _scene = nullptr;
 
       private:
-        Platform::IWindow* _window;
-        Framework::Camera _camera;
-        Framework::GameObject* goTest;
+        Platform::IWindow* _window = nullptr;
+        Framework::GameObject* goTest = nullptr;
+
         // TODO: 加入 level 等 实现 GamePlay
     };
 } // namespace ChikaEngine::Engine

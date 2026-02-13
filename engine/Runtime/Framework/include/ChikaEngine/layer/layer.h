@@ -1,4 +1,5 @@
 #pragma once
+#include "ChikaEngine/PhysicsDescs.h"
 #include <cstdint>
 #include <initializer_list>
 namespace ChikaEngine::Framework
@@ -6,6 +7,7 @@ namespace ChikaEngine::Framework
 
     // 最大支持 32 层
     using LayerMask = std::uint32_t;
+
     enum class GameObjectLayer : std::uint8_t
     {
         Default = 0,
@@ -29,5 +31,22 @@ namespace ChikaEngine::Framework
         for (auto l : list)
             m |= LayerBit(l);
         return m;
+    }
+
+    inline Physics::PhysicsLayerID ToPhysicsLayer(GameObjectLayer layer)
+    {
+        return static_cast<Physics::PhysicsLayerID>(layer);
+    }
+
+    // 将 framework 的 Mask 转为 physics 的 Mask
+    inline Physics::PhysicsLayerMask ToPhysicsMask(LayerMask mask)
+    {
+        return static_cast<Physics::PhysicsLayerMask>(mask);
+    }
+
+    // 反向转化
+    inline GameObjectLayer ToGameLayer(Physics::PhysicsLayerID physicsLayer)
+    {
+        return static_cast<GameObjectLayer>(physicsLayer);
     }
 } // namespace ChikaEngine::Framework

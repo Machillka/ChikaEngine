@@ -4,6 +4,7 @@
 #include "Jolt/Core/Core.h"
 #include "Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h"
 #include "Jolt/Physics/Collision/ObjectLayer.h"
+#include "IPhysicsBackend.h"
 
 #include <cstdint>
 #include <vector>
@@ -19,18 +20,24 @@ namespace ChikaEngine::Physics::JoltHelper
         static constexpr JPH::uint NUM_LAYERS = 2;
     }; // namespace BroadPhaseLayers
 
-    inline JPH::ObjectLayer GetJoltObjectLayer(std::uint32_t gameLayerIndex, MotionType motion)
+    inline JPH::ObjectLayer GetJoltObjectLayer(PhysicsLayerID gameLayerIndex, MotionType motion)
     {
         bool isMoving = (motion != MotionType::Static);
-        return (JPH::ObjectLayer)((gameLayerIndex << 1) | (isMoving ? 1 : 0));
+        return static_cast<JPH::ObjectLayer>((gameLayerIndex << 1) | (isMoving ? 1 : 0));
     }
 
     // 从 Jolt ObjectLayer 解码出 GameLayerIndex
-    inline std::uint32_t GetGameLayerIndex(JPH::ObjectLayer layer)
+    inline PhysicsLayerID GetGameLayerIndex(JPH::ObjectLayer layer)
     {
-        return (std::uint32_t)(layer >> 1);
+        return static_cast<PhysicsLayerID>(layer >> 1);
     }
 
+    inline bool IsMoving(JPH::ObjectLayer layer)
+    {
+        return (layer & 1) != 0;
+    }
+
+    // 物体去哪个 BP 层
     class BitmaskBroadPhaseLayerInterface final : public JPH::BroadPhaseLayerInterface
     {
       public:
@@ -57,55 +64,53 @@ namespace ChikaEngine::Physics::JoltHelper
         JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
         {
             // 检查最低位
-            if (inLayer & 1)
-            {
+            if (IsMoving(inLayer))
                 return BroadPhaseLayers::MOVING;
-            }
             return BroadPhaseLayers::NON_MOVING;
         }
     };
 
+    // 物体能否和 BP 层碰撞
     class BitmaskObjectVsBroadPhaseLayerFilter final : public JPH::ObjectVsBroadPhaseLayerFilter
     {
       public:
         // 1: 物体当前所在的层级 2: 碰撞对方所在层级
         bool ShouldCollide(JPH::ObjectLayer inLayer1, JPH::BroadPhaseLayer inLayer2) const override
         {
-            bool isDynamic1 = (inLayer1 & 1) != 0;
-
-            // 动态物体需要和所有东西碰撞 (静态 & 动态)
-            if (isDynamic1)
-            {
+            if (IsMoving(inLayer1))
                 return true;
-            }
-            else
-            {
-                // 静态物体 只需要和 动态层 碰撞
-                return inLayer2 == BroadPhaseLayers::MOVING;
-            }
+
+            // 静态物体 只需要和 动态层 碰撞
+            return inLayer2 == BroadPhaseLayers::MOVING;
         }
     };
+
+    // 逻辑层碰撞矩阵检测
     class BitmaskObjectLayerPairFilter final : public JPH::ObjectLayerPairFilter
     {
       public:
-        explicit BitmaskObjectLayerPairFilter(const std::vector<Framework::LayerMask>& masks) : _masks(masks) {}
-        void SetMask(std::uint32_t layerIndex, Framework::LayerMask mask)
-        {
-            if (layerIndex >= _masks.size())
-                _masks.resize(layerIndex + 1, ~Framework::LayerMask(0));
-            _masks[layerIndex] = mask;
-        }
+        // 持有 Backend 指针以实时获取 Mask
+        explicit BitmaskObjectLayerPairFilter(const IPhysicsBackend* backend) : _backend(backend) {}
+
         bool ShouldCollide(JPH::ObjectLayer inA, JPH::ObjectLayer inB) const override
         {
-            std::uint32_t a = GetGameLayerIndex(inA);
-            std::uint32_t b = GetGameLayerIndex(inB);
-            if (a >= _masks.size() || b >= _masks.size())
-                return true;
-            return (_masks[a] & (Framework::LayerMask(1) << b)) != 0;
+            PhysicsLayerID layerA = GetGameLayerIndex(inA);
+            PhysicsLayerID layerB = GetGameLayerIndex(inB);
+
+            PhysicsLayerMask maskA = _backend->GetLayerCollisionMask(layerA);
+            PhysicsLayerMask maskB = _backend->GetLayerCollisionMask(layerB);
+
+            // 检查 A 是否允许撞 B
+            bool aHitsB = (maskA & (PhysicsLayerMask(1) << layerB)) != 0;
+            // 检查 B 是否允许撞 A
+            bool bHitsA = (maskB & (PhysicsLayerMask(1) << layerA)) != 0;
+
+            return aHitsB && bHitsA;
         }
 
       private:
-        std::vector<Framework::LayerMask> _masks;
+        // 使用指针获得实时更新的 mask 数据
+        const IPhysicsBackend* _backend;
     };
 
 } // namespace ChikaEngine::Physics::JoltHelper

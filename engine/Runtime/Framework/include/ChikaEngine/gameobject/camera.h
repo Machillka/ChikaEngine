@@ -11,7 +11,7 @@ namespace ChikaEngine::Framework
     class Camera : public GameObject
     {
       public:
-        Camera(std::string name, Core::GameObjectID id);
+        Camera(std::string name);
         // Camera(float fovRadians, float aspect, float zNear, float zFar);
 
         void SetPerspective(float fovRadians, float aspect, float zNear, float zFar);

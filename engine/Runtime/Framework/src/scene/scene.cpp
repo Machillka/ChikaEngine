@@ -1,4 +1,7 @@
 #include "ChikaEngine/scene/scene.h"
+#include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/io/MemoryStream.h"
+#include "ChikaEngine/serialization/JsonArchive.h"
 #include <algorithm>
 #include <memory>
 #include <mutex>
@@ -31,35 +34,6 @@ namespace ChikaEngine::Framework
     {
         auto go = _objects.find(id);
         return go != _objects.end() ? go->second.get() : nullptr;
-    }
-
-    // TODO[x]: 添加Update
-    void Scene::Update(float deltaTime)
-    {
-        std::vector<GameObject*> snapshot;
-        snapshot.reserve(_objects.size());
-        for (auto& kv : _objects)
-            snapshot.push_back(kv.second.get());
-
-        for (auto* go : snapshot)
-        {
-            if (go->IsActive())
-                go->Update(deltaTime);
-        }
-    }
-
-    void Scene::FixedUpdate(float fixedDeltaTime)
-    {
-        std::vector<GameObject*> snapshot;
-        snapshot.reserve(_objects.size());
-        for (auto& kv : _objects)
-            snapshot.push_back(kv.second.get());
-
-        for (auto* go : snapshot)
-        {
-            if (go->IsActive())
-                go->FixedUpdate(fixedDeltaTime);
-        }
     }
 
     void Scene::RegisterRenderable(Renderable* ro)
@@ -103,8 +77,29 @@ namespace ChikaEngine::Framework
 
     void Scene::OnRuntimeStart()
     {
-        
+        if (_isRunning)
+            return;
+
+        // 1. 【快照】使用二进制流将当前场景存入内存
+        LOG_INFO("Scene", "Taking Scene Snapshot for Play Mode...");
+        IO::MemoryStream ms;
+        {
+            Serialization::BinaryOutputArchive ar(ms);
+            this->Serialize(ar); // 执行序列化
+        }
+        // _snapshotBuffer = ms.Read();
+
+        // 2. 初始化物理场景
+        Physics::PhysicsSystemDesc desc = {};
+        _physicsSceneOnRuntime = std::make_unique<Physics::PhysicsScene>(desc);
+
+        _isRunning = true;
     }
     void Scene::OnRuntimeUpdate(float deltaTime) {}
     void Scene::OnRuntimeStop() {}
+
+    Physics::PhysicsScene* Scene::GetRuntimeScenePhysics()
+    {
+        return _physicsSceneOnRuntime.get();
+    }
 } // namespace ChikaEngine::Framework

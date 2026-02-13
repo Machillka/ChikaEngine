@@ -1,6 +1,5 @@
 #pragma once
 #include "ChikaEngine/base/UIDGenerator.h"
-#include "ChikaEngine/layer/layer.h"
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
 #include <cstdint>
@@ -8,6 +7,10 @@
 namespace ChikaEngine::Physics
 {
     using PhysicsBodyHandle = std::uint32_t;
+    using PhysicsLayerID = std::uint8_t;
+    using PhysicsLayerMask = std::uint32_t; // 对应位掩码
+    // 最大值说明mask了所有layer
+    constexpr PhysicsLayerMask PHYSICS_LAYER_MASK_ALL = 0xFFFFFFFF;
 
     enum class PhysicsBackendTypes
     {
@@ -87,7 +90,10 @@ namespace ChikaEngine::Physics
         float friction = 0.5f;
         float restitution = 0.0f;
 
-        Framework::LayerMask layerMask = Framework::MakeMask({Framework::GameObjectLayer::Default});
+        // 当前物体在哪一层 0 是 default
+        PhysicsLayerID layer = 0;
+        // 需要和什么层碰撞
+        PhysicsLayerMask collisionMask = PHYSICS_LAYER_MASK_ALL;
     };
 
     // 用于Collider回调

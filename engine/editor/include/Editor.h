@@ -18,8 +18,8 @@ namespace ChikaEngine::Editor
     class Editor
     {
       public:
-        explicit Editor();
-        bool Init(Platform::IWindow* window, Framework::Camera* viewCamera);
+        explicit Editor() = default;
+        bool Init(Platform::IWindow* window);
         void Tick(); // Tick every frame
         void Shutdown();
         void SetupPanel();
@@ -41,6 +41,6 @@ namespace ChikaEngine::Editor
         bool _isInitalized = false;
         CommandManager _cmdManager;
 
-        Framework::Camera* _viewCamera;
+        std::unique_ptr<Framework::Camera> _viewCamera;
     };
 } // namespace ChikaEngine::Editor

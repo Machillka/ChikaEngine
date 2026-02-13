@@ -1,18 +1,22 @@
 #pragma once
+#include "ChikaEngine/PhysicsScene.h"
+#include "ChikaEngine/reflection/ReflectionMacros.h"
 
 namespace ChikaEngine::Framework
 {
     class GameObject;
-    class Component
+    class Scene;
+    MCLASS(Component)
     {
       public:
         Component() = default;
         virtual ~Component() = default;
         // 在 AddComponent 调用
-        void SetOwner(GameObject* owner)
+        void SetOwner(GameObject * owner)
         {
             _owner = owner;
         }
+
         GameObject* GetOwner() const
         {
             return _owner;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IEditorPanel.h"
-#include "ChikaEngine/reflection/TypeRegister.h"
+#include "ChikaEngine/reflection/ReflectionData.h"
 
 namespace ChikaEngine::Editor
 {
