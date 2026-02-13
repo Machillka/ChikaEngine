@@ -26,6 +26,7 @@ namespace ChikaEngine::Serialization
         {
             std::string s = _root.dump(4);
             _stream.Write(s.data(), s.size());
+            LOG_DEBUG("Fuck", "执行析构函数");
         }
 
         // 接受键值对 ar(make_nvp(name, value))
@@ -86,7 +87,7 @@ namespace ChikaEngine::Serialization
         std::stack<json*> _stack; // 维护树状信息
     };
 
-    class BinaryOutputArchive
+    class JsonInputArchive
     {
       public:
         // 定义一个栈帧结构
@@ -96,10 +97,26 @@ namespace ChikaEngine::Serialization
             size_t arrayIndex; // 如果 node 是 Array，这里记录当前读到了第几个元素
         };
 
-        static constexpr bool IsSaving = true;
-        static constexpr bool IsLoading = false;
+        static constexpr bool IsSaving = false;
+        static constexpr bool IsLoading = true;
 
-        BinaryOutputArchive(IO::IStream& stream) : _stream(stream)
+        // 接受键值对 ar(make_nvp(name, value))
+        template <typename T> void operator()(const NVP<T>& nvp)
+        {
+            Serializer::Dispatch(*this, nvp.Name, nvp.Value);
+        }
+        // 接受直接 ar (name, value)
+        template <typename T> void operator()(const char* name, T& value)
+        {
+            Serializer::Dispatch(*this, name, value);
+        }
+        // 接受简单类型的单数值
+        template <typename T> void operator()(const T& val)
+        {
+            Serializer::Dispatch(*this, nullptr, const_cast<T&>(val));
+        }
+
+        JsonInputArchive(IO::IStream& stream) : _stream(stream)
         {
             if (!_stream.IsReadingMode())
             {
@@ -115,17 +132,6 @@ namespace ChikaEngine::Serialization
 
             _root = json::parse(str);
             _stack.push({&_root, 0});
-        }
-
-        // 输出的时候忽略名字
-        template <typename T> void operator()(const NVP<T>& nvp)
-        {
-            Serializer::Dispatch(*this, nullptr, nvp.Value);
-        }
-
-        template <typename T> void operator()(const T& val)
-        {
-            Serializer::Dispatch(*this, nullptr, const_cast<T&>(val));
         }
 
         void EnterNode(const char* name)

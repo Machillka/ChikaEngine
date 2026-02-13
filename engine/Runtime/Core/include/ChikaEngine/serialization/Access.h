@@ -1,9 +1,12 @@
 #pragma once
 
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/reflection/ReflectionData.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
+#include <iostream>
+#include <ostream>
 #include <type_traits>
 
 namespace ChikaEngine::Serialization
@@ -48,6 +51,7 @@ namespace ChikaEngine::Serialization
             // 基础类型
             if constexpr (std::is_arithmetic_v<T>)
             {
+                std::cout << "简单类型捕捉" << std::endl;
                 ar.ProcessValue(name, value);
             }
             // std::string
@@ -104,11 +108,13 @@ namespace ChikaEngine::Serialization
         {
             // 调用 reflect body 中定义的获得名称的方法
             // TODO: 此处只是类名 而不是 fullPath
-            const auto* classInfo = ChikaEngine::Reflection::TypeRegister::Instance().GetClass(T::GetClassName());
-
+            using namespace std;
+            cout << "Name " << name << endl;
+            const auto* classInfo = ChikaEngine::Reflection::TypeRegister::Instance().GetClassByName(T::GetClassName());
             if (!classInfo)
             {
                 // 如果连反射信息都没有，这是一个无法序列化的对象
+                LOG_ERROR("Serialization", "Can't serialze this object {}", name);
                 return;
             }
             // 如果存在名字 就把 名字作为一个根节点
@@ -126,34 +132,35 @@ namespace ChikaEngine::Serialization
                 switch (prop.Type)
                 {
                 case Reflection::ReflectType::Int:
-                    Dispatch(ar, name, *reinterpret_cast<int*>(rawAddr));
+                    Dispatch(ar, prop.Name.c_str(), *reinterpret_cast<int*>(rawAddr));
                     break;
                 case Reflection::ReflectType::Float:
-                    Dispatch(ar, name, *reinterpret_cast<float*>(rawAddr));
+                    std::cout << prop.Name.c_str() << "Fuck" << std::endl;
+                    Dispatch(ar, prop.Name.c_str(), *reinterpret_cast<float*>(rawAddr));
                     break;
                 case Reflection::ReflectType::Bool:
-                    Dispatch(ar, name, *reinterpret_cast<bool*>(rawAddr));
+                    Dispatch(ar, prop.Name.c_str(), *reinterpret_cast<bool*>(rawAddr));
                     break;
                 case Reflection::ReflectType::String:
-                    Dispatch(ar, name, *reinterpret_cast<std::string*>(rawAddr));
+                    Dispatch(ar, prop.Name.c_str(), *reinterpret_cast<std::string*>(rawAddr));
                     break;
 
                 // 特殊处理数学类型
                 case Reflection::ReflectType::Vector3:
                     // 比如 vec3 是已经自定义过的反射类型 所以会被递归调用拆解
-                    Dispatch(ar, name, *reinterpret_cast<Math::Vector3*>(rawAddr));
+                    Dispatch(ar, prop.Name.c_str(), *reinterpret_cast<Math::Vector3*>(rawAddr));
                     break;
                 case Reflection::ReflectType::Quaternion:
-                    Dispatch(ar, name, *reinterpret_cast<Math::Quaternion*>(rawAddr));
+                    Dispatch(ar, prop.Name.c_str(), *reinterpret_cast<Math::Quaternion*>(rawAddr));
                     break;
 
                 default:
                     break;
                 }
-
-                if (name)
-                    ar.LeaveNode();
             }
+
+            if (name)
+                ar.LeaveNode();
         }
     };
 

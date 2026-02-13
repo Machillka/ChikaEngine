@@ -24,7 +24,7 @@ namespace ChikaEngine::Editor
             return;
         }
 
-        const auto* ci = Reflection::TypeRegister::Instance().GetClass(selectionObj.fullName);
+        const auto* ci = Reflection::TypeRegister::Instance().GetClassByFullName(selectionObj.fullName);
         if (!ci)
         {
             ImGui::Text("No reflection info for %s", selectionObj.fullName.c_str());

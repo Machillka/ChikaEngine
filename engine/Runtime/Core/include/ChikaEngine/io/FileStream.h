@@ -15,7 +15,6 @@
 #include <string>
 namespace ChikaEngine::IO
 {
-
     class FileStream : public IStream
     {
       public:

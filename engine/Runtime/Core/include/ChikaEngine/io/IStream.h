@@ -19,6 +19,8 @@ namespace ChikaEngine::IO
         Read,
         Write
     };
+
+    // TODO: 使用 stream 工厂方法,并且提供一个默认的不可修改路径
     class IStream
     {
       public:

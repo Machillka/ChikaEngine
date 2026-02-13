@@ -84,7 +84,7 @@ namespace ChikaEngine::Framework
         LOG_INFO("Scene", "Taking Scene Snapshot for Play Mode...");
         IO::MemoryStream ms;
         {
-            Serialization::BinaryOutputArchive ar(ms);
+            Serialization::JsonOutputArchive ar(ms);
             this->Serialize(ar); // 执行序列化
         }
         // _snapshotBuffer = ms.Read();
