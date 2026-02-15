@@ -29,6 +29,8 @@ namespace ChikaEngine::IO
         void Write(const void* data, size_t size) override;
         bool IsReadingMode() const override;
         std::size_t GetLength() const override;
+        void FlipToRead();
+        const std::vector<uint8_t>& GetRawData();
 
       private:
         std::vector<uint8_t> _buffer;

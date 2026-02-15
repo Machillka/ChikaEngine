@@ -6,6 +6,7 @@
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/renderobject.h"
 #include "ChikaEngine/serialization/Access.h"
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -45,27 +46,19 @@ namespace ChikaEngine::Framework
         std::vector<GameObject> GetAllGameObjects();
         std::vector<Render::RenderObject> GetAllVisiableRenderObjects();
 
-        void OnRuntimeStart();
-        void OnRuntimeUpdate(float deltaTime);
-        void OnRuntimeStop();
-
         // 编辑器更新：只处理编辑器摄像机、Gizmos，不跑物理
-        void OnUpdateEditor(float dt);
-
         // TODO: 提供 resize 方法
         // void OnViewportResize(uint32_t width, uint32_t height);
 
         void RegisterRenderable(Renderable* comp);
         void UnregisterRenderable(Renderable* comp);
 
-        Physics::PhysicsScene* GetRuntimeScenePhysics();
-
         template <typename Archive> void Serialize(Archive& ar)
         {
             using namespace ChikaEngine::Serialization;
 
             size_t count = _objects.size();
-            ar(make_nvp("ObjectCount", count));
+            ar("ObjectCount", count);
 
             // 在编译器自动生成存储和拉取的代码
             if constexpr (Archive::IsSaving)
@@ -88,6 +81,24 @@ namespace ChikaEngine::Framework
             }
         }
 
+      public:
+        // 声明周期函数
+        void OnStart();
+        void OnUpdate(float deltaTime);
+        void OnFixedUpdate(float fixedDeltaTime);
+        void OnPhysicsUpdate(float fixedDeltaTime);
+        void OnEnd(); // 序列化保存
+
+      public:
+        // 系统相关方法
+        void RegisterPhysicsScene(Physics::PhysicsScene* physicsScene); // 注册,如果有的话就在update中update,如果没有就没有
+        Physics::PhysicsScene* GetPhysicsScene();
+
+        // TODO: 目前 render 依旧全局单例, 先不动 ( 因为有单独渲染到 target 的能力 )
+
+        // 输出 scene 所有需要关注的内容
+        std::vector<uint8_t> OutputSceneBytes();
+
       private:
         void ClearAllObjects();
 
@@ -99,7 +110,7 @@ namespace ChikaEngine::Framework
         std::vector<Renderable*> _renderables;
         bool _isRunning = false;
 
-        std::unique_ptr<Physics::PhysicsScene> _physicsSceneOnRuntime;
+        std::unique_ptr<Physics::PhysicsScene> _physicsScene = nullptr;
         std::vector<uint8_t> _snapshotBuffer; // 缓存
     };
 } // namespace ChikaEngine::Framework

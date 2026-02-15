@@ -46,6 +46,7 @@ namespace ChikaEngine::Serialization
     {
       public:
         // 所有 archive 都会通过调用这个方法来进行类型的分发
+        // TODO: 使用 20 的标准约束
         template <typename Ar, typename T> static void Dispatch(Ar& ar, const char* name, T& value)
         {
             // 基础类型
@@ -109,7 +110,6 @@ namespace ChikaEngine::Serialization
             // 调用 reflect body 中定义的获得名称的方法
             // TODO: 此处只是类名 而不是 fullPath
             using namespace std;
-            cout << "Name " << name << endl;
             const auto* classInfo = ChikaEngine::Reflection::TypeRegister::Instance().GetClassByName(T::GetClassName());
             if (!classInfo)
             {

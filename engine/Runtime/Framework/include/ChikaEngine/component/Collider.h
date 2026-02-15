@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/layer/layer.h"
 #include "ChikaEngine/math/vector3.h"

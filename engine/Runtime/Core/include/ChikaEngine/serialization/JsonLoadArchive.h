@@ -10,84 +10,7 @@ namespace ChikaEngine::Serialization
 {
     using json = nlohmann::json;
 
-    class JsonOutputArchive
-    {
-      public:
-        // 用于编译期计算到底属于 read 还是 write mode
-        static constexpr bool IsSaving = true;
-        static constexpr bool IsLoading = false;
-
-        JsonOutputArchive(IO::IStream& stream) : _stream(stream)
-        {
-            _stack.push(&_root);
-        }
-        // 析构的时候执行写入 不需要手动执行
-        ~JsonOutputArchive()
-        {
-            std::string s = _root.dump(4);
-            _stream.Write(s.data(), s.size());
-            LOG_DEBUG("Fuck", "执行析构函数");
-        }
-
-        // 接受键值对 ar(make_nvp(name, value))
-        template <typename T> void operator()(const NVP<T>& nvp)
-        {
-            Serializer::Dispatch(*this, nvp.Name, nvp.Value);
-        }
-        // 接受直接 ar (name, value)
-        template <typename T> void operator()(const char* name, T& value)
-        {
-            Serializer::Dispatch(*this, name, value);
-        }
-        // 接受简单类型的单数值
-        template <typename T> void operator()(const T& val)
-        {
-            Serializer::Dispatch(*this, nullptr, const_cast<T&>(val));
-        }
-
-        // Duck Interface
-        void EnterNode(const char* name)
-        {
-            json& j = (*_stack.top())[name];
-            if (j.is_null())
-                j = json::object();
-            _stack.push(&j);
-        }
-
-        void LeaveNode()
-        {
-            _stack.pop();
-        }
-
-        void EnterArray(const char* name, size_t size)
-        {
-            json* j = _stack.top();
-            if (name)
-                j = &(*j)[name];
-            *j = json::array();
-            _stack.push(j);
-        }
-        void LeaveArray()
-        {
-            _stack.pop();
-        }
-
-        template <typename T> void ProcessValue(const char* name, const T& val)
-        {
-            json* j = _stack.top();
-            if (j->is_array())
-                j->push_back(val);
-            else if (name)
-                (*j)[name] = val;
-        }
-
-      private:
-        IO::IStream& _stream; // 维护一个 io 流
-        json _root;
-        std::stack<json*> _stack; // 维护树状信息
-    };
-
-    class JsonInputArchive
+    class JsonLoadArchive
     {
       public:
         // 定义一个栈帧结构
@@ -116,7 +39,7 @@ namespace ChikaEngine::Serialization
             Serializer::Dispatch(*this, nullptr, const_cast<T&>(val));
         }
 
-        JsonInputArchive(IO::IStream& stream) : _stream(stream)
+        JsonLoadArchive(IO::IStream& stream) : _stream(stream)
         {
             if (!_stream.IsReadingMode())
             {

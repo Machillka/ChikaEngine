@@ -12,6 +12,7 @@
 #pragma once
 
 #include <cstddef>
+
 namespace ChikaEngine::IO
 {
     enum class Mode

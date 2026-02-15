@@ -43,5 +43,4 @@ namespace ChikaEngine::IO
 
         return length;
     }
-
 } // namespace ChikaEngine::IO

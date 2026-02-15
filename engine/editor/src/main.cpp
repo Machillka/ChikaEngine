@@ -3,16 +3,20 @@
 #include "ChikaEngine/debug/console_sink.h"
 #include "ChikaEngine/io/FileStream.h"
 #include "ChikaEngine/io/IStream.h"
+#include "ChikaEngine/io/MemoryStream.h"
 #include "ChikaEngine/math/vector3.h"
-#include "ChikaEngine/serialization/Access.h"
-#include "ChikaEngine/serialization/JsonArchive.h"
+#include "ChikaEngine/serialization/BinaryLoadArchive.h"
+#include "ChikaEngine/serialization/JsonLoadArchive.h"
+#include "ChikaEngine/serialization/JsonSaveArchive.h"
 #include "ChikaEngine/window/window_factory.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
-#include "ChikaEngine/renderer.h"
 #include "ChikaEngine/window/window_desc.h"
 #include "ChikaEngine/window/window_system.h"
 #include "Editor.h"
+
+#include "ChikaEngine/serialization/BinarySaveArchive.h"
 #include "engine.h"
+#include <cstddef>
 #include <cstdlib>
 #include <memory>
 
@@ -43,24 +47,35 @@ int main()
 
     LOG_INFO("Main", "Entering main loop");
     using namespace ChikaEngine;
-    Math::Vector3 test = {1, 1, 4};
+    IO::MemoryStream fs;
+    Math::Vector3 test = {5, 1, 4};
     {
-        IO::FileStream fs("test.json", IO::Mode::Write);
-        Serialization::JsonOutputArchive archive(fs);
-        archive("fuck", test);
+
+        LOG_DEBUG("io", "create");
+        Serialization::BinarySaveArchive archive(fs);
+        LOG_DEBUG("io", "archived crated");
+        archive(test);
+        LOG_DEBUG("main", "memorystrem, length = {}", fs.GetLength());
+    }
+    Math::Vector3 temp;
+    {
+        fs.FlipToRead();
+        Serialization::BinaryLoadArchive archive(fs);
+        archive("fuck",temp);
     }
     {
-        IO::FileStream _stream("test.json", IO::Mode::Read);
-        Serialization::JsonInputArchive archive(_stream);
-        archive("fuck", test);
+        IO::FileStream outStream("test.json", IO::Mode::Write);
 
-        size_t len = _stream.GetLength();
+        Serialization::JsonSaveArchive archive(outStream);
+        archive("fuck", test);
+        size_t len = outStream.GetLength();
+
         std::string str;
         str.resize(len);
-        _stream.Read(str.data(), len);
-
-        LOG_DEBUG("Main Fuck", "x:{}, y:{}, z{}", test.x, test.y, test.z);
+        outStream.Read(str.data(), len);
     }
+
+    LOG_DEBUG("Main Fuck", "x:{}, y:{}, z:{}", temp.x, temp.y, temp.z);
     // while (!window->ShouldClose())
     // {
     //     LOG_INFO("MainLoop", "Tick start");

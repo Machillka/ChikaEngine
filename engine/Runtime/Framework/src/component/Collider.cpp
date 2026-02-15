@@ -10,7 +10,7 @@ namespace ChikaEngine::Framework
 
     void Collider::SetPhysicsScene()
     {
-        _physicsScene = GetOwner()->GetScene()->GetRuntimeScenePhysics();
+        _physicsScene = GetOwner()->GetScene()->GetPhysicsScene();
     }
 
     void Collider::OnEnable()

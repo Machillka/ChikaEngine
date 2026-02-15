@@ -28,8 +28,19 @@ namespace ChikaEngine::IO
     {
         return _isReadingMode;
     }
+
+    // 直接反转到读取数据,重置游标到 0, 直接读曾经存在里面的数据
+    void MemoryStream::FlipToRead()
+    {
+        _isReadingMode = true;
+        _pos = 0;
+    }
     size_t MemoryStream::GetLength() const
     {
         return _buffer.size();
+    }
+    const std::vector<uint8_t>& MemoryStream::GetRawData()
+    {
+        return _buffer;
     }
 } // namespace ChikaEngine::IO

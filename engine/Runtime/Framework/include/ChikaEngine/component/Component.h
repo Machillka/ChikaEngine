@@ -1,5 +1,4 @@
 #pragma once
-#include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 
 namespace ChikaEngine::Framework

@@ -25,6 +25,9 @@ namespace ChikaEngine::IO
         void Write(const void* data, size_t size) override;
         bool IsReadingMode() const override;
         size_t GetLength() const override;
+        std::string ReadAllAsString();
+        // 快速从一个文件中读取数据并且返回
+        // static std::string ReadFileAllText(const std::string& path);
 
       private:
         std::fstream _stream;
