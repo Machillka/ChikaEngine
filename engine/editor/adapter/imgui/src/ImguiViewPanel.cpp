@@ -1,6 +1,6 @@
 
 #include "include/ChikaEngine/ImguiViewPanel.h"
-#include "ChikaEngine/gameobject/camera.h"
+#include "ChikaEngine/gameobject/Camera.h"
 #include "imgui.h"
 
 namespace ChikaEngine::Editor

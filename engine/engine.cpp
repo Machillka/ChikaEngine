@@ -1,12 +1,11 @@
 #include "engine.h"
-#include "ChikaEngine/Collider.h"
 #include "ChikaEngine/InputDesc.h"
 #include "ChikaEngine/InputSystem.h"
 #include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/PhysicsSystem.h"
 #include "ChikaEngine/ResourceSystem.h"
-#include "ChikaEngine/Rigidbody.h"
 #include "ChikaEngine/TimeSystem.h"
+#include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Renderable.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include "ChikaEngine/renderer.h"
@@ -16,7 +15,7 @@
 
 namespace ChikaEngine::Engine
 {
-    GameEngine::GameEngine() = default;
+    GameEngine::GameEngine() : _scene(nullptr), _window(nullptr), goTest(nullptr) {};
 
     GameEngine::~GameEngine() = default;
 
@@ -37,29 +36,31 @@ namespace ChikaEngine::Engine
         // Time
         ChikaEngine::Time::TimeSystem::Init(ChikaEngine::Time::TimeDesc{.backend = ChikaEngine::Time::TimeBackendTypes::GLFW});
 
-        // Physics
-        Physics::PhysicsSystemDesc physicsDesc{.initDesc = Physics::PhysicsInitDesc{}, .backendType = Physics::PhysicsBackendTypes::Jolt};
-        Physics::PhysicsScene::Instance().Initialize(physicsDesc);
+        // // Physics
+        // Physics::PhysicsSystemDesc physicsDesc{.initDesc = Physics::PhysicsInitDesc{}, .backendType = Physics::PhysicsBackendTypes::Jolt};
+        // Physics::PhysicsScene::Instance().Initialize(physicsDesc);
 
         // Resource system init and load assets from Assets/
         ChikaEngine::Resource::ResourceConfig cfg;
         cfg.assetRoot = "Assets";
-        Resource::ResourceSystem::Instance().Init(cfg);
-
+        auto ctx = Resource::ResourceSystem::Instance().LoadSettings();
+        // Resource::ResourceSystem::Instance().Init(cfg);
+        Core::UIDGenerator::Instance().Init(ctx.machineID);
+        Resource::ResourceSystem::Instance().Init(ctx);
         // Load mesh and material from asset paths
         auto meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/batman.obj");
         auto matHandle = Resource::ResourceSystem::Instance().LoadMaterial("Materials/suzanne.mat");
-        LOG_INFO("Engine", "Loaded resources meshHandle={} matHandle={}", meshHandle, matHandle);
+        // LOG_INFO("Engine", "Loaded resources meshHandle={} matHandle={}", meshHandle, matHandle);
         LOG_INFO("Engine", "HasMesh={} HasMaterial={}", Resource::ResourceSystem::Instance().HasMesh("Meshes/batman.obj"), Resource::ResourceSystem::Instance().HasMaterial("Materials/suzanne.mat"));
 
         using namespace Framework;
 
-        goTest = Framework::Scene::Instance().CreateGO("Batman");
-        goTest->AddComponent<Collider>();
-        goTest->AddComponent<Rigidbody>();
-        goTest->AddComponent<Renderable>();
-        goTest->GetComponent<Renderable>()->SetMaterial(matHandle);
-        goTest->GetComponent<Renderable>()->SetMesh(meshHandle);
+        // goTest = Framework::Scene::Instance().CreateGO("Batman");
+        // goTest->AddComponent<Collider>();
+        // goTest->AddComponent<Rigidbody>();
+        // goTest->AddComponent<Renderable>();
+        // goTest->GetComponent<Renderable>()->SetMaterial(matHandle);
+        // goTest->GetComponent<Renderable>()->SetMesh(meshHandle);
 
         meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/cube.obj");
 
@@ -95,8 +96,8 @@ namespace ChikaEngine::Engine
         while (accumulator >= fixedDt && steps < maxSteps)
         {
             // 提交引擎操作
-            Framework::Scene::Instance().FixedUpdate(fixedDt);
-            Physics::PhysicsScene::Instance().Tick(fixedDt);
+            // _scene.FixedUpdate(fixedDt);
+            // Physics::PhysicsScene::Instance().Tick(fixedDt);
             accumulator -= fixedDt;
             ++steps;
         }
@@ -104,7 +105,7 @@ namespace ChikaEngine::Engine
         auto pos = goTest->GetComponent<Framework::Transform>()->position;
         LOG_INFO("GO", "Position: x = {}, y = {}, z = {}", pos.x, pos.y, pos.z);
 
-        Framework::Scene::Instance().Update(deltaTime);
+        // Framework::Scene::Instance().Update(deltaTime);
         // Render::Renderer::RenderObjects({cube}, _camera);
     }
 } // namespace ChikaEngine::Engine

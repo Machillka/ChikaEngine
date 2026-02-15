@@ -2,6 +2,7 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/reflection/ReflectionData.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
+#include <iostream>
 #include <string>
 #include <unordered_map>
 
@@ -15,19 +16,26 @@ namespace ChikaEngine::Reflection
 
     void TypeRegister::RegisterClass(const ClassInfo& info)
     {
-        if (_registry.find(info.FullClassName) != _registry.end())
+        if (_registryFullName.find(info.FullClassName) != _registryFullName.end())
         {
             LOG_WARN("Reflection", "Class {} already registered, skipping.", info.FullClassName);
             return;
         }
-        _registry[info.FullClassName] = info;
+        _registryFullName[info.FullClassName] = info;
+        _registry[info.Name] = info;
         LOG_INFO("Reflection", "Registed:{}", info.FullClassName);
     }
 
-    const ClassInfo* TypeRegister::GetClass(const std::string& fullName)
+    const ClassInfo* TypeRegister::GetClassByFullName(const std::string& fullName)
     {
-        auto it = _registry.find(fullName);
-        return it != _registry.end() ? &it->second : nullptr;
+        auto it = _registryFullName.find(fullName);
+        return it != _registryFullName.end() ? &it->second : nullptr;
     }
 
+    const ClassInfo* TypeRegister::GetClassByName(const std::string& name)
+    {
+        auto it = _registry.find(name);
+        std::cout << "Mother fucker!!!" << std::endl;
+        return it != _registry.end() ? &it->second : nullptr;
+    }
 } // namespace ChikaEngine::Reflection

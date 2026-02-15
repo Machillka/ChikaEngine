@@ -44,14 +44,14 @@ namespace ChikaEngine::Framework
     {
         if (_isRegisterToScene)
             return;
-        Scene::Instance().RegisterRenderable(this);
+        GetOwner()->GetScene()->RegisterRenderable(this);
         _isRegisterToScene = true;
     }
     void Renderable::UnregisterFromScene()
     {
         if (!_isRegisterToScene)
             return;
-        Scene::Instance().UnregisterRenderable(this);
+        GetOwner()->GetScene()->UnregisterRenderable(this);
         _isRegisterToScene = false;
     }
 } // namespace ChikaEngine::Framework

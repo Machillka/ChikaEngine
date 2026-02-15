@@ -20,8 +20,10 @@ namespace ChikaEngine::Physics
         virtual void SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3 v) = 0;
         virtual void ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse) = 0;
 
-        virtual void SetLayerMask(std::uint32_t layerIndex, Framework::LayerMask mask) = 0;
-        virtual Framework::LayerMask GetLayerMask(std::uint32_t layerIndex) const = 0;
+        // virtual void SetLayerMask(std::uint32_t layerIndex, Framework::LayerMask mask) = 0;
+        // virtual Framework::LayerMask GetLayerMask(std::uint32_t layerIndex) const = 0;
+        virtual void SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask) = 0;
+        virtual PhysicsLayerMask GetLayerCollisionMask(PhysicsLayerID layerId) const = 0;
 
         virtual bool HasRigidbody(PhysicsBodyHandle handle) = 0;
 

@@ -68,7 +68,11 @@ namespace ChikaEngine::Physics
         PhysicsJoltBackend* _physicsBackend;
     };
 
-    PhysicsJoltBackend::PhysicsJoltBackend() : _listener(nullptr) {}
+    PhysicsJoltBackend::PhysicsJoltBackend() : _listener(nullptr)
+    {
+        // 默认初始化 Mask 数组，防止越界访问
+        _masks.resize(32, 0xFFFFFFFF);
+    }
     PhysicsJoltBackend::~PhysicsJoltBackend()
     {
         Shutdown();
@@ -128,23 +132,22 @@ namespace ChikaEngine::Physics
         JPH::RegisterDefaultAllocator();
         JPH::Factory::sInstance = new JPH::Factory();
         JPH::RegisterTypes();
+
         _tempAllocator = std::make_unique<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
         _jobSystem = std::make_unique<JPH::JobSystemThreadPool>(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers);
         _physicsSystem = std::make_unique<JPH::PhysicsSystem>();
 
-        size_t N = static_cast<size_t>(Framework::GameObjectLayer::Count);
-        {
-            std::lock_guard lock(_maskMutex);
-            // 设置为默认
-            _masks.assign(N, ~Framework::LayerMask(0));
-        }
-
-        // 修改为默认参数——两层 : 动 / 静态
+        // 创建实例
         _bpInterface = std::make_unique<JoltHelper::BitmaskBroadPhaseLayerInterface>();
         _objVsBPFilter = std::make_unique<JoltHelper::BitmaskObjectVsBroadPhaseLayerFilter>();
-        _pairFilter = std::make_unique<JoltHelper::BitmaskObjectLayerPairFilter>(_masks);
+        _pairFilter = std::make_unique<JoltHelper::BitmaskObjectLayerPairFilter>(this);
 
-        _physicsSystem->Init(1024, 0, 1024, 1024, *_bpInterface, *_objVsBPFilter, *_pairFilter);
+        const uint32_t cMaxBodies = 2048;
+        const uint32_t cNumBodyMutexes = 0;
+        const uint32_t cMaxBodyPairs = 2048;
+        const uint32_t cMaxContactConstraints = 1024;
+
+        _physicsSystem->Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, *_bpInterface, *_objVsBPFilter, *_pairFilter);
 
         _bodyInterface = &_physicsSystem->GetBodyInterface();
         _physicsSystem->SetGravity(JPH::Vec3(desc.gravity.x, desc.gravity.y, desc.gravity.z));
@@ -214,39 +217,12 @@ namespace ChikaEngine::Physics
         _impulseCommands.push_back(ImpulseCommand{.handle = handle, .impulse = impulse});
     }
 
-    void PhysicsJoltBackend::SetLayerMask(std::uint32_t layerIndex, Framework::LayerMask mask)
-    {
-        {
-            std::lock_guard lock(_maskMutex);
-            if (layerIndex >= _masks.size())
-            {
-                _masks.resize(layerIndex + 1, ~Framework::LayerMask(0));
-            }
-            _masks[layerIndex] = mask;
-        }
-
-        if (_pairFilter)
-        {
-            if (auto* concrete = dynamic_cast<JoltHelper::BitmaskObjectLayerPairFilter*>(_pairFilter.get()))
-            {
-                concrete->SetMask(layerIndex, mask);
-            }
-        }
-    }
-
-    Framework::LayerMask PhysicsJoltBackend::GetLayerMask(std::uint32_t layerIndex) const
-    {
-        std::lock_guard lock(_maskMutex);
-        if (layerIndex >= _masks.size())
-            return ~Framework::LayerMask(0);
-        return _masks[layerIndex];
-    }
     void PhysicsJoltBackend::Simulate(float fixedDeltaTime)
     {
         if (!_physicsSystem)
             return;
-        LOG_INFO("Physics backend", "Simulating...");
-        // TODO: 提供设置速度,以及impulse
+        // LOG_INFO("Physics backend", "Simulating...");
+        // TODO[x]: 提供设置速度,以及impulse
         {
             std::lock_guard lk(_commandMutex);
             for (auto& velocityCmd : _velocityCommands)
@@ -270,6 +246,25 @@ namespace ChikaEngine::Physics
         }
 
         _physicsSystem->Update(fixedDeltaTime, 1, _tempAllocator.get(), _jobSystem.get());
+    }
+    
+    void PhysicsJoltBackend::SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask)
+    {
+        std::lock_guard lock(_maskMutex);
+        if (layerId >= _masks.size())
+        {
+            // 扩容并默认填充全1 (默认碰撞)
+            _masks.resize(layerId + 8, 0xFFFFFFFF);
+        }
+        _masks[layerId] = mask;
+    }
+
+    PhysicsLayerMask PhysicsJoltBackend::GetLayerCollisionMask(PhysicsLayerID layerId) const
+    {
+        std::lock_guard lock(_maskMutex);
+        if (layerId >= _masks.size())
+            return 0xFFFFFFFF; // 默认返回全碰撞或0，视策略而定
+        return _masks[layerId];
     }
 
     PhysicsBodyHandle PhysicsJoltBackend::CreateBodyFromDesc(const PhysicsBodyCreateDesc& desc)
@@ -298,7 +293,7 @@ namespace ChikaEngine::Physics
             settings.mMotionType = EMotionType::Dynamic;
 
         // 计算编码后的 ObjectLayer
-        settings.mObjectLayer = JoltHelper::GetJoltObjectLayer(desc.layerMask, desc.motionType);
+        settings.mObjectLayer = JoltHelper::GetJoltObjectLayer(desc.layer, desc.motionType);
 
         if (desc.motionType != MotionType::Static)
         {

@@ -24,6 +24,9 @@ namespace ChikaEngine::Reflection
             prop.Name = "{{ field.name }}";
             prop.Type = ReflectType::{{ field.reflect_type }};
             
+            // 计算 offset
+            //prop.Offset = offsetof({{ class.full_name }}, {{ field.name }});
+            prop.Offset = (size_t)( (uintptr_t)&((( {{ class.full_name }} *)0)->{{ field.name }}) );
             // Getter
             prop.Get = [](void* instance, void* outValue)
             {

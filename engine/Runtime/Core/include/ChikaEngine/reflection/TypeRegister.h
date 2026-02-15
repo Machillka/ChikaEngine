@@ -14,9 +14,11 @@ namespace ChikaEngine::Reflection
       public:
         static TypeRegister& Instance();
         void RegisterClass(const ClassInfo& info);
-        const ClassInfo* GetClass(const std::string& fullName);
+        const ClassInfo* GetClassByFullName(const std::string& fullName);
+        const ClassInfo* GetClassByName(const std::string& name);
 
       public:
+        std::unordered_map<std::string, ClassInfo> _registryFullName;
         std::unordered_map<std::string, ClassInfo> _registry;
     };
 } // namespace ChikaEngine::Reflection

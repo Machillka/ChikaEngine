@@ -3,7 +3,7 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Transform.h"
 #include "ChikaEngine/debug/log_macros.h"
-#include <cstdint>
+#include "ChikaEngine/reflection/ReflectionMacros.h"
 #include <memory>
 #include <mutex>
 #include <string>
@@ -14,9 +14,10 @@ namespace ChikaEngine::Framework
     // TODO[x]: 完善这个简陋的自增 ID
 
     class Scene; // 前向声明
-
-    class GameObject
+    MCLASS(GameObject)
     {
+        REFLECTION_BODY(GameObject);
+
       public:
         GameObject(std::string name);
         ~GameObject();
@@ -38,7 +39,7 @@ namespace ChikaEngine::Framework
         Transform* transform = nullptr;
 
         // 提供组件相关方法
-        template <typename T, typename... Args> T* AddComponent(Args&&... args)
+        template <typename T, typename... Args> T* AddComponent(Args && ... args)
         {
             auto component = std::make_unique<T>(std::forward<Args>(args)...);
             component->SetOwner(this);
@@ -87,12 +88,24 @@ namespace ChikaEngine::Framework
         void FixedUpdate(float fixedDeltaTime);
         // TODO: 加入 lateupdate
 
+        void SetScene(Scene * scene)
+        {
+            _scene = scene;
+        }
+        Scene* GetScene() const
+        {
+            return _scene;
+        }
+
       private:
         Core::GameObjectID _id;
+        MFIELD()
         std::string _name;
         std::vector<std::unique_ptr<Component>> _components;
         // 加入对于组件的锁
         mutable std::mutex _compMutex;
+
+        Scene* _scene = nullptr;
 
         bool _active = true;
         // 是否执行过 start 方法

@@ -1,14 +1,22 @@
-#include "ChikaEngine/Collider.h"
-#include "ChikaEngine/PhysicsSystem.h"
-#include "ChikaEngine/Rigidbody.h"
-#include <cstdint>
+#include "ChikaEngine/component/Collider.h"
+#include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/component/Rigidbody.h"
+#include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/scene/scene.h"
 #include <cstdlib>
 
 namespace ChikaEngine::Framework
 {
+
+    void Collider::SetPhysicsScene()
+    {
+        _physicsScene = GetOwner()->GetScene()->GetPhysicsScene();
+    }
+
     void Collider::OnEnable()
     {
         Component::OnEnable();
+        SetPhysicsScene();
 
         if (_physicsBodyHandle == 0)
         {
@@ -20,8 +28,10 @@ namespace ChikaEngine::Framework
         Component::OnDisable();
         if (_physicsBodyHandle != 0)
         {
-            Physics::PhysicsScene::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
+            _physicsScene->EnqueueRigidbodyDestroy(_physicsBodyHandle);
+            // Physics::PhysicsScene::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
             _physicsBodyHandle = 0;
+            _physicsScene = nullptr;
         }
     }
     void Collider::OnDestroy()
@@ -34,8 +44,9 @@ namespace ChikaEngine::Framework
     {
         if (_physicsBodyHandle != 0)
         {
+            // TODO: 实现 Scene 中得到 Physics 然后进行一个改的修
             // 因为覆盖 所以允许延迟删除
-            Physics::PhysicsScene::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
+            _physicsScene->EnqueueRigidbodyDestroy(_physicsBodyHandle);
             _physicsBodyHandle = 0;
         }
 
@@ -71,11 +82,12 @@ namespace ChikaEngine::Framework
 
         desc.friction = friction;
         desc.restitution = restitution;
-        desc.layerMask = static_cast<uint32_t>(layer);
+        desc.layer = static_cast<Physics::PhysicsLayerID>(layer);
 
-        Physics::PhysicsScene::Instance().SetLayerMask(desc.layerMask, collisionMask);
-
-        _physicsBodyHandle = Physics::PhysicsScene::Instance().CreateBodyImmediate(desc);
+        // Physics::PhysicsScene::Instance().SetLayerMask(desc.layerMask, collisionMask);
+        _physicsScene->SetLayerCollisionMask(desc.layer, collisionMask);
+        // _physicsBodyHandle = Physics::PhysicsScene::Instance().CreateBodyImmediate(desc);
+        _physicsScene->CreateBodyImmediate(desc);
         LOG_DEBUG("Physics", "Set {}", _physicsBodyHandle);
         if (rb)
         {

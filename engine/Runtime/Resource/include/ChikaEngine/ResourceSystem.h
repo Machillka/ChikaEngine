@@ -47,7 +47,7 @@ namespace ChikaEngine::Resource
         TextureHandle LoadTexture(const std::string& path, bool sRGB = true);
         ShaderHandle LoadShader(const ShaderSourceDesc& desc);
         MaterialHandle LoadMaterial(const std::string& path);
-        void TryLoadSettings(const std::string& path, LocalSettingsContext& ctx);
+        LocalSettingsContext LoadSettings(const std::string& path = "Assets/local_config.json");
 
         bool HasMesh(const std::string& path) const;
         bool HasTexture(const std::string& path) const;

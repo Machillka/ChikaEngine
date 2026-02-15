@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/layer/layer.h"
 #include "ChikaEngine/math/vector3.h"
@@ -44,6 +45,8 @@ namespace ChikaEngine::Framework
         LayerMask collisionMask = MakeMask({GameObjectLayer::Default});
 
       private:
+        Physics::PhysicsScene* _physicsScene = nullptr;
+        void SetPhysicsScene();
         Physics::PhysicsBodyHandle _physicsBodyHandle = 0;
     };
 } // namespace ChikaEngine::Framework

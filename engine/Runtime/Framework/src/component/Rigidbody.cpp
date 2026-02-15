@@ -1,6 +1,8 @@
-#include "ChikaEngine/Rigidbody.h"
-#include "ChikaEngine/Collider.h"
-#include "ChikaEngine/PhysicsSystem.h"
+
+#include "ChikaEngine/component/Rigidbody.h"
+#include "ChikaEngine/component/Collider.h"
+#include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/gameobject/GameObject.h"
 namespace ChikaEngine::Framework
 {
     Rigidbody::~Rigidbody()
@@ -85,12 +87,12 @@ namespace ChikaEngine::Framework
     {
         if (_physicsBodyHandle == 0)
             return;
-        Physics::PhysicsScene::Instance().ApplyImpulse(_physicsBodyHandle, impulse);
+        // Physics::PhysicsScene::Instance().ApplyImpulse(_physicsBodyHandle, impulse);
     }
     void Rigidbody::SetLinearVelocity(const ChikaEngine::Math::Vector3& vel)
     {
         if (_physicsBodyHandle == 0)
             return;
-        Physics::PhysicsScene::Instance().SetLinearVelocity(_physicsBodyHandle, vel);
+        // Physics::PhysicsScene::Instance().SetLinearVelocity(_physicsBodyHandle, vel);
     }
 } // namespace ChikaEngine::Framework

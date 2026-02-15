@@ -1,4 +1,12 @@
 #include "ChikaEngine/scene/scene.h"
+#include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/io/FileStream.h"
+#include "ChikaEngine/io/IStream.h"
+#include "ChikaEngine/io/MemoryStream.h"
+#include "ChikaEngine/serialization/BinarySaveArchive.h"
+#include "ChikaEngine/serialization/JsonLoadArchive.h"
+#include "ChikaEngine/serialization/JsonSaveArchive.h"
+
 #include <algorithm>
 #include <memory>
 #include <mutex>
@@ -31,35 +39,6 @@ namespace ChikaEngine::Framework
     {
         auto go = _objects.find(id);
         return go != _objects.end() ? go->second.get() : nullptr;
-    }
-
-    // TODO[x]: 添加Update
-    void Scene::Update(float deltaTime)
-    {
-        std::vector<GameObject*> snapshot;
-        snapshot.reserve(_objects.size());
-        for (auto& kv : _objects)
-            snapshot.push_back(kv.second.get());
-
-        for (auto* go : snapshot)
-        {
-            if (go->IsActive())
-                go->Update(deltaTime);
-        }
-    }
-
-    void Scene::FixedUpdate(float fixedDeltaTime)
-    {
-        std::vector<GameObject*> snapshot;
-        snapshot.reserve(_objects.size());
-        for (auto& kv : _objects)
-            snapshot.push_back(kv.second.get());
-
-        for (auto* go : snapshot)
-        {
-            if (go->IsActive())
-                go->FixedUpdate(fixedDeltaTime);
-        }
     }
 
     void Scene::RegisterRenderable(Renderable* ro)
@@ -101,10 +80,56 @@ namespace ChikaEngine::Framework
         return out;
     }
 
-    void Scene::OnRuntimeStart()
+    Physics::PhysicsScene* Scene::GetPhysicsScene()
     {
-        
+        return _physicsScene.get();
     }
-    void Scene::OnRuntimeUpdate(float deltaTime) {}
-    void Scene::OnRuntimeStop() {}
+
+    void Scene::ClearAllObjects()
+    {
+        _objects.clear();
+    }
+
+    void Scene::OnStart()
+    {
+        // 如果有数据流输入 就说明需要 copy 一份 scene 再开始运行
+        for (auto& kv : _objects)
+        {
+            kv.second->Start();
+        }
+    }
+    void Scene::OnUpdate(float deltaTime)
+    {
+        for (auto& kv : _objects)
+        {
+            kv.second->Update(deltaTime);
+        }
+    }
+    void Scene::OnFixedUpdate(float fixedDeltaTime)
+    {
+        for (auto& kv : _objects)
+        {
+            kv.second->FixedUpdate(fixedDeltaTime);
+        }
+    }
+    void Scene::OnPhysicsUpdate(float fixedDeltaTime)
+    {
+        // 更新物理系统和 transform
+    }
+
+    void Scene::OnEnd()
+    {
+        {
+            IO::FileStream jsonOutputStream("Seetings/scene.json", IO::Mode::Write);
+            Serialization::JsonSaveArchive archive(jsonOutputStream);
+            Serialize(archive); // 自动根据编译逻辑执行序列化操作
+        }
+
+        {
+            IO::MemoryStream memoryOutputStream;
+            Serialization::BinarySaveArchive archive(memoryOutputStream);
+            Serialize(archive);
+        }
+    }
+
 } // namespace ChikaEngine::Framework

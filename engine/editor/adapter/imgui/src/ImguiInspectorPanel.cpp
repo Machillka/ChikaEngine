@@ -1,6 +1,7 @@
 
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/reflection/TypeRegister.h"
 #include "imgui.h"
 #include "include/ChikaEngine/ImguiInspectorPanel.h"
 #include "include/ChikaEngine/ImguiInspectorHelper.h"
@@ -23,7 +24,7 @@ namespace ChikaEngine::Editor
             return;
         }
 
-        const auto* ci = Reflection::TypeRegister::Instance().GetClass(selectionObj.fullName);
+        const auto* ci = Reflection::TypeRegister::Instance().GetClassByFullName(selectionObj.fullName);
         if (!ci)
         {
             ImGui::Text("No reflection info for %s", selectionObj.fullName.c_str());

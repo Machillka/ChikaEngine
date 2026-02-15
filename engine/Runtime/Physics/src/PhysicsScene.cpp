@@ -103,17 +103,17 @@ namespace ChikaEngine::Physics
             _backend->ApplyImpulse(handle, impulse);
     }
 
-    void PhysicsScene::SetLayerMask(std::uint32_t layerIndex, Framework::LayerMask mask)
+    void PhysicsScene::SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask)
     {
         if (_backend)
-            _backend->SetLayerMask(layerIndex, mask);
+            _backend->SetLayerCollisionMask(layerId, mask);
     }
 
-    Framework::LayerMask PhysicsScene::GetLayerMask(std::uint32_t layerIndex) const
+    PhysicsLayerMask PhysicsScene::GetLayerCollisionMask(PhysicsLayerID layerId)
     {
         if (_backend)
-            return _backend->GetLayerMask(layerIndex);
-        return Framework::LayerMask(Framework::GameObjectLayer::Default);
+            return _backend->GetLayerCollisionMask(layerId);
+        return PhysicsLayerMask(0);
     }
 
     void PhysicsScene::RegisterRigidbody(PhysicsBodyHandle handle, Core::GameObjectID id)

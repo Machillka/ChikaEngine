@@ -127,9 +127,10 @@ namespace ChikaEngine::Resource
         return handle;
     }
 
-    void ResourceSystem::TryLoadSettings(const std::string& path, LocalSettingsContext& ctx)
+    LocalSettingsContext ResourceSystem::LoadSettings(const std::string& path)
     {
-        ctx = LocalSettingsContext{};
+        LocalSettingsContext ctx = LocalSettingsContext{};
+
         bool needWrite = false; // 如果读取失败,就重载一个进去
         if (!fs::exists(path))
             LOG_WARN("Resource System", "Local Setting Path doesn't exist!!!");
@@ -191,6 +192,8 @@ namespace ChikaEngine::Resource
             o << j.dump(4);
             LOG_INFO("Resource", "Saved local settings to {}", path);
         }
+
+        return ctx;
     }
 
     bool ResourceSystem::HasMesh(const std::string& path) const

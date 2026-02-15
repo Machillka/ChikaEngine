@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <any>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <vector>
@@ -30,6 +31,7 @@ namespace ChikaEngine::Reflection
     {
         std::string Name;
         ReflectType Type;
+        size_t Offset; // 属性偏移量 二进制等运算或者绑定中使用
         PropertyGetter Get;
         PropertySetter Set;
     };
