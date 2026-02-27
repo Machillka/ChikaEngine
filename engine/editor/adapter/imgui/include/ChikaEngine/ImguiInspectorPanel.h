@@ -15,6 +15,7 @@ namespace ChikaEngine::Editor
             return "Inspector";
         }
         void OnRender(UIContext& ctx) override;
-        void DrawPropertyWidget(void* instance, const Reflection::PropertyInfo& prop);
+        bool DrawPropertyWidget(void* instance, const Reflection::PropertyInfo& prop);
+        void DrawReflectedProperties(void* instance, const std::string& typeName);
     };
 } // namespace ChikaEngine::Editor

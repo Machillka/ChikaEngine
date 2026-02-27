@@ -42,13 +42,16 @@ namespace ChikaEngine::Resource
         void Init(LocalSettingsContext& ctx);
         void Shutdown();
 
+        LocalSettingsContext LoadSettings(const std::string& path = "Assets/local_config.json");
+
         // WORKFLOW: 往其中添加新的资源读写
         MeshHandle LoadMesh(const std::string& path);
         TextureHandle LoadTexture(const std::string& path, bool sRGB = true);
         ShaderHandle LoadShader(const ShaderSourceDesc& desc);
         MaterialHandle LoadMaterial(const std::string& path);
-        LocalSettingsContext LoadSettings(const std::string& path = "Assets/local_config.json");
+        TextureCubeHandle LoadTextureCube(const TextureCubeSourceDesc& desc);
 
+        bool HasTextureCube(const TextureCubeSourceDesc& desc) const;
         bool HasMesh(const std::string& path) const;
         bool HasTexture(const std::string& path) const;
         bool HasShader(const ShaderSourceDesc& desc) const;
@@ -68,6 +71,10 @@ namespace ChikaEngine::Resource
         std::unordered_map<std::string, TextureHandle> _textureCache;
         std::unordered_map<std::string, ShaderHandle> _shaderCache;
         std::unordered_map<std::string, MaterialHandle> _materialCache;
+        std::unordered_map<std::string, TextureCubeHandle> _textureCubeCache;
+
+        // 合并路径
+        std::string MakeTextureCubeKey(const TextureCubeSourceDesc& desc) const;
 
         // 上锁
         mutable std::mutex _cacheMutex;

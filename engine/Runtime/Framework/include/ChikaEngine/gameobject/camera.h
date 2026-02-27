@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
@@ -26,6 +27,7 @@ namespace ChikaEngine::Framework
         void ProcessMouseMovement(float deltaX, float deltaY, bool constrainPitch = true);
         Math::Vector3 Front() const;
         Render::CameraData ToRenderData() const;
+        Physics::Ray ScreenPointToRay(float u, float v) const;
 
       private:
         Math::Vector3 _target;

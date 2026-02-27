@@ -1,7 +1,6 @@
-
-
 #include "ChikaEngine/component/Transform.h"
 #include "ChikaEngine/debug/log_macros.h"
+
 namespace ChikaEngine::Framework
 {
     void Transform::Translate(const Math::Vector3& delta)

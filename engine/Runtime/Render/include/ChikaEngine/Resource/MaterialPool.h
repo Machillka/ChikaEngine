@@ -12,6 +12,7 @@ namespace ChikaEngine::Render
     {
         IRHIPipeline* pipeline = nullptr;
         std::unordered_map<std::string, IRHITexture2D*> textures;
+        std::unordered_map<std::string, IRHITextureCube*> cubemaps;
         std::unordered_map<std::string, float> uniformFloats;
         std::unordered_map<std::string, std::array<float, 3>> uniformVec3s;
         std::unordered_map<std::string, std::array<float, 4>> uniformVec4s;

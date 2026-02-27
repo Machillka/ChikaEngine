@@ -16,7 +16,7 @@ namespace ChikaEngine::Render
         void SetUniformVec3(const char* name, const std::array<float, 3>& v) override;
         void SetUniformVec4(const char* name, const std::array<float, 4>& v) override;
         void SetUniformMat4(const char* name, const Math::Mat4& v) override;
-
+        void SetUniformTextureCube(const char* name, IRHITextureCube* tex, int slot) override;
         void SetUniformTexture(const char* name, IRHITexture2D* tex, int slot) override;
 
         GLuint Program() const

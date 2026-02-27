@@ -29,7 +29,7 @@ namespace ChikaEngine::Render
         virtual IRHITexture2D* CreateTexture2D(int width, int height, int channels, const void* data, bool sRGB) = 0;
         virtual IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) = 0;
         virtual IRHIRenderTarget* CreateRenderTarget(int width, int height) = 0;
-
+        virtual IRHITextureCube* CreateTextureCube(int w, int h, int channels, const std::array<const void*, 6>& data, bool sRGB) = 0;
         // 绑定 vertex
         virtual void SetupMeshVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo, IRHIBuffer* ibo) = 0;
 

@@ -25,6 +25,9 @@ namespace ChikaEngine::Render
         static void RenderObjects(const std::vector<RenderObject>& ros, const CameraData& camera);
         static void RenderObjectsToTarget(IRHIRenderTarget* target, const std::vector<RenderObject>& ros, const CameraData& camera);
         static IRHIRenderTarget* CreateRenderTarget(int width, int height);
+
+        static void RenderObjectsToTargetWithSkyBox(IRHIRenderTarget* target, TextureCubeHandle cubemap, const std::vector<RenderObject>& ros, const CameraData& camera);
+        static void DrawSkybox(TextureCubeHandle cubemap, const CameraData& camera);
         static void EndFrame();
 
       private:

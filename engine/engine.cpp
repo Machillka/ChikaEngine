@@ -1,17 +1,18 @@
 #include "engine.h"
 #include "ChikaEngine/InputDesc.h"
 #include "ChikaEngine/InputSystem.h"
-#include "ChikaEngine/PhysicsDescs.h"
-#include "ChikaEngine/PhysicsSystem.h"
 #include "ChikaEngine/ResourceSystem.h"
 #include "ChikaEngine/TimeSystem.h"
 #include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/component/Collider.h"
 #include "ChikaEngine/component/Renderable.h"
+#include "ChikaEngine/component/Rigidbody.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include "ChikaEngine/renderer.h"
 #include "ChikaEngine/scene/scene.h"
 #include "ChikaEngine/window/window_system.h"
 #include <cstdlib>
+#include <memory>
 
 namespace ChikaEngine::Engine
 {
@@ -36,42 +37,60 @@ namespace ChikaEngine::Engine
         // Time
         ChikaEngine::Time::TimeSystem::Init(ChikaEngine::Time::TimeDesc{.backend = ChikaEngine::Time::TimeBackendTypes::GLFW});
 
-        // // Physics
-        // Physics::PhysicsSystemDesc physicsDesc{.initDesc = Physics::PhysicsInitDesc{}, .backendType = Physics::PhysicsBackendTypes::Jolt};
-        // Physics::PhysicsScene::Instance().Initialize(physicsDesc);
+        _scene = std::make_unique<Framework::Scene>(Framework::SceneMode::edit);
 
-        // Resource system init and load assets from Assets/
         ChikaEngine::Resource::ResourceConfig cfg;
         cfg.assetRoot = "Assets";
         auto ctx = Resource::ResourceSystem::Instance().LoadSettings();
-        // Resource::ResourceSystem::Instance().Init(cfg);
+
         Core::UIDGenerator::Instance().Init(ctx.machineID);
         Resource::ResourceSystem::Instance().Init(ctx);
-        // Load mesh and material from asset paths
+
+        // 加载天空盒
+        using namespace ChikaEngine::Resource;
+
+        TextureCubeSourceDesc skyDesc;
+
+        skyDesc.facePaths = {
+            "Textures/Skybox/nx.png", // Right
+            "Textures/Skybox/nz.png", // Left
+            "Textures/Skybox/ny.png", // Top
+            "Textures/Skybox/px.png", // Bottom
+            "Textures/Skybox/py.png", // Front
+            "Textures/Skybox/pz.png"  // Back
+        };
+        skyDesc.sRGB = true;
+
+        mapcubeHanele = ResourceSystem::Instance().LoadTextureCube(skyDesc);
+
+        // auto meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/batman.obj");
+        // auto matHandle = Resource::ResourceSystem::Instance().LoadMaterial("Materials/suzanne.mat");
+
         auto meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/batman.obj");
-        auto matHandle = Resource::ResourceSystem::Instance().LoadMaterial("Materials/suzanne.mat");
-        // LOG_INFO("Engine", "Loaded resources meshHandle={} matHandle={}", meshHandle, matHandle);
+        auto matHandle = Resource::ResourceSystem::Instance().LoadMaterial("Materials/glass.mat");
+
         LOG_INFO("Engine", "HasMesh={} HasMaterial={}", Resource::ResourceSystem::Instance().HasMesh("Meshes/batman.obj"), Resource::ResourceSystem::Instance().HasMaterial("Materials/suzanne.mat"));
 
         using namespace Framework;
-
+        auto id = _scene->CreateGameobject("Batman");
+        goTest = _scene->GetGameobject(id);
         // goTest = Framework::Scene::Instance().CreateGO("Batman");
-        // goTest->AddComponent<Collider>();
+        goTest->AddComponent<Collider>();
         // goTest->AddComponent<Rigidbody>();
-        // goTest->AddComponent<Renderable>();
-        // goTest->GetComponent<Renderable>()->SetMaterial(matHandle);
-        // goTest->GetComponent<Renderable>()->SetMesh(meshHandle);
+        goTest->AddComponent<Renderable>();
+        goTest->GetComponent<Renderable>()->SetMaterial(matHandle);
+        goTest->GetComponent<Renderable>()->SetMesh(meshHandle);
 
         meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/cube.obj");
 
-        // auto plane = Framework::Scene::Instance().CreateGO("Cube");
-        // // plane->AddComponent<Collider>();
+        // auto planeID = _scene->CreateGameobject("plane");
+        // auto plane = _scene->GetGameobject(planeID);
+        // plane->AddComponent<Collider>();
         // plane->transform->Scale(2, 1, 2);
-        // plane->transform->Translate(Math::Vector3{0, -1, 0});
+        // plane->transform->Translate(Math::Vector3{0, -5, 0});
         // plane->AddComponent<Renderable>();
         // plane->GetComponent<Renderable>()->SetMaterial(matHandle);
         // plane->GetComponent<Renderable>()->SetMesh(meshHandle);
-        // plane->GetComponent<Collider>()->halfExtents = Math::Vector3{10, 1, 10};
     }
 
     std::vector<Render::RenderObject>* GameEngine::RenderObjects()
@@ -81,10 +100,15 @@ namespace ChikaEngine::Engine
 
     void GameEngine::Tick()
     {
+        if (_scene == nullptr)
+            return;
+
         Time::TimeSystem::Update();
         float deltaTime = Time::TimeSystem::GetDeltaTime();
 
         Input::InputSystem::Update();
+
+        _scene->Update(deltaTime);
 
         // 计算是否需要 Update 物理
         static double accumulator = 0.0;
@@ -96,16 +120,32 @@ namespace ChikaEngine::Engine
         while (accumulator >= fixedDt && steps < maxSteps)
         {
             // 提交引擎操作
-            // _scene.FixedUpdate(fixedDt);
-            // Physics::PhysicsScene::Instance().Tick(fixedDt);
+            _scene->FixedUpdate(fixedDt);
             accumulator -= fixedDt;
             ++steps;
         }
+    }
 
-        auto pos = goTest->GetComponent<Framework::Transform>()->position;
-        LOG_INFO("GO", "Position: x = {}, y = {}, z = {}", pos.x, pos.y, pos.z);
+    /*!
+     * @brief  实现把当前的场景进行序列化然后调整成 play mode
+     *
+     * @author Machillka (machillka2007@gmail.com)
+     * @date 2026-02-27
+     */
+    void GameEngine::StartScene()
+    {
+        // TODO: 实现序列化备份数据
+        _scene = std::make_unique<Framework::Scene>(Framework::SceneMode::play);
+    }
 
-        // Framework::Scene::Instance().Update(deltaTime);
-        // Render::Renderer::RenderObjects({cube}, _camera);
+    void GameEngine::EndScene()
+    {
+        _scene.reset();
+        _scene = nullptr;
+    }
+
+    Framework::Scene* GameEngine::GetActiveScene() const
+    {
+        return _scene.get();
     }
 } // namespace ChikaEngine::Engine

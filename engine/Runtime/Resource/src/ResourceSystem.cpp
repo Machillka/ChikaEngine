@@ -7,8 +7,11 @@
 #include "ChikaEngine/Resource/MeshPool.h"
 #include "ChikaEngine/Resource/Shader.h"
 #include "ChikaEngine/Resource/ShaderPool.h"
+#include "ChikaEngine/Resource/TextureCubePool.h"
 #include "ChikaEngine/Resource/TexturePool.h"
+#include "ChikaEngine/ResourceTypes.h"
 #include "ChikaEngine/ShaderImporter.h"
+#include "ChikaEngine/TextureCubeImporter.h"
 #include "ChikaEngine/TextureImporter.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "nlohmann/json_fwd.hpp"
@@ -34,6 +37,8 @@ namespace ChikaEngine::Resource
         _textureCache.clear();
         _shaderCache.clear();
         _materialCache.clear();
+        _textureCubeCache.clear();
+        // TODO: shutdown pool
         LOG_INFO("ResourceSystem", "Shutdown");
     }
 
@@ -124,6 +129,41 @@ namespace ChikaEngine::Resource
             std::lock_guard lk(_cacheMutex);
             _materialCache[fullPath] = handle;
         }
+        return handle;
+    }
+
+    TextureCubeHandle ResourceSystem::LoadTextureCube(const TextureCubeSourceDesc& desc)
+    {
+        TextureCubeSourceDesc normalizedDesc = desc;
+        for (auto& p : normalizedDesc.facePaths)
+            p = NormalizePath(p);
+
+        std::string key = MakeTextureCubeKey(normalizedDesc);
+
+        {
+            std::lock_guard lk(_cacheMutex);
+            if (auto it = _textureCubeCache.find(key); it != _textureCubeCache.end())
+            {
+                return it->second;
+            }
+        }
+
+        auto cpuData = Importer::TextureCubeImporter::Load(normalizedDesc);
+
+        std::array<const void*, 6> rawDataPtrs;
+        for (int i = 0; i < 6; ++i)
+        {
+            rawDataPtrs[i] = cpuData.facesPixels[i].data();
+        }
+
+        TextureCubeHandle handle = Render::TextureCubePool::Create(cpuData.width, cpuData.height, cpuData.channels, rawDataPtrs, cpuData.sRGB);
+
+        {
+            std::lock_guard lk(_cacheMutex);
+            _textureCubeCache[key] = handle;
+        }
+
+        LOG_INFO("ResourceSystem", "TextureCube loaded via Desc. Handle={}", handle);
         return handle;
     }
 
@@ -233,5 +273,17 @@ namespace ChikaEngine::Resource
         std::mt19937 gen(rd());
         std::uniform_int_distribution<uint32_t> dist(0, 1023);
         return dist(gen);
+    }
+
+    std::string ResourceSystem::MakeTextureCubeKey(const TextureCubeSourceDesc& desc) const
+    {
+        std::stringstream ss;
+        for (const auto& p : desc.facePaths)
+        {
+            ss << NormalizePath(p) << "|";
+        }
+        // 用 1, 0 表示是否有 sRGB
+        ss << (desc.sRGB ? "1" : "0");
+        return ss.str();
     }
 } // namespace ChikaEngine::Resource

@@ -19,7 +19,7 @@ namespace ChikaEngine::Framework
         REFLECTION_BODY(GameObject);
 
       public:
-        GameObject(std::string name);
+        GameObject(std::string name = "GameObject");
         ~GameObject();
         // 基本信息 —— ID(全局唯一) 和 名字 (随意)
         Core::GameObjectID GetID() const
@@ -43,6 +43,7 @@ namespace ChikaEngine::Framework
         {
             auto component = std::make_unique<T>(std::forward<Args>(args)...);
             component->SetOwner(this);
+            component->SetReflectedClassName(T::GetClassName());
             component->Awake();
             T* ptr = component.get();
             // 移交所有权
@@ -86,7 +87,7 @@ namespace ChikaEngine::Framework
         void Start();
         void Update(float deltaTime);
         void FixedUpdate(float fixedDeltaTime);
-        // TODO: 加入 lateupdate
+        // TODO[x]: 加入 lateupdate
 
         void SetScene(Scene * scene)
         {

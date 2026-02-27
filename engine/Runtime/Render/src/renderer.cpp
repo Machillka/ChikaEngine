@@ -64,6 +64,7 @@ namespace ChikaEngine::Render
             _renderDevice->DrawObject(obj, camera);
         }
     }
+
     void Renderer::RenderObjectsToTarget(IRHIRenderTarget* target, const std::vector<RenderObject>& ros, const CameraData& camera)
     {
         if (!target || !_renderDevice)
@@ -84,9 +85,38 @@ namespace ChikaEngine::Render
 
         target->UnBind();
     }
+
+    void Renderer::RenderObjectsToTargetWithSkyBox(IRHIRenderTarget* target, TextureCubeHandle cubemap, const std::vector<RenderObject>& ros, const CameraData& camera)
+    {
+        if (!target || !_renderDevice)
+            return;
+
+        LOG_INFO("Renderer", "Rendering {} objects", ros.size());
+
+        target->Bind();
+        _renderDevice->BeginFrame();
+
+        Math::Mat4 view = camera.viewMatrix;
+        Math::Mat4 proj = camera.projectionMatrix;
+        for (const auto& obj : ros)
+        {
+            _renderDevice->DrawObject(obj, camera);
+        }
+
+        _renderDevice->DrawSkybox(cubemap, camera);
+        _renderDevice->EndFrame();
+        target->UnBind();
+    }
+
     IRHIRenderTarget* Renderer::CreateRenderTarget(int width, int height)
     {
         return _rhiDevice->CreateRenderTarget(width, height);
     }
 
+    void Renderer::DrawSkybox(TextureCubeHandle cubemap, const CameraData& camera)
+    {
+        if (!_renderDevice)
+            return;
+        _renderDevice->DrawSkybox(cubemap, camera);
+    }
 } // namespace ChikaEngine::Render

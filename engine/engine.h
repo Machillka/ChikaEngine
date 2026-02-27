@@ -1,9 +1,11 @@
 #pragma once
 
+#include "ChikaEngine/Resource/TextureCubePool.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/gameobject/Camera.h"
 #include "ChikaEngine/renderobject.h"
 #include "ChikaEngine/scene/scene.h"
+#include <memory>
 namespace ChikaEngine::Platform
 {
     class IWindow;
@@ -24,9 +26,13 @@ namespace ChikaEngine::Engine
         void Render();
         void Shutdown();
         std::vector<Render::RenderObject>* RenderObjects();
-        Framework::Scene* _scene = nullptr;
+        void StartScene();
+        void EndScene();
+        Framework::Scene* GetActiveScene() const;
+        Render::TextureCubeHandle mapcubeHanele = 0;
 
       private:
+        std::unique_ptr<Framework::Scene> _scene = nullptr;
         Platform::IWindow* _window = nullptr;
         Framework::GameObject* goTest = nullptr;
 

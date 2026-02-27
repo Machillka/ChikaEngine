@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChikaEngine/Resource/TextureCubePool.h"
 #include "ChikaEngine/renderobject.h"
 #include "ChikaEngine/CameraData.h"
 
@@ -14,6 +15,7 @@ namespace ChikaEngine::Render
         virtual void BeginFrame() = 0;
         virtual void EndFrame() = 0;
         virtual void DrawObject(const RenderObject& obj, const CameraData& camera) = 0;
+        virtual void DrawSkybox(TextureCubeHandle cubemap, const CameraData& camera) = 0;
         virtual void Shutdown() = 0;
     };
 

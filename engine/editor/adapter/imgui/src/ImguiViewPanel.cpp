@@ -1,5 +1,7 @@
 
 #include "include/ChikaEngine/ImguiViewPanel.h"
+#include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/Camera.h"
 #include "imgui.h"
 
@@ -49,8 +51,54 @@ namespace ChikaEngine::Editor
         // 交互（旋转/平移/缩放）
         HandleKeyboardInteraction(ctx);
         HandleMouseInteraction(imagePos, imageSize);
-
+        HandleRayCast(ctx);
         ImGui::End();
+    }
+
+    void ImguiViewPanel::HandleRayCast(UIContext& ctx)
+    {
+        if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+            return;
+        if (!ImGui::IsKeyDown(ImGuiKey_Z))
+            return;
+        LOG_DEBUG("View", "HandleRaycast");
+        ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+        ImVec2 vMin = ImGui::GetItemRectMin();
+        ImVec2 vMax = ImGui::GetItemRectMax();
+        ImGui::GetForegroundDrawList()->AddRect(vMin, vMax, IM_COL32(255, 0, 0, 255));
+        ImVec2 mousePos = ImGui::GetMousePos();
+        LOG_DEBUG("View", "MousePos: x = {}, y = {}; vMin: x = {}, y = {}, vMax: x = {}, y = {}", mousePos.x, mousePos.y, vMin.x, vMin.y, vMax.x, vMax.y);
+        if (mousePos.x >= vMin.x && mousePos.x <= vMax.x && mousePos.y >= vMin.y && mousePos.y <= vMax.y)
+        {
+            LOG_DEBUG("Fuck", "Enter");
+
+            float u = (mousePos.x - vMin.x) / (vMax.x - vMin.x);
+            float v = (mousePos.y - vMin.y) / (vMax.y - vMin.y);
+
+            LOG_DEBUG("UI", "UV: {}, {}", u, v);
+            if (ctx.activeScene != nullptr)
+            {
+                Physics::Ray ray = _camera->ScreenPointToRay(u, v);
+                Physics::RaycastHit hit;
+                if (ctx.activeScene->GetScenePhysics()->Raycast(ray.origin, ray.direction, 1000.0f, hit))
+                {
+                    Core::GameObjectID hitID = static_cast<Core::GameObjectID>(hit.gameObjectId);
+                    Framework::GameObject* hitGo = ctx.activeScene->GetGameobject(hitID);
+                    if (hitGo)
+                    {
+                        ctx.selection.objectPtr = hitGo;
+                        ctx.selection.fullName = "GameObject";
+                        LOG_INFO("Editor", "Clicked on GameObject: {}", hitGo->GetName());
+                    }
+                }
+                else
+                {
+                    // 射线没有打中任何物体，清空选择
+                    ctx.selection.objectPtr = nullptr;
+                    ctx.selection.fullName = "";
+                }
+            }
+        }
     }
 
     void ImguiViewPanel::HandleMouseInteraction(const ImVec2& imagePos, const ImVec2& imageSize)
