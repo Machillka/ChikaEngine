@@ -1,5 +1,6 @@
 #pragma once
 #include "ChikaEngine/reflection/ReflectionMacros.h"
+#include <string>
 
 namespace ChikaEngine::Framework
 {
@@ -7,6 +8,7 @@ namespace ChikaEngine::Framework
     class Scene;
     MCLASS(Component)
     {
+        REFLECTION_BODY(Component)
       public:
         Component() = default;
         virtual ~Component() = default;
@@ -20,6 +22,18 @@ namespace ChikaEngine::Framework
         {
             return _owner;
         }
+
+        const std::string& GetReflectedClassName() const
+        {
+            return _reflectedClassName;
+        }
+        void SetReflectedClassName(const char* name)
+        {
+            _reflectedClassName = name;
+        }
+
+        // 当属性被修改的时候 进行一个调用
+        virtual void OnPropertyChanged() {}
 
         virtual void Awake() {}
         // 修改 start 防止重复执行
@@ -48,5 +62,6 @@ namespace ChikaEngine::Framework
         GameObject* _owner = nullptr;
         bool _isEnabled = true;
         bool _isStarted = false;
+        std::string _reflectedClassName = "Component";
     };
 } // namespace ChikaEngine::Framework

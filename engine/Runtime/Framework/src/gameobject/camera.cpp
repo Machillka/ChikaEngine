@@ -1,6 +1,8 @@
 
 #include "ChikaEngine/gameobject/Camera.h"
+#include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/math/vector4.h"
 #include "ChikaEngine/render_device.h"
 
 namespace ChikaEngine::Framework
@@ -62,5 +64,36 @@ namespace ChikaEngine::Framework
     Render::CameraData Camera::ToRenderData() const
     {
         return Render::CameraData{.position = Position(), .projectionMatrix = ProjectionMat(), .viewMatrix = ViewMat()};
+    }
+
+    Physics::Ray Camera::ScreenPointToRay(float u, float v) const
+    {
+        float ndcX = 2.0f * u - 1.0f;
+        float ndcY = 1.0f - 2.0f * v;
+
+        Math::Mat4 invVP = ViewProjectionMat().Inverse();
+
+        // 近裁剪面点 和 远裁剪面点 (使用齐次坐标 w=1.0)
+        Math::Vector4 nearPoint(ndcX, ndcY, -1.0f, 1.0f);
+        Math::Vector4 farPoint(ndcX, ndcY, 1.0f, 1.0f);
+
+        // 逆变换回世界空间
+        Math::Vector4 pNear = invVP * nearPoint;
+        Math::Vector4 pFar = invVP * farPoint;
+
+        // 透视除法
+        if (pNear.w != 0.0f)
+            pNear = pNear / pNear.w;
+        if (pFar.w != 0.0f)
+            pFar = pFar / pFar.w;
+
+        Physics::Ray ray;
+        ray.origin = Math::Vector3(pNear.x, pNear.y, pNear.z);
+
+        // 射线方向：远点 - 近点 并归一化
+        Math::Vector3 dir(pFar.x - pNear.x, pFar.y - pNear.y, pFar.z - pNear.z);
+        ray.direction = dir.Normalized();
+
+        return ray;
     }
 } // namespace ChikaEngine::Framework

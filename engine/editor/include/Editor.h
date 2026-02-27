@@ -2,6 +2,7 @@
 #include "ChikaEngine/RHI/RHIResources.h"
 #include "ChikaEngine/gameobject/camera.h"
 #include "ChikaEngine/render_device.h"
+#include "ChikaEngine/scene/scene.h"
 #include "CommandManager.h"
 #include "IEditorPanel.h"
 #include "IEditorUI.h"
@@ -31,7 +32,8 @@ namespace ChikaEngine::Editor
         {
             return _viewCamera->ToRenderData();
         }
-
+        void SetActiveScene(Framework::Scene* scene);
+        
       private:
         Platform::IWindow* _window;
         Render::IRHIRenderTarget* _viewTarget;
@@ -40,7 +42,6 @@ namespace ChikaEngine::Editor
         std::vector<std::unique_ptr<IEditorPanel>> _editorPanels;
         bool _isInitalized = false;
         CommandManager _cmdManager;
-
         std::unique_ptr<Framework::Camera> _viewCamera;
     };
 } // namespace ChikaEngine::Editor

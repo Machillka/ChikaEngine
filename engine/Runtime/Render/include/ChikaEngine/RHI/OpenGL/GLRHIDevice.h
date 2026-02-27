@@ -15,6 +15,7 @@ namespace ChikaEngine::Render
         IRHITexture2D* CreateTexture2D(int width, int height, int channels, const void* data, bool sRGB) override;
         IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) override;
         IRHIRenderTarget* CreateRenderTarget(int width, int height) override;
+        IRHITextureCube* CreateTextureCube(int w, int h, int channels, const std::array<const void*, 6>& data, bool sRGB) override;
         void SetupMeshVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo, IRHIBuffer* ibo) override;
         void DrawIndexed(const RHIMesh& mesh) override;
     };

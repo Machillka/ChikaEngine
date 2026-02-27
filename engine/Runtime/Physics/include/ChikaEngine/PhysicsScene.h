@@ -7,12 +7,6 @@
 #include <unordered_map>
 namespace ChikaEngine::Physics
 {
-    // 对射线加入GO信息
-    struct RaycastHitInfo : public RaycastHit
-    {
-        Core::GameObjectID gameObjectId = 0;
-    };
-
     // 下沉到可以拥有多个实例——不同 scene 进行物理模拟
     class PhysicsScene
     {
@@ -34,7 +28,7 @@ namespace ChikaEngine::Physics
         void ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse);
 
         // 射线检测, 返回是否击中和击中信息
-        bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHitInfo& outHit);
+        bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit);
 
         PhysicsBodyHandle CreateBodyImmediate(const PhysicsBodyCreateDesc& desc);
 

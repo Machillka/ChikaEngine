@@ -1,3 +1,13 @@
+/*!
+ * @file RHIResources.h
+ * @author Machillka (machillka2007@gmail.com)
+ * @brief  定义所有的 RHI 数据接口, 最后由后端重新实现
+ * @version 0.1
+ * @date 2026-02-27
+ *
+ * @copyright Copyright (c) 2026
+ *
+ */
 #pragma once
 #include "ChikaEngine/math/mat4.h"
 #include <array>
@@ -29,6 +39,15 @@ namespace ChikaEngine::Render
         virtual ~IRHITexture2D() = default;
         virtual std::uintptr_t Handle() const = 0;
     };
+
+    // 立方体贴图
+    class IRHITextureCube
+    {
+      public:
+        virtual ~IRHITextureCube() = default;
+        virtual void* Handle() const = 0;
+    };
+
     // 渲染管线抽象
     class IRHIPipeline
     {
@@ -40,7 +59,7 @@ namespace ChikaEngine::Render
         virtual void SetUniformVec3(const char* name, const std::array<float, 3>& v) = 0;
         virtual void SetUniformVec4(const char* name, const std::array<float, 4>& v) = 0;
         virtual void SetUniformMat4(const char* name, const Math::Mat4& v) = 0;
-
+        virtual void SetUniformTextureCube(const char* name, IRHITextureCube* tex, int slot) = 0;
         virtual void SetUniformTexture(const char* name, IRHITexture2D* tex, int slot) = 0;
     };
 

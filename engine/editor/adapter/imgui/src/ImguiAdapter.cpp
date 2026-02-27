@@ -2,6 +2,7 @@
 #include "ChikaEngine/TimeSystem.h"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
+#include "IEditorPanel.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -137,4 +138,8 @@ namespace ChikaEngine::Editor
         ImGui::LoadIniSettingsFromDisk(path.c_str());
     }
 
+    UIContext& ImGuiAdapter::GetContext()
+    {
+        return _ctx;
+    }
 } // namespace ChikaEngine::Editor

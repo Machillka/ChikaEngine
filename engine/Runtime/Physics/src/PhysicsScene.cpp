@@ -47,6 +47,24 @@ namespace ChikaEngine::Physics
     //     _createRigidbodyQueue.push(desc);
     // }
 
+    bool PhysicsScene::Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit)
+    {
+        if (!_backend)
+            return false;
+
+        if (_backend->Raycast(origin, direction, maxDistance, outHit))
+        {
+            // 通过后端返回的 BodyHandle，查找对应的 GameObjectID
+            auto it = _physicsHandleToGO.find(outHit.bodyHandle);
+            if (it != _physicsHandleToGO.end())
+            {
+                outHit.gameObjectId = it->second;
+                return true;
+            }
+        }
+        return false;
+    }
+
     void PhysicsScene::EnqueueRigidbodyDestroy(PhysicsBodyHandle handle)
     {
         std::lock_guard lock(_destroyRigidbodyMutex);

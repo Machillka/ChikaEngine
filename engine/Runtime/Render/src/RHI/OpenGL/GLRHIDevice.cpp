@@ -4,6 +4,7 @@
 #include "ChikaEngine/RHI/OpenGL/GLPipeline.h"
 #include "ChikaEngine/RHI/OpenGL/GLRenderTarget.h"
 #include "ChikaEngine/RHI/OpenGL/GLTexture2D.h"
+#include "ChikaEngine/RHI/OpenGL/GLTextureCube.h"
 #include "ChikaEngine/RHI/OpenGL/GLVertexArray.h"
 namespace ChikaEngine::Render
 {
@@ -38,6 +39,11 @@ namespace ChikaEngine::Render
     IRHIRenderTarget* GLRHIDevice::CreateRenderTarget(int width, int height)
     {
         return new GLRenderTarget(width, height);
+    }
+
+    IRHITextureCube* GLRHIDevice::CreateTextureCube(int w, int h, int channels, const std::array<const void*, 6>& data, bool sRGB)
+    {
+        return new GLTextureCube(w, h, channels, data, sRGB);
     }
 
     void GLRHIDevice::DrawIndexed(const RHIMesh& mesh)

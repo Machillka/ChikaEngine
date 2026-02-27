@@ -1,5 +1,6 @@
 
 #include "ChikaEngine/component/Renderable.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/scene/scene.h"
 

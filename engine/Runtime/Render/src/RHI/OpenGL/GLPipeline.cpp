@@ -95,6 +95,19 @@ namespace ChikaEngine::Render
         glUniform1i(loc, slot);
     }
 
+    void GLPipeline::SetUniformTextureCube(const char* name, IRHITextureCube* tex, int slot)
+    {
+        if (!tex)
+            return;
+        GLint loc = GetLocation(name);
+        if (loc < 0)
+            return;
+
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, (GLuint)(uintptr_t)tex->Handle());
+        glUniform1i(loc, slot);
+    }
+
     GLPipeline::~GLPipeline()
     {
         glDeleteProgram(_program);

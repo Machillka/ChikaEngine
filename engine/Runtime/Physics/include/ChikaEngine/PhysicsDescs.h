@@ -9,7 +9,7 @@ namespace ChikaEngine::Physics
     using PhysicsBodyHandle = std::uint32_t;
     using PhysicsLayerID = std::uint8_t;
     using PhysicsLayerMask = std::uint32_t; // 对应位掩码
-    // 最大值说明mask了所有layer
+    // 最大值说明 mask 了所有 layer
     constexpr PhysicsLayerMask PHYSICS_LAYER_MASK_ALL = 0xFFFFFFFF;
 
     enum class PhysicsBackendTypes
@@ -106,10 +106,17 @@ namespace ChikaEngine::Physics
         float impulse;
     };
 
+    struct Ray
+    {
+        Math::Vector3 origin;
+        Math::Vector3 direction;
+    };
+
     // 射线信息
     struct RaycastHit
     {
         PhysicsBodyHandle bodyHandle = 0;
+        Core::GameObjectID gameObjectId = 0;
         float distance = 0.0f; // 距离
         Math::Vector3 point;   // 世界空间击中点
         Math::Vector3 normal;  // 世界空间击中法线

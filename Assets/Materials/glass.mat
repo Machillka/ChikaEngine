@@ -1,0 +1,25 @@
+{
+    "shader": {
+        "vertex": "Shaders/glass.vert",
+        "fragment": "Shaders/glass.frag"
+    },
+    "cubemaps": {
+        "u_Skybox": [
+            "Textures/Skybox/nx.png",
+            "Textures/Skybox/ny.png",
+            "Textures/Skybox/nz.png",
+            "Textures/Skybox/px.png",
+            "Textures/Skybox/py.png",
+            "Textures/Skybox/pz.png"
+        ]
+    },
+    "uniforms": {
+        "u_IOR": 1.52,
+        "u_FresnelPower": 3.0,
+        "u_Tint": [
+            0.9,
+            0.95,
+            1.0
+        ]
+    }
+}

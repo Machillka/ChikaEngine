@@ -26,6 +26,12 @@ namespace ChikaEngine::Render
             const auto& tex = TexturePool::Get(texHandle);
             matGPU.textures[name] = tex.texture;
         }
+        for (auto& [name, cubeHandle] : material.cubemaps)
+        {
+            const auto& cubeData = TextureCubePool::Get(cubeHandle);
+            matGPU.cubemaps[name] = cubeData.texture;
+        }
+
         matGPU.uniformFloats = material.uniformFloats;
         matGPU.uniformVec4s = material.uniformVec4s;
         matGPU.uniformVec3s = material.uniformVec3s;
@@ -82,6 +88,13 @@ namespace ChikaEngine::Render
         for (const auto& [name, texPtr] : mat.textures)
         {
             mat.pipeline->SetUniformTexture(name.c_str(), texPtr, slot);
+            ++slot;
+        }
+
+        slot = 0;
+        for (const auto& [name, cubePtr] : mat.cubemaps)
+        {
+            mat.pipeline->SetUniformTextureCube(name.c_str(), (IRHITextureCube*)cubePtr, slot);
             ++slot;
         }
 

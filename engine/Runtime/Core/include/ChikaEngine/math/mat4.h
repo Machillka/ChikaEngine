@@ -2,6 +2,7 @@
 
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/math/vector4.h"
 #include <array>
 // TODO:
 namespace ChikaEngine::Math
@@ -30,6 +31,7 @@ namespace ChikaEngine::Math
 
         Mat4 operator*(const Mat4& rhs) const;
         Mat4 operator+(const Mat4& rhs) const;
+        Vector4 operator*(const Vector4& rhs) const;
 
         Mat4& operator*=(const Mat4& rhs);
         Mat4& operator+=(const Mat4& rhs);
@@ -37,6 +39,8 @@ namespace ChikaEngine::Math
         Mat4& RotateX(float rad);
         Mat4& RotateY(float rad);
         Mat4& RotateZ(float rad);
+
+        Mat4 Inverse() const;
 
         // 投影矩阵
         static Mat4 Perspective(float fov, float aspect, float zNear, float zFar);

@@ -1,8 +1,17 @@
-
+/*!
+ * @file TypeRegister.cpp
+ * @author Machillka (machillka2007@gmail.com)
+ * @brief
+ * @version 0.1
+ * @date 2026-02-27
+ *
+ * @copyright Copyright (c) 2026
+ *
+ */
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/reflection/ReflectionData.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
-#include <iostream>
+
 #include <string>
 #include <unordered_map>
 
@@ -35,7 +44,6 @@ namespace ChikaEngine::Reflection
     const ClassInfo* TypeRegister::GetClassByName(const std::string& name)
     {
         auto it = _registry.find(name);
-        std::cout << "Mother fucker!!!" << std::endl;
         return it != _registry.end() ? &it->second : nullptr;
     }
 } // namespace ChikaEngine::Reflection

@@ -1,16 +1,19 @@
 #include "ChikaEngine/component/Collider.h"
 #include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/component/Rigidbody.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/scene/scene.h"
 #include <cstdlib>
 
 namespace ChikaEngine::Framework
 {
-
     void Collider::SetPhysicsScene()
     {
-        _physicsScene = GetOwner()->GetScene()->GetPhysicsScene();
+        _physicsScene = GetOwner()->GetScene()->GetScenePhysics();
+
+        if (_physicsScene == nullptr)
+            LOG_WARN("Collider", "The Physics System is null");
     }
 
     void Collider::OnEnable()
@@ -38,6 +41,12 @@ namespace ChikaEngine::Framework
     {
         Component::OnDestroy();
         OnDisable();
+    }
+
+    void Collider::OnPropertyChanged()
+    {
+        LOG_INFO("Collider", "Property changed, recreating physics body...");
+        RecreatePhysicsBody();
     }
 
     void Collider::RecreatePhysicsBody()
@@ -84,10 +93,8 @@ namespace ChikaEngine::Framework
         desc.restitution = restitution;
         desc.layer = static_cast<Physics::PhysicsLayerID>(layer);
 
-        // Physics::PhysicsScene::Instance().SetLayerMask(desc.layerMask, collisionMask);
         _physicsScene->SetLayerCollisionMask(desc.layer, collisionMask);
-        // _physicsBodyHandle = Physics::PhysicsScene::Instance().CreateBodyImmediate(desc);
-        _physicsScene->CreateBodyImmediate(desc);
+        _physicsBodyHandle = _physicsScene->CreateBodyImmediate(desc);
         LOG_DEBUG("Physics", "Set {}", _physicsBodyHandle);
         if (rb)
         {

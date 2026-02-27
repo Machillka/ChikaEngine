@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChikaEngine/scene/scene.h"
 #include <string>
 namespace ChikaEngine::Editor
 {
@@ -12,6 +13,7 @@ namespace ChikaEngine::Editor
     {
         float deltaTime;
         SelectionContext selection;
+        Framework::Scene* activeScene = nullptr;
     };
     class IEditorPanel
     {

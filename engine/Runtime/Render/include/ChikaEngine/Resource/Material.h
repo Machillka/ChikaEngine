@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/Resource/Texture.h"
+#include "ChikaEngine/Resource/TextureCubePool.h"
 #include <array>
 #include <cstdint>
 #include <string>
@@ -18,6 +19,7 @@ namespace ChikaEngine::Render
         std::unordered_map<std::string, float> uniformFloats;
         std::unordered_map<std::string, std::array<float, 3>> uniformVec3s;
         std::unordered_map<std::string, std::array<float, 4>> uniformVec4s;
+        std::unordered_map<std::string, TextureCubeHandle> cubemaps;
     };
 
     using MaterialHandle = std::uint32_t;

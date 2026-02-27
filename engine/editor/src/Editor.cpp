@@ -59,4 +59,11 @@ namespace ChikaEngine::Editor
         _editorUI->Shutdown();
         _isInitalized = false;
     }
+    void Editor::SetActiveScene(Framework::Scene* scene)
+    {
+        if (_editorUI)
+        {
+            _editorUI->GetContext().activeScene = scene; // 假设你的Adapter暴露了获取Context引用的方法
+        }
+    }
 } // namespace ChikaEngine::Editor

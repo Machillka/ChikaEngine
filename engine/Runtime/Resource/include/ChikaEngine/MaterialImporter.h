@@ -2,6 +2,7 @@
 
 #include "ChikaEngine/Resource/Material.h"
 #include "ChikaEngine/ResourceSystem.h"
+#include "ChikaEngine/TextureCubeImporter.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -55,6 +56,32 @@ namespace ChikaEngine::Resource::Importer
                     }
                 }
             }
+
+            if (j.contains("cubemaps"))
+            {
+                for (auto& [name, pathsJson] : j["cubemaps"].items())
+                {
+                    if (pathsJson.is_array() && pathsJson.size() == 6)
+                    {
+                        std::array<std::string, 6> faces;
+                        for (int i = 0; i < 6; ++i)
+                        {
+                            faces[i] = pathsJson[i].get<std::string>();
+                        }
+
+                        TextureCubeSourceDesc desc;
+                        desc.facePaths = faces;
+                        desc.sRGB = true;
+
+                        material.cubemaps[name] = rs.LoadTextureCube(desc);
+                    }
+                    else
+                    {
+                        LOG_WARN("MaterialImporter", "Cubemap '{}' in {} must have exactly 6 face paths.", name, path);
+                    }
+                }
+            }
+
             return material;
         }
     };

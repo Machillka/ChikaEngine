@@ -247,7 +247,7 @@ namespace ChikaEngine::Physics
 
         _physicsSystem->Update(fixedDeltaTime, 1, _tempAllocator.get(), _jobSystem.get());
     }
-    
+
     void PhysicsJoltBackend::SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask)
     {
         std::lock_guard lock(_maskMutex);
@@ -379,7 +379,8 @@ namespace ChikaEngine::Physics
         // TODO: 加入层级信息
         const JPH::NarrowPhaseQuery& query = _physicsSystem->GetNarrowPhaseQuery();
 
-        if (query.CastRay(ray, hit))
+        // if (query.CastRay(ray, hit))
+        if (query.CastRay(ray, hit, JPH::SpecifiedBroadPhaseLayerFilter(JoltHelper::BroadPhaseLayers::NON_MOVING), JPH::ObjectLayerFilter(), JPH::BodyFilter()))
         {
             // 3. 获取详细信息
             JPH::BodyLockRead lock(_physicsSystem->GetBodyLockInterface(), hit.mBodyID);

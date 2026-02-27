@@ -24,6 +24,7 @@ namespace ChikaEngine::Editor
         void SaveLayout(const std::string& path) override;
         void LoadLayout(const std::string& path) override;
         void UpdateContext() override;
+        UIContext& GetContext() override;
 
       private:
         void* _window;

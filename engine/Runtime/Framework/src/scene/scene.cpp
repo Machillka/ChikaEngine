@@ -1,76 +1,78 @@
 #include "ChikaEngine/scene/scene.h"
 #include "ChikaEngine/PhysicsDescs.h"
-#include "ChikaEngine/io/FileStream.h"
-#include "ChikaEngine/io/IStream.h"
-#include "ChikaEngine/io/MemoryStream.h"
-#include "ChikaEngine/serialization/BinarySaveArchive.h"
-#include "ChikaEngine/serialization/JsonLoadArchive.h"
-#include "ChikaEngine/serialization/JsonSaveArchive.h"
-
+#include "ChikaEngine/PhysicsScene.h"
+#include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/component/Renderable.h"
+#include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/gameobject/GameObject.h"
 #include <algorithm>
 #include <memory>
-#include <mutex>
-#include <string>
 #include <utility>
-
 namespace ChikaEngine::Framework
 {
-    Scene::Scene() = default;
-    Scene::~Scene() = default;
+    Scene::Scene(SceneMode mode) : _mode(mode)
+    {
+        Physics::PhysicsSystemDesc desc = {
+            .backendType = Physics::PhysicsBackendTypes::Jolt,
+        };
+        // 生成对应实例
+        _physicsScene = std::make_unique<Physics::PhysicsScene>(desc);
+    }
+    Scene::~Scene()
+    {
+        _gameobjects.clear();
+    }
 
-    // TODO: 实现通过名字查找 go
-    // 在创建的时候直接注册到 Scene 中
-    GameObject* Scene::CreateGameObject(const std::string& name)
+    Core::GameObjectID Scene::CreateGameobject(std::string name)
     {
         auto go = std::make_unique<GameObject>(name);
-        if (!name.empty())
+        go->SetScene(this);
+        Core::GameObjectID id = go->GetID();
+        _gameobjects[id] = std::move(go);
+        return id;
+    }
+
+    GameObject* Scene::GetGameobject(Core::GameObjectID id)
+    {
+        return _gameobjects[id].get();
+    }
+
+    Physics::PhysicsScene* Scene::GetScenePhysics()
+    {
+        return _physicsScene.get();
+    }
+
+    void Scene::SyncTransform()
+    {
+        auto updatedTransformData = _physicsScene->PollTransform();
+        for (auto& kv : updatedTransformData)
         {
-            go->SetName(name);
+            Core::GameObjectID id = kv.first;
+            Physics::PhysicsTransform physicsTransform = kv.second;
+            LOG_WARN("Scene", "id = {}, y = {}", id, physicsTransform.pos.y);
+            _gameobjects[id]->transform->position = physicsTransform.pos;
+            _gameobjects[id]->transform->rotation = physicsTransform.rot;
         }
-        auto ptr = go.get();
-
-        _objects[go->GetID()] = std::move(go);
-        LOG_INFO("Scene", "Create GO id = {}, name = {}", ptr->GetID(), ptr->GetName());
-
-        return ptr;
     }
 
-    GameObject* Scene::GetGameObjectByID(Core::GameObjectID id)
+    void Scene::RegisterRenderable(Renderable* rend)
     {
-        auto go = _objects.find(id);
-        return go != _objects.end() ? go->second.get() : nullptr;
+        _renderableObjects.push_back(rend);
     }
 
-    void Scene::RegisterRenderable(Renderable* ro)
+    void Scene::UnregisterRenderable(Renderable* rend)
     {
-        if (!ro)
-            return;
-        std::lock_guard lock(_renderMutex);
-        auto it = std::find(_renderables.begin(), _renderables.end(), ro);
+        auto it = std::find(_renderableObjects.begin(), _renderableObjects.end(), rend);
 
-        // 不存在
-        if (it == _renderables.end())
-            _renderables.push_back(ro);
-    }
-
-    void Scene::UnregisterRenderable(Renderable* ro)
-    {
-        if (!ro)
-            return;
-        std::lock_guard lock(_renderMutex);
-        auto it = std::find(_renderables.begin(), _renderables.end(), ro);
-
-        // 存在
-        if (it != _renderables.end())
-            _renderables.erase(it);
+        if (it != _renderableObjects.end())
+            _renderableObjects.erase(it);
     }
 
     std::vector<Render::RenderObject> Scene::GetAllVisiableRenderObjects()
     {
-        std::lock_guard lock(_renderMutex);
         std::vector<Render::RenderObject> out;
 
-        for (auto* r : _renderables)
+        for (auto* r : _renderableObjects)
         {
             if (!r || (!r->IsVisible()))
                 continue;
@@ -80,56 +82,35 @@ namespace ChikaEngine::Framework
         return out;
     }
 
-    Physics::PhysicsScene* Scene::GetPhysicsScene()
+    // TODO: 把所有生命周期交给 world 实现, 因为 editor 没有具体的生命周期
+    void Scene::Start()
     {
-        return _physicsScene.get();
-    }
-
-    void Scene::ClearAllObjects()
-    {
-        _objects.clear();
-    }
-
-    void Scene::OnStart()
-    {
-        // 如果有数据流输入 就说明需要 copy 一份 scene 再开始运行
-        for (auto& kv : _objects)
+        for (auto& go : _gameobjects)
         {
-            kv.second->Start();
-        }
-    }
-    void Scene::OnUpdate(float deltaTime)
-    {
-        for (auto& kv : _objects)
-        {
-            kv.second->Update(deltaTime);
-        }
-    }
-    void Scene::OnFixedUpdate(float fixedDeltaTime)
-    {
-        for (auto& kv : _objects)
-        {
-            kv.second->FixedUpdate(fixedDeltaTime);
-        }
-    }
-    void Scene::OnPhysicsUpdate(float fixedDeltaTime)
-    {
-        // 更新物理系统和 transform
-    }
-
-    void Scene::OnEnd()
-    {
-        {
-            IO::FileStream jsonOutputStream("Seetings/scene.json", IO::Mode::Write);
-            Serialization::JsonSaveArchive archive(jsonOutputStream);
-            Serialize(archive); // 自动根据编译逻辑执行序列化操作
-        }
-
-        {
-            IO::MemoryStream memoryOutputStream;
-            Serialization::BinarySaveArchive archive(memoryOutputStream);
-            Serialize(archive);
+            go.second->Start();
         }
     }
 
+    void Scene::Update(float deltaTime)
+    {
+        for (auto& go : _gameobjects)
+        {
+            go.second->Update(deltaTime);
+        }
+    }
+
+    void Scene::FixedUpdate(float fixedDeltaTime)
+    {
+        for (auto& go : _gameobjects)
+        {
+            go.second->FixedUpdate(fixedDeltaTime);
+        }
+
+        if (_mode == SceneMode::play)
+        {
+            _physicsScene->Tick(fixedDeltaTime);
+            LOG_WARN("Scene", "Running Physics");
+            SyncTransform();
+        }
+    }
 } // namespace ChikaEngine::Framework
