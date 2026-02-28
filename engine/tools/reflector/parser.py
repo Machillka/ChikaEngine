@@ -6,7 +6,7 @@ from clang.cindex import CursorKind, TypeKind
 from clang.cindex import CompilationDatabase
 from jinja2 import Template
 from gen_id import get_unique_id
-
+import re
 
 reflect_map = {
     "int": "Int",
@@ -15,6 +15,9 @@ reflect_map = {
     "std::string": "String",
     "Math::Vector3": "Vector3",
     "Math::Quaternion": "Quaternion",
+    "Resource::MeshHandle": "MeshHandle",
+    "Resource::MaterialHandle": "MaterialHandle",
+    "Framework::Transform": "Transform",
 }
 
 
@@ -174,6 +177,20 @@ def get_relative_header_path(absolute_path, engine_root):
         return absolute_path
 
 
+def get_raw_signature(cursor_type):
+    """
+    获取用于 pybind11 overload_cast 的完整原始签名 (保留 const, &, *)
+    """
+    spelling = cursor_type.spelling
+    spelling = re.sub(
+        r"std::(__\d+::)?basic_string<char,.*?std::allocator<char\s*>\s*>",
+        "std::string",
+        spelling,
+    )
+    spelling = spelling.replace(" >", ">").replace(" &", "&").replace(" *", "*")
+    return spelling
+
+
 def get_clean_type_name(cursor_type):
     """
     传入当前的节点的type类型
@@ -189,6 +206,8 @@ def get_clean_type_name(cursor_type):
     if cursor_type.kind == TypeKind.INT and "int" not in spelling:  # type: ignore
         return "UNKNOWN_TYPE_ERROR"
 
+    if "basic_string" in spelling:
+        return "std::string"
     # 4. STL 容器清洗逻辑
     # 原因是 string 可能会作为别名被解析
     if "std::" in spelling or "std::" in canonical.spelling:
@@ -211,7 +230,12 @@ def process_params(node):
     for child in node.get_children():
         if child.kind == CursorKind.PARM_DECL:  # type: ignore
             params.append(
-                {"name": child.spelling, "type": get_clean_type_name(child.type)}
+                {
+                    "name": child.spelling,  #
+                    "type": get_clean_type_name(child.type),
+                    # "type": get_fully_qualified_type(child.type),
+                    "sig_type": get_raw_signature(child.type),
+                }
             )
     return params
 
@@ -223,6 +247,7 @@ def process_class(node, namespace):
         "fields": [],
         "functions": [],
         "full_name": namespace + "::" + node.spelling,
+        "is_abstract": node.is_abstract_record(),
     }
     for child in node.get_children():
         if child.kind == CursorKind.FIELD_DECL and is_reflected_field(child):  # type: ignore
@@ -240,6 +265,7 @@ def process_class(node, namespace):
                     "name": child.spelling,
                     "return": get_clean_type_name(child.type),
                     "params": params,
+                    "is_const": child.is_const_method(),
                 }
             )
     return data
@@ -307,7 +333,7 @@ def read():
         "--input", type=str, required=True, help="Path to the input file"
     )
     parser.add_argument(
-        "--output", type=str, required=True, help="Path to the output file"
+        "--output", type=str, nargs="+", required=True, help="Path to the output file"
     )
     parser.add_argument(
         "--build-dir", type=str, required=True, help="Path to the build directory"
@@ -318,11 +344,14 @@ def read():
 
     args = parser.parse_args()
     file_path = args.input
-    output_path = args.output
+    output_path_cpp = args.output[0]
+    output_path_py = args.output[1]
     build_dir = args.build_dir
     engine_root = args.engine_root
 
-    print(f"args: --input = {file_path}, output = {output_path}, build = {build_dir}")
+    print(
+        f"args: --input = {file_path}, output = {output_path_cpp}, build = {build_dir}"
+    )
 
     source_file = file_path
     ctx = ReflectionContext(build_dir)
@@ -350,10 +379,17 @@ def read():
         code_render.render(
             get_relative_header_path(source_file, engine_root),
             res,
-            output_path,
+            output_path_cpp,
             unique_id,
         )
-
+        code_render = CodeRenderer("templates/pythonbind.cpp.j2")
+        unique_id = get_unique_id(source_file, engine_root)
+        code_render.render(
+            get_relative_header_path(source_file, engine_root),
+            res,
+            output_path_py,
+            unique_id,
+        )
     # visit(tu.cursor)
 
 

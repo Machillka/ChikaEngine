@@ -5,21 +5,28 @@
     },
     "cubemaps": {
         "u_Skybox": [
-            "Textures/Skybox/nx.png",
-            "Textures/Skybox/ny.png",
-            "Textures/Skybox/nz.png",
             "Textures/Skybox/px.png",
+            "Textures/Skybox/nx.png",
             "Textures/Skybox/py.png",
-            "Textures/Skybox/pz.png"
+            "Textures/Skybox/ny.png",
+            "Textures/Skybox/pz.png",
+            "Textures/Skybox/nz.png"
         ]
     },
     "uniforms": {
         "u_IOR": 1.52,
-        "u_FresnelPower": 3.0,
+        "u_Dispersion": 0.03,
+        "u_Reflectivity": 0.8,
+        "u_Shininess": 128.0,
         "u_Tint": [
             0.9,
             0.95,
             1.0
+        ],
+        "u_LightDir": [
+            0.5,
+            1.0,
+            0.3
         ]
     }
 }

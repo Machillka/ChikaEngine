@@ -41,13 +41,7 @@ namespace ChikaEngine::Editor
             {
                 DrawReflectedProperties(go, "GameObject");
             }
-
-            if (go->transform && ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                DrawReflectedProperties(go->transform, "Transform");
-            }
-
-            // 遍历并绘制所有其他组件
+            // 遍历并绘制所有组件
             const auto& components = go->GetAllComponents();
             for (const auto& compPtr : components)
             {

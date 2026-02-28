@@ -30,7 +30,7 @@ namespace ChikaEngine::Serialization
 
         template <typename T> void operator()(const NVP<T>& nvp)
         {
-            Serializer::Dispatch(*this, nullptr, nvp.value);
+            Serializer::Dispatch(*this, nullptr, nvp.Value);
         }
 
         template <typename T> void operator()(const T& val)

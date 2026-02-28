@@ -38,7 +38,8 @@ namespace ChikaEngine::Reflection
             prop.Set = [](void* instance, const void* value)
             {
                 auto* obj = static_cast<{{ class.full_name }}*>(instance);
-                obj->{{ field.name }} = *static_cast<const {{ field.raw_type }}*>(value);
+                // obj->{{ field.name }} = *static_cast<const {{ field.raw_type }}*>(value);
+                obj->{{ field.name }} = *static_cast<{{ field.raw_type }} const *>(value);
             };
             info.Properties.push_back(prop);
             {% endfor %}
@@ -64,6 +65,15 @@ namespace ChikaEngine::Reflection
             };
             info.Functions.push_back(func_info);
             {% endfor %}
+
+            // 绑定构造函数
+            {% if not class.is_abstract %}
+            info.Constructor =[]() -> void* {
+                return new {{ class.full_name }}();
+            };
+            {% else %}
+            info.Constructor = nullptr; // 抽象类无法实例化
+            {% endif %}
 
             TypeRegister::Instance().RegisterClass(info);
         }

@@ -47,10 +47,32 @@ namespace ChikaEngine::Serialization
         // Duck Interface
         void EnterNode(const char* name)
         {
-            json& j = (*_stack.top())[name];
-            if (j.is_null())
-                j = json::object();
-            _stack.push(&j);
+            // json& j = (*_stack.top())[name];
+            // if (j.is_null())
+            //     j = json::object();
+            // _stack.push(&j);
+
+            json* top = _stack.top();
+
+            if (top->is_array())
+            {
+                top->push_back(json::object());
+                _stack.push(&top->back());
+            }
+            else
+            {
+                if (name)
+                {
+                    json& j = (*top)[name];
+                    if (j.is_null())
+                        j = json::object();
+                    _stack.push(&j);
+                }
+                else
+                {
+                    LOG_ERROR("JsonSaveArchive", "Trying to enter a node without name in an Object context!");
+                }
+            }
         }
 
         void LeaveNode()
@@ -60,11 +82,30 @@ namespace ChikaEngine::Serialization
 
         void EnterArray(const char* name, size_t size)
         {
-            json* j = _stack.top();
-            if (name)
-                j = &(*j)[name];
-            *j = json::array();
-            _stack.push(j);
+            // json* j = _stack.top();
+            // if (name)
+            //     j = &(*j)[name];
+            // *j = json::array();
+            // _stack.push(j);
+            json* top = _stack.top();
+            if (top->is_array())
+            {
+                top->push_back(json::array());
+                _stack.push(&top->back());
+            }
+            else
+            {
+                if (name)
+                {
+                    json& j = (*top)[name];
+                    j = json::array();
+                    _stack.push(&j);
+                }
+                else
+                {
+                    LOG_ERROR("JsonSaveArchive", "Trying to enter array without name in an Object context!");
+                }
+            }
         }
         void LeaveArray()
         {

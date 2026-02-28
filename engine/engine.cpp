@@ -2,11 +2,13 @@
 #include "ChikaEngine/InputDesc.h"
 #include "ChikaEngine/InputSystem.h"
 #include "ChikaEngine/ResourceSystem.h"
+#include "ChikaEngine/ScriptSystem.h"
 #include "ChikaEngine/TimeSystem.h"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Collider.h"
 #include "ChikaEngine/component/Renderable.h"
 #include "ChikaEngine/component/Rigidbody.h"
+#include "ChikaEngine/component/ScriptComponent.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include "ChikaEngine/renderer.h"
 #include "ChikaEngine/scene/scene.h"
@@ -36,6 +38,9 @@ namespace ChikaEngine::Engine
 
         // Time
         ChikaEngine::Time::TimeSystem::Init(ChikaEngine::Time::TimeDesc{.backend = ChikaEngine::Time::TimeBackendTypes::GLFW});
+
+        // Scripts
+        ChikaEngine::Scripts::ScriptsSystem::Instance().Init();
 
         _scene = std::make_unique<Framework::Scene>(Framework::SceneMode::edit);
 
@@ -69,7 +74,7 @@ namespace ChikaEngine::Engine
         auto meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/batman.obj");
         auto matHandle = Resource::ResourceSystem::Instance().LoadMaterial("Materials/glass.mat");
 
-        LOG_INFO("Engine", "HasMesh={} HasMaterial={}", Resource::ResourceSystem::Instance().HasMesh("Meshes/batman.obj"), Resource::ResourceSystem::Instance().HasMaterial("Materials/suzanne.mat"));
+        // LOG_INFO("Engine", "HasMesh={} HasMaterial={}", Resource::ResourceSystem::Instance().HasMesh("Meshes/batman.obj"), Resource::ResourceSystem::Instance().HasMaterial("Materials/suzanne.mat"));
 
         using namespace Framework;
         auto id = _scene->CreateGameobject("Batman");
@@ -80,7 +85,9 @@ namespace ChikaEngine::Engine
         goTest->AddComponent<Renderable>();
         goTest->GetComponent<Renderable>()->SetMaterial(matHandle);
         goTest->GetComponent<Renderable>()->SetMesh(meshHandle);
-
+        goTest->AddComponent<ScriptComponent>();
+        goTest->GetComponent<ScriptComponent>()->className = "PlayerController";
+        goTest->GetComponent<ScriptComponent>()->moduleName = "player";
         meshHandle = Resource::ResourceSystem::Instance().LoadMesh("Meshes/cube.obj");
 
         // auto planeID = _scene->CreateGameobject("plane");
@@ -135,13 +142,18 @@ namespace ChikaEngine::Engine
     void GameEngine::StartScene()
     {
         // TODO: 实现序列化备份数据
-        _scene = std::make_unique<Framework::Scene>(Framework::SceneMode::play);
+        if (_scene)
+        {
+            _scene->Play();
+        }
     }
 
     void GameEngine::EndScene()
     {
-        _scene.reset();
-        _scene = nullptr;
+        if (_scene)
+        {
+            _scene->Stop();
+        }
     }
 
     Framework::Scene* GameEngine::GetActiveScene() const

@@ -1,0 +1,12 @@
+[project]
+name = "chikaengine"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pybind11>=3.0.2",
+]
+
+[tool.uv]
+managed = true

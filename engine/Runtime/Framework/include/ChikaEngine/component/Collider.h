@@ -21,6 +21,7 @@ namespace ChikaEngine::Framework
         void OnDestroy() override;
         void OnPropertyChanged() override;
         // 形状参数
+        MFIELD()
         Physics::RigidbodyShapes shape = Physics::RigidbodyShapes::Box;
         MFIELD()
         Math::Vector3 center = {0, 0, 0};
@@ -45,8 +46,8 @@ namespace ChikaEngine::Framework
         LayerMask collisionMask = MakeMask({GameObjectLayer::Default});
 
       private:
-        Physics::PhysicsScene* _physicsScene = nullptr;
-        void SetPhysicsScene();
+        Physics::PhysicsScene* GetPhysicsScene();
+        void DestroyPhysicsBody();
         Physics::PhysicsBodyHandle _physicsBodyHandle = 0;
     };
 } // namespace ChikaEngine::Framework

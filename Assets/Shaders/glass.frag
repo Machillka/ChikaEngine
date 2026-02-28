@@ -3,32 +3,50 @@ out vec4 FragColor;
 
 in vec3 v_Normal;
 in vec3 v_Position;
+in vec3 v_ViewDir;
 
 uniform vec3 u_CameraPos;
 uniform samplerCube u_Skybox;
 
-// 可调参数
-uniform float u_IOR = 1.52; // 折射率 (Index of Refraction): 玻璃约 1.52, 水 1.33, 钻石 2.42
-uniform float u_FresnelBias = 0.1;
-uniform float u_FresnelScale = 1.0;
-uniform float u_FresnelPower = 2.0;
+uniform float u_IOR = 1.52;             
+uniform float u_Dispersion = 0.02;      
+uniform float u_Reflectivity = 0.5;     
+uniform float u_Shininess = 64.0;       
+uniform vec3 u_LightDir = vec3(0.5, 1.0, 0.5); // 假定光源方向
+uniform vec3 u_Tint = vec3(1.0);
 
 void main()
 {
-    vec3 I = normalize(v_Position - u_CameraPos); // 视线向量 (从相机指向片元)
-    vec3 N = normalize(v_Normal);                 // 法线
+    vec3 N = normalize(v_Normal);
+    vec3 I = normalize(v_ViewDir);
+
+    float F0 = pow((1.0 - u_IOR) / (1.0 + u_IOR), 2.0);
+    float fresnel = F0 + (1.0 - F0) * pow(1.0 + dot(I, N), 5.0);
 
     vec3 R = reflect(I, N);
-    float ratio = 1.0 / u_IOR;
-    vec3 T = refract(I, N, ratio);
+    vec3 reflectionColor = texture(u_Skybox, R).rgb;
 
-    vec4 reflectionColor = texture(u_Skybox, R);
-    vec4 refractionColor = texture(u_Skybox, T);
+    float ratioR = 1.0 / u_IOR;
+    float ratioG = 1.0 / (u_IOR + u_Dispersion);
+    float ratioB = 1.0 / (u_IOR + u_Dispersion * 2.0);
 
-    float fresnel = u_FresnelBias + u_FresnelScale * pow(1.0 + dot(I, N), u_FresnelPower);
-    fresnel = clamp(fresnel, 0.0, 1.0);
+    vec3 TR = refract(I, N, ratioR);
+    vec3 TG = refract(I, N, ratioG);
+    vec3 TB = refract(I, N, ratioB);
 
-    vec4 finalColor = mix(refractionColor, reflectionColor, fresnel);
+    float r = texture(u_Skybox, TR).r;
+    float g = texture(u_Skybox, TG).g;
+    float b = texture(u_Skybox, TB).b;
+    vec3 refractionColor = vec3(r, g, b) * u_Tint;
+
+    vec3 lightDir = normalize(u_LightDir);
+    vec3 halfDir = normalize(lightDir - I);
+    float spec = pow(max(dot(N, halfDir), 0.0), u_Shininess);
+    vec3 specularColor = vec3(1.0) * spec;
+
+    vec3 color = mix(refractionColor, reflectionColor, fresnel * u_Reflectivity);
     
-    FragColor = finalColor;
+    color += specularColor;
+
+    FragColor = vec4(color, 1.0);
 }

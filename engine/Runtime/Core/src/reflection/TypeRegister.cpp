@@ -46,4 +46,15 @@ namespace ChikaEngine::Reflection
         auto it = _registry.find(name);
         return it != _registry.end() ? &it->second : nullptr;
     }
+
+    void* TypeRegister::CreateInstanceByName(const std::string& name)
+    {
+        auto it = _registry.find(name);
+        if (it != _registry.end() && it->second.Constructor != nullptr)
+        {
+            return it->second.Constructor();
+        }
+        return nullptr;
+    }
+
 } // namespace ChikaEngine::Reflection

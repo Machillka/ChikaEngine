@@ -25,7 +25,7 @@ namespace ChikaEngine::Editor
 
       private:
         void HandleMouseInteraction(const ImVec2& imagePos, const ImVec2& imageSize);
-        void DrawOverlayControls();
+        void DrawOverlayControls(UIContext& ctx);
         void HandleKeyboardInteraction(UIContext& ctx);
         void HandleRayCast(UIContext& ctx);
 

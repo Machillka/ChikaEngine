@@ -1,0 +1,66 @@
+{
+    "GameObjects": [
+        {
+            "Active": true,
+            "Components": [
+                {
+                    "CompData": {
+                        "position": {
+                            "x": 2.869999885559082,
+                            "y": 1.5,
+                            "z": -1.5
+                        },
+                        "rotation": {
+                            "w": 1.0,
+                            "x": 0.0,
+                            "y": 0.0,
+                            "z": 0.0
+                        },
+                        "scale": {
+                            "x": 1.0,
+                            "y": -2.0999999046325684,
+                            "z": 1.0
+                        }
+                    },
+                    "TypeName": "Transform"
+                },
+                {
+                    "CompData": {
+                        "center": {
+                            "x": 0.0,
+                            "y": 0.0,
+                            "z": 0.0
+                        },
+                        "friction": 0.5,
+                        "isTrigger": false,
+                        "radius": 0.5,
+                        "restitution": 0.0,
+                        "size": {
+                            "x": 1.0,
+                            "y": 1.0,
+                            "z": 1.0
+                        }
+                    },
+                    "TypeName": "Collider"
+                },
+                {
+                    "CompData": {
+                        "_matHandle": 0,
+                        "_meshHandle": 1,
+                        "_visible": true
+                    },
+                    "TypeName": "Renderable"
+                },
+                {
+                    "CompData": {
+                        "className": "PlayerController",
+                        "moduleName": "player"
+                    },
+                    "TypeName": "ScriptComponent"
+                }
+            ],
+            "ID": 5803211894256640,
+            "Name": "Batman"
+        }
+    ]
+}

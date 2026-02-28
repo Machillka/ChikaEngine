@@ -12,6 +12,7 @@ namespace ChikaEngine::Framework
     // TODO: 加上父子层级关系
     MCLASS(Transform) : public Component
     {
+        REFLECTION_BODY(Transform)
       public:
         Transform() = default;
         ~Transform() override = default;

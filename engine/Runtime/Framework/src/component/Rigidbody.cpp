@@ -30,11 +30,14 @@ namespace ChikaEngine::Framework
     void Rigidbody::OnEnable()
     {
         Component::OnEnable();
+
+        if (!GetOwner())
+            return;
+
         Collider* col = GetOwner()->GetComponent<Collider>();
+
         if (col)
         {
-            // 如果 Collider 已经创建了 Body，它可能是 Static 的。
-            // 我们需要通知 Collider 重建 Body，以便应用 Rigidbody 的 Mass 和 MotionType
             col->RecreatePhysicsBody();
         }
         else
@@ -48,12 +51,18 @@ namespace ChikaEngine::Framework
         Component::OnDisable();
         // 当 Rigidbody 禁用时，物体应该变回 Static
         // 同样通知 Collider 重建
-        Collider* col = GetOwner()->GetComponent<Collider>();
-        if (col)
+
+        if (GetOwner() && GetOwner()->GetScene())
         {
-            col->RecreatePhysicsBody();
+            Collider* col = GetOwner()->GetComponent<Collider>();
+            if (col)
+            {
+                col->RecreatePhysicsBody();
+            }
         }
+
         _physicsBodyHandle = 0;
+        _isCreated = false;
     }
 
     void Rigidbody::OnDestroy()

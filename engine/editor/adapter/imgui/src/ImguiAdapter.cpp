@@ -74,18 +74,20 @@ namespace ChikaEngine::Editor
         static bool initialized = false;
         if (!initialized)
         {
+            // ImGui::DockBuilderFinish(dockspace_id);
             initialized = true;
-            ImGui::DockBuilderRemoveNode(dockspace_id); // clear any existing
+            ImGui::DockBuilderRemoveNode(dockspace_id);
             ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
             ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
 
             ImGuiID dock_main_id = dockspace_id;
             ImGuiID dock_right_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
-            ImGuiID dock_bottom_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.25f, nullptr, &dock_main_id);
+            ImGuiID dock_bottom_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.30f, nullptr, &dock_main_id);
 
-            // Assign panels by their names
+            // 重新分配位置，把 Content Browser 放下面，跟 Log Panel 一起
             ImGui::DockBuilderDockWindow("Scene View", dock_main_id);
             ImGui::DockBuilderDockWindow("Log Panel", dock_bottom_id);
+            ImGui::DockBuilderDockWindow("Content Browser", dock_bottom_id); // <--- 加入这里
             ImGui::DockBuilderDockWindow("Inspector", dock_right_id);
 
             ImGui::DockBuilderFinish(dockspace_id);

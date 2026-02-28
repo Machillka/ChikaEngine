@@ -92,4 +92,18 @@ namespace ChikaEngine::Framework
                 comp->FixedUpdate(fixedDeltaTime);
         }
     }
+
+    void GameObject::OnDeserialized()
+    {
+        // 恢复裸指针
+        transform = this->GetComponent<Transform>();
+
+        for (auto& comp : _components)
+        {
+            if (comp->IsEnabled())
+            {
+                comp->OnEnable();
+            }
+        }
+    }
 } // namespace ChikaEngine::Framework

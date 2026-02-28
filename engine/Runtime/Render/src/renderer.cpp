@@ -91,7 +91,7 @@ namespace ChikaEngine::Render
         if (!target || !_renderDevice)
             return;
 
-        LOG_INFO("Renderer", "Rendering {} objects", ros.size());
+        // LOG_INFO("Renderer", "Rendering {} objects", ros.size());
 
         target->Bind();
         _renderDevice->BeginFrame();

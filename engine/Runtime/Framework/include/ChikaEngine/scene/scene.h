@@ -4,6 +4,7 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Renderable.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/io/MemoryStream.h"
 #include "ChikaEngine/subsystem/PhysicsSubsystem.h"
 #include <memory>
 #include <unordered_map>
@@ -39,13 +40,50 @@ namespace ChikaEngine::Framework
         void UnregisterRenderable(Renderable* rend);
         std::vector<Render::RenderObject> GetAllVisiableRenderObjects();
 
+        void Play(); // 进入 play mode
+        void Stop(); // 从 play mode 退出
+
         // 生命周期
         void Start();
         void Update(float deltaTime);
         void FixedUpdate(float fixedDeltaTime);
 
         // 序列化方法
-        void Serilize();
+        template <typename Archive> void serialize(Archive& ar)
+        {
+            using namespace ChikaEngine::Serialization;
+
+            size_t goCount = _gameobjects.size();
+            ar.EnterArray("GameObjects", goCount);
+
+            if constexpr (Archive::IsSaving)
+            {
+                for (auto& kv : _gameobjects)
+                {
+                    ar.EnterNode(nullptr);
+                    kv.second->serialize(ar);
+                    ar.LeaveNode();
+                }
+            }
+            else if constexpr (Archive::IsLoading)
+            {
+                _gameobjects.clear();
+                for (size_t i = 0; i < goCount; ++i)
+                {
+                    ar.EnterNode(nullptr);
+                    auto go = std::make_unique<GameObject>("");
+                    go->SetScene(this);
+
+                    go->serialize(ar);
+                    go->OnDeserialized();
+
+                    // 放回 map 中
+                    _gameobjects[go->GetID()] = std::move(go);
+                    ar.LeaveNode();
+                }
+            }
+            ar.LeaveArray();
+        }
 
       private:
         SceneMode _mode;
@@ -59,5 +97,9 @@ namespace ChikaEngine::Framework
         std::vector<Component*> _startQueue;
         std::vector<Component*> _updateList;
         std::vector<GameObject*> _destroyQueue;
+
+        // 序列化缓存
+        std::unique_ptr<IO::MemoryStream> _editorSnapshot;
+        void ClearRuntimeData();
     };
 } // namespace ChikaEngine::Framework

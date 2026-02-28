@@ -319,7 +319,7 @@ namespace ChikaEngine::Physics
             return 0;
         }
 
-        LOG_INFO("Physics System", "Created Successfully ID = {}", id.GetIndexAndSequenceNumber());
+        LOG_WARN("Physics System", "Created Successfully ID = {}", id.GetIndexAndSequenceNumber());
         return id.GetIndexAndSequenceNumber();
     }
 

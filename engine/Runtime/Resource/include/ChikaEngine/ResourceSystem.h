@@ -60,6 +60,10 @@ namespace ChikaEngine::Resource
         // void Reload(const std::string& path);
 
         std::string NormalizePath(const std::string& path) const;
+        const std::string& GetAssetRoot() const
+        {
+            return _config.assetRoot;
+        }
 
       private:
         ResourceSystem() = default;
