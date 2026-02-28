@@ -22,3 +22,6 @@
 [submodule "engine/ThirdParty/imguizmo"]
 	path = engine/ThirdParty/imguizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo.git
+[submodule "engine/ThirdParty/pybind11"]
+	path = engine/ThirdParty/pybind11
+	url = https://github.com/pybind/pybind11.git
