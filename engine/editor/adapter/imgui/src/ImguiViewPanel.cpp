@@ -3,7 +3,9 @@
 #include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/Camera.h"
+#include "IEditorPanel.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 
 namespace ChikaEngine::Editor
 {
@@ -13,7 +15,7 @@ namespace ChikaEngine::Editor
     void ImguiViewPanel::OnRender(UIContext& ctx)
     {
         ImGui::Begin(Name());
-        DrawOverlayControls(); // 绘制顶部工具栏
+        DrawOverlayControls(ctx); // 绘制顶部工具栏
 
         if (!_target)
         {
@@ -32,7 +34,7 @@ namespace ChikaEngine::Editor
             return;
         }
         ImTextureID texId = colorTex->Handle();
-        LOG_INFO("ViewPanel", "Texture handle = {}", texId);
+        // LOG_INFO("ViewPanel", "Texture handle = {}", texId);
         ImVec2 avail = ImGui::GetContentRegionAvail();
         ImVec2 imageSize = avail;
         ImVec2 cursorPos = ImGui::GetCursorScreenPos();
@@ -70,8 +72,6 @@ namespace ChikaEngine::Editor
         LOG_DEBUG("View", "MousePos: x = {}, y = {}; vMin: x = {}, y = {}, vMax: x = {}, y = {}", mousePos.x, mousePos.y, vMin.x, vMin.y, vMax.x, vMax.y);
         if (mousePos.x >= vMin.x && mousePos.x <= vMax.x && mousePos.y >= vMin.y && mousePos.y <= vMax.y)
         {
-            LOG_DEBUG("Fuck", "Enter");
-
             float u = (mousePos.x - vMin.x) / (vMax.x - vMin.x);
             float v = (mousePos.y - vMin.y) / (vMax.y - vMin.y);
 
@@ -83,6 +83,7 @@ namespace ChikaEngine::Editor
                 if (ctx.activeScene->GetScenePhysics()->Raycast(ray.origin, ray.direction, 1000.0f, hit))
                 {
                     Core::GameObjectID hitID = static_cast<Core::GameObjectID>(hit.gameObjectId);
+                    LOG_INFO("Raycast", "Hit physics body with ID: {}", hitID);
                     Framework::GameObject* hitGo = ctx.activeScene->GetGameobject(hitID);
                     if (hitGo)
                     {
@@ -182,8 +183,47 @@ namespace ChikaEngine::Editor
         if (ImGui::IsKeyDown(ImGuiKey_D))
             _camera->transform->TranslateLocal(moveSpeed * dt, 0, 0);
     }
-    void ImguiViewPanel::DrawOverlayControls()
+
+    void ImguiViewPanel::DrawOverlayControls(UIContext& ctx)
     {
+        if (ctx.activeScene != nullptr)
+        {
+            bool isPlaying = (ctx.activeScene->GetMode() == Framework::SceneMode::play);
+
+            if (!isPlaying)
+            {
+                // Edit 模式：绿 PLAY
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.6f, 0.1f, 1.0f));
+
+                if (ImGui::Button("▶ PLAY"))
+                {
+                    ctx.activeScene->Play();
+                }
+                ImGui::PopStyleColor(3);
+            }
+            else
+            {
+                // Play 模式：红 STOP
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.1f, 0.1f, 1.0f));
+
+                if (ImGui::Button("■ STOP"))
+                {
+                    ctx.selection.objectPtr = nullptr;
+                    ctx.selection.fullName = "";
+                    ctx.activeScene->Stop();
+                }
+                ImGui::PopStyleColor(3);
+            }
+
+            ImGui::SameLine(0, 15.0f);
+            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+            ImGui::SameLine(0, 15.0f);
+        }
+
         if (ImGui::Button("Reset Camera"))
         {
             // TODO: 添加一个重置相机的方法

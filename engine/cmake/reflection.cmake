@@ -45,14 +45,15 @@ function(reflection_generator TARGET_NAME)
                 get_filename_component(NAME_WE "${FILE_PATH}" NAME_WE)
                 
                 set(OUT_GEN_CPP "${GEN_DIR}/${REL_DIR}/${NAME_WE}.gen.cpp")
+                set(OUT_GEN_PYTHON  "${GEN_DIR}/${REL_DIR}/${NAME_WE}.python.cpp")
 
                 # 添加生成命令 (调用 parser.py)
                 add_custom_command(
-                    OUTPUT "${OUT_GEN_CPP}"
-                    COMMAND ${UV_EXE} run --project "${PROJECT_ROOT_DIR}/engine/tools/reflector"
+                    OUTPUT "${OUT_GEN_CPP}" "${OUT_GEN_PYTHON}"
+                    COMMAND ${UV_EXECUTABLE} run --project "${PROJECT_ROOT_DIR}/engine/tools/reflector"
                             parser.py
                             --input "${FILE_PATH}"
-                            --output "${OUT_GEN_CPP}"
+                            --output "${OUT_GEN_CPP}" "${OUT_GEN_PYTHON}"
                             --build-dir "${PROJECT_BINARY_DIR}"
                             --engine-root "${PROJECT_ROOT_DIR}"
                     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}/engine/tools/reflector"
@@ -61,7 +62,7 @@ function(reflection_generator TARGET_NAME)
                     VERBATIM
                 )
 
-                list(APPEND TARGET_GEN_FILES "${OUT_GEN_CPP}")
+                list(APPEND TARGET_GEN_FILES "${OUT_GEN_CPP}" "${OUT_GEN_PYTHON}")
                 message(STATUS "Generated reflection file: ${OUT_GEN_CPP}")
                 # 将该头文件添加到全局列表，供最后生成 Registry 使用
                 set_property(GLOBAL APPEND PROPERTY CHIKA_REFLECT_HEADERS "${FILE_PATH}")

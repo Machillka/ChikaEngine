@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ChikaEngine/Resource/Material.h"
+#include "ChikaEngine/ResourceTypes.h"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/MaterialImporter.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
@@ -25,12 +27,12 @@ namespace ChikaEngine::Framework
         MFUNCTION()
         void SetMesh(Resource::MeshHandle meshHandle)
         {
-            _obj.mesh = meshHandle;
+            _meshHandle = meshHandle;
         }
         MFUNCTION()
         void SetMaterial(Resource::MaterialHandle materialHandle)
         {
-            _obj.material = materialHandle;
+            _matHandle = materialHandle;
         }
         MFUNCTION()
         void SetVisible(bool v)
@@ -53,7 +55,11 @@ namespace ChikaEngine::Framework
         void UnregisterFromScene();
         MFIELD()
         bool _visible;
-        Render::RenderObject _obj;
+        MFIELD()
+        Resource::MaterialHandle _matHandle;
+        MFIELD()
+        Resource::MeshHandle _meshHandle;
+
         bool _isRegisterToScene; // 是否已经注册到 Scene 中
     };
 } // namespace ChikaEngine::Framework

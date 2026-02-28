@@ -30,11 +30,11 @@ namespace ChikaEngine::Engine
         void EndScene();
         Framework::Scene* GetActiveScene() const;
         Render::TextureCubeHandle mapcubeHanele = 0;
+        Framework::GameObject* goTest = nullptr;
 
       private:
         std::unique_ptr<Framework::Scene> _scene = nullptr;
         Platform::IWindow* _window = nullptr;
-        Framework::GameObject* goTest = nullptr;
 
         // TODO: 加入 level 等 实现 GamePlay
     };

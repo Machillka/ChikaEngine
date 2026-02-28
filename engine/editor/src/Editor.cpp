@@ -4,6 +4,7 @@
 #include "ChikaEngine/window/window_system.h"
 #include "include/ChikaEngine/ImguiAdapter.h"
 #include "include/ChikaEngine/ImguiInspectorPanel.h"
+#include "include/ChikaEngine/ImguiContentBrowserPanel.h"
 #include "include/ChikaEngine/ImguiLogPanel.h"
 #include "include/ChikaEngine/ImguiViewPanel.h"
 #include <memory>
@@ -23,8 +24,9 @@ namespace ChikaEngine::Editor
         _viewCamera = std::make_unique<Framework::Camera>("View Camera");
         auto viewPanel = std::make_unique<ChikaEngine::Editor::ImguiViewPanel>(_viewTarget, _viewCamera.get());
         auto inspector = std::make_unique<ChikaEngine::Editor::ImguiInspectorPanel>();
-        // Register panels: view center, log bottom, inspector right
-        this->RegisterPanel(std::move(viewPanel)).RegisterPanel(std::move(logPanel)).RegisterPanel(std::move(inspector));
+        auto browser = std::make_unique<ChikaEngine::Editor::ImguiContentBrowserPanel>();
+
+        this->RegisterPanel(std::move(viewPanel)).RegisterPanel(std::move(logPanel)).RegisterPanel(std::move(inspector)).RegisterPanel(std::move(browser));
 
         return true;
     }

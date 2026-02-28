@@ -5,6 +5,11 @@
 #include "ChikaEngine/component/Renderable.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/io/FileStream.h"
+#include "ChikaEngine/io/IStream.h"
+#include "ChikaEngine/serialization/BinaryLoadArchive.h"
+#include "ChikaEngine/serialization/BinarySaveArchive.h"
+#include "ChikaEngine/serialization/JsonSaveArchive.h"
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -34,7 +39,12 @@ namespace ChikaEngine::Framework
 
     GameObject* Scene::GetGameobject(Core::GameObjectID id)
     {
-        return _gameobjects[id].get();
+        auto it = _gameobjects.find(id);
+        if (it != _gameobjects.end())
+        {
+            return it->second.get();
+        }
+        return nullptr;
     }
 
     Physics::PhysicsScene* Scene::GetScenePhysics()
@@ -48,10 +58,20 @@ namespace ChikaEngine::Framework
         for (auto& kv : updatedTransformData)
         {
             Core::GameObjectID id = kv.first;
+
+            auto it = _gameobjects.find(id);
+            if (it == _gameobjects.end())
+                continue;
+
+            GameObject* go = it->second.get();
+
             Physics::PhysicsTransform physicsTransform = kv.second;
-            LOG_WARN("Scene", "id = {}, y = {}", id, physicsTransform.pos.y);
-            _gameobjects[id]->transform->position = physicsTransform.pos;
-            _gameobjects[id]->transform->rotation = physicsTransform.rot;
+
+            if (go && go->transform)
+            {
+                go->transform->position = physicsTransform.pos;
+                go->transform->rotation = physicsTransform.rot;
+            }
         }
     }
 
@@ -80,6 +100,61 @@ namespace ChikaEngine::Framework
         }
 
         return out;
+    }
+
+    void Scene::Play()
+    {
+        if (_mode == SceneMode::play)
+            return;
+
+        LOG_INFO("Scene", "Entering play mode...");
+
+        {
+            IO::FileStream debugFile("debug_pre_play.json", IO::Mode::Write);
+
+            Serialization::JsonSaveArchive jsonAr(debugFile);
+            jsonAr("scene", *this);
+            LOG_INFO("Debug", "Snapshot saved to 'debug_pre_play.json'");
+        }
+
+        _editorSnapshot = std::make_unique<IO::MemoryStream>();
+        Serialization::BinarySaveArchive saveAr(*_editorSnapshot);
+        saveAr(*this);
+        _mode = SceneMode::play;
+        Start();
+    }
+
+    void Scene::Stop()
+    {
+        if (_mode == SceneMode::edit)
+            return;
+
+        LOG_INFO("Scene", "Stopping play mode, restoring Editor state...");
+
+        _mode = SceneMode::edit;
+
+        ClearRuntimeData();
+        // {
+        //     IO::FileStream debugFile("debug_pre_play.json", IO::Mode::Read);
+
+        //     Serialization::JsonLoadArchive jsonAr(debugFile);
+        //     jsonAr("scene", *this);
+        // }
+        if (_editorSnapshot)
+        {
+            _editorSnapshot->FlipToRead();
+
+            Serialization::BinaryLoadArchive loadAr(*_editorSnapshot);
+            loadAr(*this);
+
+            // NOTE: 可以遍历来重新注册 go 等东西
+            // NOTE: 把注册下放给 component
+            LOG_INFO("Scene", "Editor state restored successfully.");
+        }
+        else
+        {
+            LOG_ERROR("Scene", "Fatal: No editor snapshot found!");
+        }
     }
 
     // TODO: 把所有生命周期交给 world 实现, 因为 editor 没有具体的生命周期
@@ -112,5 +187,19 @@ namespace ChikaEngine::Framework
             LOG_WARN("Scene", "Running Physics");
             SyncTransform();
         }
+    }
+    void Scene::ClearRuntimeData()
+    {
+        _gameobjects.clear();
+
+        _startQueue.clear();
+        _updateList.clear();
+        _destroyQueue.clear();
+
+        _renderableObjects.clear();
+        _physicsScene.reset();
+
+        Physics::PhysicsSystemDesc desc = {.backendType = Physics::PhysicsBackendTypes::Jolt};
+        _physicsScene = std::make_unique<Physics::PhysicsScene>(desc);
     }
 } // namespace ChikaEngine::Framework

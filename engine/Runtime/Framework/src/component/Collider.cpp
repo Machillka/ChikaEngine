@@ -8,18 +8,20 @@
 
 namespace ChikaEngine::Framework
 {
-    void Collider::SetPhysicsScene()
+    Physics::PhysicsScene* Collider::GetPhysicsScene()
     {
-        _physicsScene = GetOwner()->GetScene()->GetScenePhysics();
+        if (!GetOwner())
+            return nullptr;
+        auto* scene = GetOwner()->GetScene();
+        if (!scene)
+            return nullptr;
 
-        if (_physicsScene == nullptr)
-            LOG_WARN("Collider", "The Physics System is null");
+        return scene->GetScenePhysics();
     }
 
     void Collider::OnEnable()
     {
         Component::OnEnable();
-        SetPhysicsScene();
 
         if (_physicsBodyHandle == 0)
         {
@@ -29,13 +31,13 @@ namespace ChikaEngine::Framework
     void Collider::OnDisable()
     {
         Component::OnDisable();
-        if (_physicsBodyHandle != 0)
-        {
-            _physicsScene->EnqueueRigidbodyDestroy(_physicsBodyHandle);
-            // Physics::PhysicsScene::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
-            _physicsBodyHandle = 0;
-            _physicsScene = nullptr;
-        }
+        // if (_physicsBodyHandle != 0)
+        // {
+        //     ->EnqueueRigidbodyDestroy(_physicsBodyHandle);
+        //     // Physics::PhysicsScene::Instance().EnqueueRigidbodyDestroy(_physicsBodyHandle);
+        //     _physicsBodyHandle = 0;
+        //     _physicsScene = nullptr;
+        // }
     }
     void Collider::OnDestroy()
     {
@@ -49,15 +51,31 @@ namespace ChikaEngine::Framework
         RecreatePhysicsBody();
     }
 
-    void Collider::RecreatePhysicsBody()
+    void Collider::DestroyPhysicsBody()
     {
         if (_physicsBodyHandle != 0)
         {
             // TODO: 实现 Scene 中得到 Physics 然后进行一个改的修
             // 因为覆盖 所以允许延迟删除
-            _physicsScene->EnqueueRigidbodyDestroy(_physicsBodyHandle);
+            Physics::PhysicsScene* physScene = GetPhysicsScene();
+            if (physScene)
+            {
+                physScene->EnqueueRigidbodyDestroy(_physicsBodyHandle);
+            }
+
             _physicsBodyHandle = 0;
         }
+    }
+
+    void Collider::RecreatePhysicsBody()
+    {
+        Physics::PhysicsScene* physScene = GetPhysicsScene();
+        if (!physScene)
+        {
+            return;
+        }
+
+        DestroyPhysicsBody();
 
         Physics::PhysicsBodyCreateDesc desc;
         desc.ownerId = GetOwner()->GetID();
@@ -93,8 +111,8 @@ namespace ChikaEngine::Framework
         desc.restitution = restitution;
         desc.layer = static_cast<Physics::PhysicsLayerID>(layer);
 
-        _physicsScene->SetLayerCollisionMask(desc.layer, collisionMask);
-        _physicsBodyHandle = _physicsScene->CreateBodyImmediate(desc);
+        physScene->SetLayerCollisionMask(desc.layer, collisionMask);
+        _physicsBodyHandle = physScene->CreateBodyImmediate(desc);
         LOG_DEBUG("Physics", "Set {}", _physicsBodyHandle);
         if (rb)
         {

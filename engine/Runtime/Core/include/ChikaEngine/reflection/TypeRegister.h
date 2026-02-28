@@ -16,6 +16,7 @@ namespace ChikaEngine::Reflection
         void RegisterClass(const ClassInfo& info);
         const ClassInfo* GetClassByFullName(const std::string& fullName);
         const ClassInfo* GetClassByName(const std::string& name);
+        void* CreateInstanceByName(const std::string& name);
 
       public:
         std::unordered_map<std::string, ClassInfo> _registryFullName;

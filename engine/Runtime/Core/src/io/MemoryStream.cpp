@@ -1,4 +1,5 @@
 #include "ChikaEngine/io/MemoryStream.h"
+#include "ChikaEngine/debug/log_macros.h"
 namespace ChikaEngine::IO
 {
     MemoryStream::MemoryStream() : _isReadingMode(false), _pos(0) {}
@@ -11,7 +12,12 @@ namespace ChikaEngine::IO
     void MemoryStream::Read(void* data, size_t size)
     {
         if (_pos + size > _buffer.size())
+        {
+            // 关键：读取失败时清零输出，防止调用方使用随机垃圾值
+            std::memset(data, 0, size);
+            LOG_ERROR("IO", "MemoryStream Read out of bounds! Pos: {}, Size: {}, Buffer: {}", _pos, size, _buffer.size());
             return;
+        }
         std::memcpy(data, _buffer.data() + _pos, size);
         _pos += size;
     }

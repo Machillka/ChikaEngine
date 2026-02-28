@@ -1,12 +1,11 @@
 
 #include "ChikaEngine/component/Renderable.h"
-#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/scene/scene.h"
 
 namespace ChikaEngine::Framework
 {
-    Renderable::Renderable() : Component(), _obj(), _visible(true), _isRegisterToScene(false) {}
+    Renderable::Renderable() : Component(), _matHandle(0), _meshHandle(0), _visible(true), _isRegisterToScene(false) {}
     Renderable::~Renderable()
     {
         UnregisterFromScene();
@@ -14,10 +13,12 @@ namespace ChikaEngine::Framework
 
     void Renderable::OnEnable()
     {
+        Component::OnEnable();
         RegisterToScene();
     }
     void Renderable::OnDisable()
     {
+        Component::OnDisable();
         UnregisterFromScene();
     }
     void Renderable::OnDestroy()
@@ -27,7 +28,7 @@ namespace ChikaEngine::Framework
 
     ChikaEngine::Render::RenderObject Renderable::BuildRenderObject() const
     {
-        Render::RenderObject obj = _obj;
+        Render::RenderObject obj{.material = _matHandle, .mesh = _meshHandle};
 
         if (GetOwner() && GetOwner()->transform)
         {
@@ -45,12 +46,16 @@ namespace ChikaEngine::Framework
     {
         if (_isRegisterToScene)
             return;
+        if (!GetOwner() || !GetOwner()->GetScene())
+            return;
         GetOwner()->GetScene()->RegisterRenderable(this);
         _isRegisterToScene = true;
     }
     void Renderable::UnregisterFromScene()
     {
         if (!_isRegisterToScene)
+            return;
+        if (!GetOwner() || !GetOwner()->GetScene())
             return;
         GetOwner()->GetScene()->UnregisterRenderable(this);
         _isRegisterToScene = false;

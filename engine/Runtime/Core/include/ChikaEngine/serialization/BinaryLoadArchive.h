@@ -12,6 +12,7 @@
 
 #include "ChikaEngine/io/IStream.h"
 #include "ChikaEngine/serialization/Access.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include <cstddef>
 #include <string>
 namespace ChikaEngine::Serialization
@@ -26,7 +27,7 @@ namespace ChikaEngine::Serialization
 
         template <typename T> void operator()(const NVP<T>& nvp)
         {
-            Serializer::Dispatch(*this, nullptr, nvp.value);
+            Serializer::Dispatch(*this, nullptr, nvp.Value);
         }
 
         template <typename T> void operator()(const T& val)
@@ -52,15 +53,25 @@ namespace ChikaEngine::Serialization
         {
             if constexpr (std::is_same_v<T, std::string>)
             {
-                size_t len;
+                size_t len = 0;
                 _stream.Read(&len, sizeof(size_t));
                 val.resize(len);
+                if (len > 1024 * 1024 * 1000)
+                {
+                    LOG_ERROR("Serialization", "String length too large: {}. Stream corruption suspected.", len);
+                    val = ""; // 设为空防止崩溃
+                    return;
+                }
                 if (len > 0)
                     _stream.Read(val.data(), len);
             }
-            else
+            else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
             {
                 _stream.Read(&val, sizeof(T));
+            }
+            else
+            {
+                val.serialize(*this);
             }
         }
 
