@@ -1,4 +1,5 @@
 #pragma once
+#include "ChikaEngine/GizmoRenderer.h"
 #include "ChikaEngine/RHI/RHIDevice.h"
 #include "ChikaEngine/render_api.h"
 #include "ChikaEngine/render_device.h"
@@ -33,5 +34,6 @@ namespace ChikaEngine::Render
       private:
         static inline std::unique_ptr<IRenderDevice> _renderDevice{};
         static inline std::unique_ptr<IRHIDevice> _rhiDevice{};
+        static inline std::unique_ptr<GizmoRenderer> _gizmoRenderer{};
     };
 } // namespace ChikaEngine::Render

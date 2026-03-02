@@ -6,6 +6,8 @@
 #include "ChikaEngine/RHI/OpenGL/GLTexture2D.h"
 #include "ChikaEngine/RHI/OpenGL/GLTextureCube.h"
 #include "ChikaEngine/RHI/OpenGL/GLVertexArray.h"
+#include "ChikaEngine/Resource/Mesh.h"
+
 namespace ChikaEngine::Render
 {
     GLRHIDevice::~GLRHIDevice() {}
@@ -69,6 +71,55 @@ namespace ChikaEngine::Render
         glEnableVertexAttribArray(2);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 6));
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glIbo->Handle());
+
+        if (ibo != nullptr)
+        {
+            auto* glIbo = static_cast<GLBuffer*>(ibo);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glIbo->Handle());
+        }
+
         glBindVertexArray(0);
+    }
+    void GLRHIDevice::SetupGizmoVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo)
+    {
+        auto* glVao = static_cast<GLVertexArray*>(vao);
+        auto* glVbo = static_cast<GLBuffer*>(vbo);
+
+        glBindVertexArray(glVao->Handle());
+        glBindBuffer(GL_ARRAY_BUFFER, glVbo->Handle());
+
+        // Gizmo 专属布局: Position(3) + Color(4) = 7 floats
+        constexpr GLsizei stride = sizeof(float) * 7;
+
+        // Location 0: aPos (vec3)
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+
+        // Location 1: aColor (vec4)
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 3));
+
+        glBindVertexArray(0);
+    }
+    void GLRHIDevice::UpdateBufferData(IRHIBuffer* buffer, std::size_t size, const void* data, std::size_t offset)
+    {
+        if (!buffer || !data || size == 0)
+            return;
+        auto* glBuf = static_cast<GLBuffer*>(buffer);
+
+        glBindBuffer(GL_ARRAY_BUFFER, glBuf->Handle());
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+    void GLRHIDevice::DrawLines(IRHIVertexArray* vao, std::uint32_t vertexCount, std::uint32_t firstVertex)
+    {
+        if (!vao)
+            return;
+        auto* glVao = static_cast<GLVertexArray*>(vao);
+
+        glBindVertexArray(glVao->Handle());
+        glDrawArrays(GL_LINES, firstVertex, vertexCount);
+        glBindVertexArray(0);
+        glDrawArrays(GL_LINES, firstVertex, vertexCount);
     }
 } // namespace ChikaEngine::Render

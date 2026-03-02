@@ -1,8 +1,10 @@
 #include "ChikaEngine/component/Collider.h"
+#include "ChikaEngine/Gizmo.h"
 #include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/component/Rigidbody.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/math/vector4.h"
 #include "ChikaEngine/scene/scene.h"
 #include <cstdlib>
 
@@ -120,4 +122,10 @@ namespace ChikaEngine::Framework
         }
     }
 
+    void Collider::OnGizmo() const
+    {
+        if (!GetOwner() || !GetOwner()->transform)
+            return;
+        Render::Gizmo::Instance().DrawWireBox(center, size * 0.5, GetOwner()->transform->GetLocalMatrix(), Math::Vector4(1, 0, 0, 1));
+    }
 } // namespace ChikaEngine::Framework

@@ -1,8 +1,11 @@
 
 #include "include/ChikaEngine/ImguiViewPanel.h"
+#include "ChikaEngine/Gizmo.h"
 #include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/Camera.h"
+#include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/math/vector4.h"
 #include "IEditorPanel.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -16,6 +19,15 @@ namespace ChikaEngine::Editor
     {
         ImGui::Begin(Name());
         DrawOverlayControls(ctx); // 绘制顶部工具栏
+
+        // CRITICAL: Validate camera is properly initialized
+        if (!_camera || !_camera->transform)
+        {
+            LOG_ERROR("ImguiViewPanel", "Camera not properly initialized in OnRender");
+            ImGui::TextDisabled("Camera not available.");
+            ImGui::End();
+            return;
+        }
 
         if (!_target)
         {
@@ -54,6 +66,22 @@ namespace ChikaEngine::Editor
         HandleKeyboardInteraction(ctx);
         HandleMouseInteraction(imagePos, imageSize);
         HandleRayCast(ctx);
+
+        if (ctx.selection.fullName == "GameObject")
+        {
+            if (ctx.selection.objectPtr != nullptr)
+            {
+                auto* go = static_cast<Framework::GameObject*>(ctx.selection.objectPtr);
+
+                if (go != nullptr)
+                {
+                    for (const auto& comp : go->GetAllComponents())
+                    {
+                        comp->OnGizmo();
+                    }
+                }
+            }
+        }
         ImGui::End();
     }
 
@@ -63,6 +91,21 @@ namespace ChikaEngine::Editor
             return;
         if (!ImGui::IsKeyDown(ImGuiKey_Z))
             return;
+
+        // CRITICAL: Validate camera is initialized before raycast
+        if (!_camera || !_camera->transform)
+        {
+            LOG_WARN("ImguiViewPanel", "HandleRayCast: Camera not initialized");
+            return;
+        }
+
+        // Validate context and scene
+        if (!ctx.activeScene)
+        {
+            LOG_WARN("ImguiViewPanel", "HandleRayCast: No active scene");
+            return;
+        }
+
         LOG_DEBUG("View", "HandleRaycast");
         ImVec2 viewportSize = ImGui::GetContentRegionAvail();
         ImVec2 vMin = ImGui::GetItemRectMin();
@@ -85,16 +128,24 @@ namespace ChikaEngine::Editor
                     Core::GameObjectID hitID = static_cast<Core::GameObjectID>(hit.gameObjectId);
                     LOG_INFO("Raycast", "Hit physics body with ID: {}", hitID);
                     Framework::GameObject* hitGo = ctx.activeScene->GetGameobject(hitID);
-                    if (hitGo)
+
+                    // DEFENSIVE: Validate the hit GameObject before setting selection
+                    if (hitGo != nullptr && hitGo != reinterpret_cast<Framework::GameObject*>(0xdeadbeef))
                     {
                         ctx.selection.objectPtr = hitGo;
                         ctx.selection.fullName = "GameObject";
                         LOG_INFO("Editor", "Clicked on GameObject: {}", hitGo->GetName());
                     }
+                    else
+                    {
+                        LOG_WARN("ImguiViewPanel", "Raycast hit returned invalid GameObject pointer");
+                        ctx.selection.objectPtr = nullptr;
+                        ctx.selection.fullName = "";
+                    }
                 }
                 else
                 {
-                    // 射线没有打中任何物体，清空选择
+                    // Ray didn't hit anything, clear selection
                     ctx.selection.objectPtr = nullptr;
                     ctx.selection.fullName = "";
                 }
@@ -147,7 +198,11 @@ namespace ChikaEngine::Editor
             dx *= _orbitSensitivity;
             dy *= _orbitSensitivity;
 
-            _camera->transform->ProcessLookDelta(dx, dy, true);
+            // DEFENSIVE: Verify camera and transform are valid before use
+            if (_camera && _camera->transform)
+            {
+                _camera->transform->ProcessLookDelta(dx, dy, true);
+            }
         }
 
         if ((_middleMouseDown && isMouseInside) || (isMouseInside && io.KeyAlt && leftDown))
@@ -158,7 +213,12 @@ namespace ChikaEngine::Editor
 
             float moveX = -dx * _panSensitivity;
             float moveY = dy * _panSensitivity;
-            _camera->transform->Translate(moveX, moveY, 0);
+
+            // DEFENSIVE: Verify camera and transform are valid before use
+            if (_camera && _camera->transform)
+            {
+                _camera->transform->Translate(moveX, moveY, 0);
+            }
         }
     }
     void ImguiViewPanel::HandleKeyboardInteraction(UIContext& ctx)
@@ -169,6 +229,14 @@ namespace ChikaEngine::Editor
 
         if (!_enableCameraControl || !_camera)
             return;
+
+        // CRITICAL: Validate camera transform is initialized
+        if (!_camera->transform)
+        {
+            LOG_WARN("ImguiViewPanel", "Camera transform is null in HandleKeyboardInteraction");
+            return;
+        }
+
         // 只有 Scene View 聚焦时才响应键盘
         if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
             return;
@@ -236,5 +304,4 @@ namespace ChikaEngine::Editor
         ImGui::SameLine();
         ImGui::Checkbox("Cam Control", &_enableCameraControl);
     }
-
 } // namespace ChikaEngine::Editor

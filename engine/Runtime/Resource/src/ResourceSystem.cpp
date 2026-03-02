@@ -17,6 +17,7 @@
 #include "nlohmann/json_fwd.hpp"
 #include <filesystem>
 #include <string>
+#include <random>
 
 namespace ChikaEngine::Resource
 {

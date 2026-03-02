@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ChikaEngine/Resource/Mesh.h"
 #include "RHIResources.h"
 
 #include <cstddef>
@@ -13,6 +12,7 @@ namespace ChikaEngine::Render
     class IRHIBuffer;
     class IRHITexture2D;
     class IRHIPipeline;
+    class RHIMesh;
 
     class IRHIDevice
     {
@@ -30,6 +30,8 @@ namespace ChikaEngine::Render
         virtual IRHIPipeline* CreatePipeline(const char* vsSource, const char* fsSource) = 0;
         virtual IRHIRenderTarget* CreateRenderTarget(int width, int height) = 0;
         virtual IRHITextureCube* CreateTextureCube(int w, int h, int channels, const std::array<const void*, 6>& data, bool sRGB) = 0;
+        virtual void SetupGizmoVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo) = 0;
+
         // 绑定 vertex
         virtual void SetupMeshVertexLayout(IRHIVertexArray* vao, IRHIBuffer* vbo, IRHIBuffer* ibo) = 0;
 
@@ -37,5 +39,7 @@ namespace ChikaEngine::Render
         virtual void EndFrame() = 0;
 
         virtual void DrawIndexed(const RHIMesh& mesh) = 0;
+        virtual void UpdateBufferData(IRHIBuffer* buffer, std::size_t size, const void* data, std::size_t offset = 0) = 0;
+        virtual void DrawLines(IRHIVertexArray* vao, std::uint32_t vertexCount, std::uint32_t firstVertex = 0) = 0;
     };
 } // namespace ChikaEngine::Render
