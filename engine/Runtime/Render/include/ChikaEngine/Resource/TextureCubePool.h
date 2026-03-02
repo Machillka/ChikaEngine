@@ -3,6 +3,7 @@
 #include "ChikaEngine/RHI/RHIDevice.h"
 #include "ChikaEngine/RHI/RHIResources.h"
 #include <cstdint>
+#include <vector>
 namespace ChikaEngine::Render
 {
     using TextureCubeHandle = std::uint32_t;

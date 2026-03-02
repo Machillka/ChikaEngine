@@ -1,5 +1,6 @@
 
 #include "ChikaEngine/renderer.h"
+#include "ChikaEngine/Gizmo.h"
 #include "ChikaEngine/RHI/OpenGL/GLRHIDevice.h"
 #include "ChikaEngine/debug/assert.h"
 #include "ChikaEngine/debug/log_macros.h"
@@ -29,10 +30,20 @@ namespace ChikaEngine::Render
             throw std::runtime_error("Unknow RenderAPI");
         }
         _renderDevice->Init();
+
+        // 初始化 gizmo
+        _gizmoRenderer = std::make_unique<GizmoRenderer>();
+        _gizmoRenderer->Init(_rhiDevice.get());
     }
 
     void Renderer::Shutdown()
     {
+        if (_gizmoRenderer)
+        {
+            _gizmoRenderer->Shutdown();
+            _gizmoRenderer.reset();
+        }
+
         if (_renderDevice)
         {
             _renderDevice->Shutdown();
@@ -72,18 +83,42 @@ namespace ChikaEngine::Render
 
         LOG_INFO("Renderer", "Rendering {} objects", ros.size());
 
-        target->Bind();
-
-        _renderDevice->BeginFrame();
-        Math::Mat4 view = camera.viewMatrix;
-        Math::Mat4 proj = camera.projectionMatrix;
-        for (const auto& obj : ros)
+        try
         {
-            _renderDevice->DrawObject(obj, camera);
-        }
-        _renderDevice->EndFrame();
+            target->Bind();
 
-        target->UnBind();
+            _renderDevice->BeginFrame();
+            Math::Mat4 view = camera.viewMatrix;
+            Math::Mat4 proj = camera.projectionMatrix;
+            for (const auto& obj : ros)
+            {
+                _renderDevice->DrawObject(obj, camera);
+            }
+
+            const auto& lines = Gizmo::Instance().GetLineVertices();
+            if (!lines.empty() && _gizmoRenderer)
+            {
+                _gizmoRenderer->Render(target, camera, lines);
+            }
+
+            _renderDevice->EndFrame();
+            target->UnBind();
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("Renderer", "Exception during rendering: {}", e.what());
+            try
+            {
+                target->UnBind();
+            }
+            catch (const std::exception& unbindError)
+            {
+                LOG_ERROR("Renderer", "Exception during target unbind: {}", unbindError.what());
+            }
+        }
+
+        // 无论成功或失败都清空 Gizmo 数据
+        Gizmo::Instance().Clear();
     }
 
     void Renderer::RenderObjectsToTargetWithSkyBox(IRHIRenderTarget* target, TextureCubeHandle cubemap, const std::vector<RenderObject>& ros, const CameraData& camera)
@@ -93,19 +128,44 @@ namespace ChikaEngine::Render
 
         // LOG_INFO("Renderer", "Rendering {} objects", ros.size());
 
-        target->Bind();
-        _renderDevice->BeginFrame();
-
-        Math::Mat4 view = camera.viewMatrix;
-        Math::Mat4 proj = camera.projectionMatrix;
-        for (const auto& obj : ros)
+        try
         {
-            _renderDevice->DrawObject(obj, camera);
+            target->Bind();
+            _renderDevice->BeginFrame();
+
+            Math::Mat4 view = camera.viewMatrix;
+            Math::Mat4 proj = camera.projectionMatrix;
+            for (const auto& obj : ros)
+            {
+                _renderDevice->DrawObject(obj, camera);
+            }
+
+            _renderDevice->DrawSkybox(cubemap, camera);
+
+            const auto& lines = Gizmo::Instance().GetLineVertices();
+            if (!lines.empty() && _gizmoRenderer)
+            {
+                _gizmoRenderer->Render(target, camera, lines);
+            }
+
+            _renderDevice->EndFrame();
+            target->UnBind();
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("Renderer", "Exception during skybox rendering: {}", e.what());
+            try
+            {
+                target->UnBind();
+            }
+            catch (const std::exception& unbindError)
+            {
+                LOG_ERROR("Renderer", "Exception during target unbind: {}", unbindError.what());
+            }
         }
 
-        _renderDevice->DrawSkybox(cubemap, camera);
-        _renderDevice->EndFrame();
-        target->UnBind();
+        // 无论成功或失败都清空 Gizmo 数据
+        Gizmo::Instance().Clear();
     }
 
     IRHIRenderTarget* Renderer::CreateRenderTarget(int width, int height)

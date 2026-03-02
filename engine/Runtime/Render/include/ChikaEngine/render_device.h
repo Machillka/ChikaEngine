@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ChikaEngine/Resource/TextureCubePool.h"
 #include "ChikaEngine/renderobject.h"
 #include "ChikaEngine/CameraData.h"
 

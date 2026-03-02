@@ -28,6 +28,7 @@ namespace ChikaEngine::Editor
         void DrawOverlayControls(UIContext& ctx);
         void HandleKeyboardInteraction(UIContext& ctx);
         void HandleRayCast(UIContext& ctx);
+        void DrawTransformAxis(Framework::GameObject* targetObj);
 
       private:
         ChikaEngine::Render::IRHIRenderTarget* _target = nullptr;

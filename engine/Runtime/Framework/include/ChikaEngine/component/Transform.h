@@ -52,6 +52,8 @@ namespace ChikaEngine::Framework
         // 得到世界坐标的矩阵
         Math::Mat4 GetWorldMat() const;
 
+        void OnGizmo() const override;
+
       private:
         // store yaw/pitch for look processing (radians)
         float _yaw = -Math::PI / 2.0f; // match previous camera default

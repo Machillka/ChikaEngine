@@ -46,6 +46,7 @@ namespace ChikaEngine::Framework
         virtual void OnEnable() {}
         virtual void OnDisable() {}
         virtual void OnDestroy() {}
+        virtual void OnGizmo() const {}
 
         bool IsEnabled() const
         {

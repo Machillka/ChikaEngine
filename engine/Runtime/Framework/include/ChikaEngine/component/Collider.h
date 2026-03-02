@@ -44,6 +44,7 @@ namespace ChikaEngine::Framework
         // Layer Settings
         GameObjectLayer layer = GameObjectLayer::Default;
         LayerMask collisionMask = MakeMask({GameObjectLayer::Default});
+        void OnGizmo() const override;
 
       private:
         Physics::PhysicsScene* GetPhysicsScene();

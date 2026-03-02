@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
 namespace ChikaEngine::Render

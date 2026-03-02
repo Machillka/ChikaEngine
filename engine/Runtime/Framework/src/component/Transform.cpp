@@ -1,4 +1,5 @@
 #include "ChikaEngine/component/Transform.h"
+#include "ChikaEngine/Gizmo.h"
 #include "ChikaEngine/debug/log_macros.h"
 
 namespace ChikaEngine::Framework
@@ -130,5 +131,17 @@ namespace ChikaEngine::Framework
     Math::Mat4 Transform::GetLocalMatrix() const
     {
         return Math::Mat4::TRSMatrix(position, rotation.Normalized(), scale);
+    }
+
+    Math::Mat4 Transform::GetWorldMat() const
+    {
+        // TODO: When parent-child hierarchy is implemented, multiply by parent's world matrix
+        // For now, world matrix is the same as local matrix since objects have no parents
+        return GetLocalMatrix();
+    }
+
+    void Transform::OnGizmo() const
+    {
+        Render::Gizmo::Instance().DrawTransformAxis(position, GetWorldMat());
     }
 } // namespace ChikaEngine::Framework
