@@ -7,6 +7,10 @@ add_subdirectory(${THIRD_PARTY_PATH}/glfw)
 add_library(glad STATIC ${THIRD_PARTY_PATH}/glad/src/glad.c)
 target_include_directories(glad PUBLIC ${THIRD_PARTY_PATH}/glad/include)
 
+# Vulkan
+add_subdirectory(${THIRD_PARTY_PATH}/vulkan-headers)
+add_subdirectory(${THIRD_PARTY_PATH}/volk)
+
 # Add imgui
 find_package(OpenGL REQUIRED)
 message(STATUS ${THIRD_PARTY_PATH})
@@ -39,11 +43,12 @@ add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
 set(PYBIND11_PYTHON_VERSION 3)
 add_subdirectory(${THIRD_PARTY_PATH}/pybind11)
 
-
 # Output
 add_library(${TARGET_NAME} INTERFACE)
 target_link_libraries(${TARGET_NAME} INTERFACE
     glfw
+    Vulkan-Headers
+    volk  
     glad
     imgui
     fmt::fmt
@@ -53,6 +58,7 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     Jolt
     pybind11::module
     pybind11::embed
+
 )
 
 target_include_directories(${TARGET_NAME} INTERFACE ${THIRD_PARTY_PATH})
