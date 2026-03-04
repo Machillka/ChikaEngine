@@ -97,11 +97,11 @@ namespace ChikaEngine::Physics
         _updatedTransforms.clear();
         for (auto const& p : snapshot)
         {
-            LOG_DEBUG("Fuck", "updating physics");
+            // LOG_DEBUG("Fuck", "updating physics");
             PhysicsTransform ts;
             if (_backend->TrySyncTransform(p.first, ts))
             {
-                LOG_INFO("Physics", "{}, {}", p.first, p.second);
+                // LOG_INFO("Physics", "{}, {}", p.first, p.second);
                 _updatedTransforms.push_back(std::make_pair(p.second, ts));
             }
         }
