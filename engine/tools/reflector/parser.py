@@ -207,8 +207,8 @@ def get_clean_type_name(cursor_type):
     # if cursor_type.kind == TypeKind.INT and "int" not in spelling:  # type: ignore
     #     return "UNKNOWN_TYPE_ERROR"
 
-    if "basic_string" in spelling:
-        return "std::string"
+    # if "basic_string" in spelling:
+    #     return "std::string"
     # # 4. STL 容器清洗逻辑
     # # 原因是 string 可能会作为别名被解析
     # if "std::" in spelling or "std::" in canonical.spelling:
