@@ -1,62 +1,64 @@
 {
-    "Active": true,
-    "Components": [
-        {
-            "CompData": {
-                "position": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
+    "scene": {
+        "Active": true,
+        "Components": [
+            {
+                "CompData": {
+                    "position": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "rotation": {
+                        "w": 1.0,
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "scale": {
+                        "x": 1.0,
+                        "y": 1.0,
+                        "z": 1.0
+                    }
                 },
-                "rotation": {
-                    "w": 1.0,
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
+                "TypeName": "Transform"
+            },
+            {
+                "CompData": {
+                    "center": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "friction": 0.5,
+                    "isTrigger": false,
+                    "radius": 0.5,
+                    "restitution": 0.0,
+                    "size": {
+                        "x": 1.0,
+                        "y": 1.0,
+                        "z": 1.0
+                    }
                 },
-                "scale": {
-                    "x": 1.0,
-                    "y": 1.0,
-                    "z": 1.0
-                }
+                "TypeName": "Collider"
             },
-            "TypeName": "Transform"
-        },
-        {
-            "CompData": {
-                "center": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
+            {
+                "CompData": {
+                    "_matHandle": 0,
+                    "_meshHandle": 1,
+                    "_visible": true
                 },
-                "friction": 0.5,
-                "isTrigger": false,
-                "radius": 0.5,
-                "restitution": 0.0,
-                "size": {
-                    "x": 1.0,
-                    "y": 1.0,
-                    "z": 1.0
-                }
+                "TypeName": "Renderable"
             },
-            "TypeName": "Collider"
-        },
-        {
-            "CompData": {
-                "_matHandle": 0,
-                "_meshHandle": 1,
-                "_visible": true
-            },
-            "TypeName": "Renderable"
-        },
-        {
-            "CompData": {
-                "className": "PlayerController",
-                "moduleName": "player"
-            },
-            "TypeName": "ScriptComponent"
-        }
-    ],
-    "ID": 6481985199633408,
-    "Name": "Batman"
+            {
+                "CompData": {
+                    "className": "PlayerController",
+                    "moduleName": "player"
+                },
+                "TypeName": "ScriptComponent"
+            }
+        ],
+        "ID": 7249218318332928,
+        "Name": "Batman"
+    }
 }

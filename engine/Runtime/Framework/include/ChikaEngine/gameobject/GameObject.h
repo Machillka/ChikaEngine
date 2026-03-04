@@ -5,8 +5,6 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
-#include "ChikaEngine/serialization/Access.h"
-#include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -144,6 +142,7 @@ namespace ChikaEngine::Framework
         }
 
         // TODO[x]: 添加生命周期函数
+        void Awake();
         void Start();
         void Update(float deltaTime);
         void FixedUpdate(float fixedDeltaTime);

@@ -20,12 +20,12 @@ namespace ChikaEngine::Scripts
         void Register(BindCallback callback, const char* name)
         {
             m_callbacks.push_back(callback);
-            LOG_INFO("PythonBind", "Registered binding for: %s", name);
+            LOG_INFO("PythonBind", "Registered binding for: {}", name);
         }
 
         void BindAll(pybind11::module& m)
         {
-            LOG_INFO("PythonBind", "Executing %zu python binding callbacks...", m_callbacks.size());
+            LOG_INFO("PythonBind", "Executing {} python binding callbacks...", m_callbacks.size());
             for (auto& cb : m_callbacks)
             {
                 cb(m);

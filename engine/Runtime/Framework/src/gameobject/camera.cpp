@@ -3,7 +3,6 @@
 #include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/math/vector4.h"
-#include "ChikaEngine/render_device.h"
 
 namespace ChikaEngine::Framework
 {
@@ -63,7 +62,7 @@ namespace ChikaEngine::Framework
 
     Render::CameraData Camera::ToRenderData() const
     {
-        return Render::CameraData{.position = Position(), .projectionMatrix = ProjectionMat(), .viewMatrix = ViewMat()};
+        return Render::CameraData{.viewMatrix = ViewMat(), .projectionMatrix = ProjectionMat(), .position = Position()};
     }
 
     Physics::Ray Camera::ScreenPointToRay(float u, float v) const

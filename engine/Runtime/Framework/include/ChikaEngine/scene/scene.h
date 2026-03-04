@@ -6,6 +6,7 @@
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/io/MemoryStream.h"
 #include "ChikaEngine/subsystem/PhysicsSubsystem.h"
+#include "ChikaEngine/serialization/Access.h"
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -44,6 +45,7 @@ namespace ChikaEngine::Framework
         void Stop(); // 从 play mode 退出
 
         // 生命周期
+        void Awake();
         void Start();
         void Update(float deltaTime);
         void FixedUpdate(float fixedDeltaTime);

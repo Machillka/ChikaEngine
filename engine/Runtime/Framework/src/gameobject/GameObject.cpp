@@ -56,6 +56,18 @@ namespace ChikaEngine::Framework
         }
     }
 
+    void GameObject::Awake()
+    {
+        std::lock_guard lock(_compMutex);
+        if (_started)
+            return;
+        _started = true;
+        for (const auto& comp : _components)
+        {
+            comp->Awake();
+        }
+    }
+
     void GameObject::Start()
     {
         std::lock_guard lock(_compMutex);

@@ -46,6 +46,7 @@ function(reflection_generator TARGET_NAME)
                 
                 set(OUT_GEN_CPP "${GEN_DIR}/${REL_DIR}/${NAME_WE}.gen.cpp")
                 set(OUT_GEN_PYTHON  "${GEN_DIR}/${REL_DIR}/${NAME_WE}.python.cpp")
+                
 
                 # 添加生成命令 (调用 parser.py)
                 add_custom_command(

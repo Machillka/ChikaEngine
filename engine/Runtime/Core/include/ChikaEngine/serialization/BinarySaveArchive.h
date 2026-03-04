@@ -55,7 +55,6 @@ namespace ChikaEngine::Serialization
 
         template <typename T> void ProcessValue(const char* name, const T& val)
         {
-            LOG_WARN("Archive", "enter");
             // 字符串特殊处理
             if constexpr (std::is_same_v<T, std::string>)
             {

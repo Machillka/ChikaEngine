@@ -121,6 +121,7 @@ namespace ChikaEngine::Framework
         Serialization::BinarySaveArchive saveAr(*_editorSnapshot);
         saveAr(*this);
         _mode = SceneMode::play;
+        Awake();
         Start();
     }
 
@@ -158,6 +159,14 @@ namespace ChikaEngine::Framework
     }
 
     // TODO: 把所有生命周期交给 world 实现, 因为 editor 没有具体的生命周期
+    void Scene::Awake()
+    {
+        for (auto& go : _gameobjects)
+        {
+            go.second->Awake();
+        }
+    }
+
     void Scene::Start()
     {
         for (auto& go : _gameobjects)
@@ -168,6 +177,9 @@ namespace ChikaEngine::Framework
 
     void Scene::Update(float deltaTime)
     {
+        // Edit 模式下没有生命周期 只可以借助反射调整数值
+        if (_mode == SceneMode::edit)
+            return;
         for (auto& go : _gameobjects)
         {
             go.second->Update(deltaTime);
@@ -176,17 +188,16 @@ namespace ChikaEngine::Framework
 
     void Scene::FixedUpdate(float fixedDeltaTime)
     {
+        if (_mode == SceneMode::edit)
+            return;
         for (auto& go : _gameobjects)
         {
             go.second->FixedUpdate(fixedDeltaTime);
         }
 
-        if (_mode == SceneMode::play)
-        {
-            _physicsScene->Tick(fixedDeltaTime);
-            LOG_WARN("Scene", "Running Physics");
-            SyncTransform();
-        }
+        _physicsScene->Tick(fixedDeltaTime);
+        // LOG_WARN("Scene", "Running Physics");
+        SyncTransform();
     }
     void Scene::ClearRuntimeData()
     {

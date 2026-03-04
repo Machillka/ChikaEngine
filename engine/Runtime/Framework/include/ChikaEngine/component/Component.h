@@ -59,13 +59,6 @@ namespace ChikaEngine::Framework
             _isEnabled = enabled;
         }
 
-        // // 序列化方法
-        // template <typename Archive> void serialize(Archive & ar)
-        // {
-        //     // 使用基于反射的自动序列化
-        //     // 这里将由 Serializer::Dispatch 来处理
-        // }
-
       private:
         GameObject* _owner = nullptr;
         MFIELD()

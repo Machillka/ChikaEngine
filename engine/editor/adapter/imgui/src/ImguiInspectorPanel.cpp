@@ -1,6 +1,7 @@
 
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/reflection/ReflectionData.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include "imgui.h"
 #include "include/ChikaEngine/ImguiInspectorPanel.h"
@@ -107,35 +108,69 @@ namespace ChikaEngine::Editor
             }
             break;
         }
-        case ReflectType::Vector3:
+        case ChikaEngine::Reflection::ReflectType::Object:
         {
-            Math::Vector3 v;
-            prop.Get(instance, &v);
-            if (ImGuiHelpers::DrawVec3Control("", v))
+            if (prop.TypeName == "ChikaEngine::Math::Vector3")
             {
-                prop.Set(instance, &v);
-                isChanged = true;
+                Math::Vector3 v;
+                prop.Get(instance, &v);
+                if (ImGuiHelpers::DrawVec3Control("", v))
+                {
+                    prop.Set(instance, &v);
+                    isChanged = true;
+                }
             }
-            break;
-        }
-        case ReflectType::Quaternion:
-        {
-            Math::Quaternion q;
-            prop.Get(instance, &q);
-            float vals[4] = {q.x, q.y, q.z, q.w};
-            if (ImGui::InputFloat4("##quat", vals))
+            if (prop.TypeName == "ChikaEngine::Math::Quaternion")
             {
-                q.x = vals[0];
-                q.y = vals[1];
-                q.z = vals[2];
-                q.w = vals[3];
-                q = q.Normalized();
-                prop.Set(instance, &q);
-                isChanged = true;
+                Math::Quaternion q;
+                prop.Get(instance, &q);
+                float vals[4] = {q.x, q.y, q.z, q.w};
+                if (ImGui::InputFloat4("##quat", vals))
+                {
+                    q.x = vals[0];
+                    q.y = vals[1];
+                    q.z = vals[2];
+                    q.w = vals[3];
+                    q = q.Normalized();
+                    prop.Set(instance, &q);
+                    isChanged = true;
+                }
+            }
+            else
+            {
             }
 
             break;
         }
+        // case ReflectType::Vector3:
+        // {
+        //     Math::Vector3 v;
+        //     prop.Get(instance, &v);
+        //     if (ImGuiHelpers::DrawVec3Control("", v))
+        //     {
+        //         prop.Set(instance, &v);
+        //         isChanged = true;
+        //     }
+        //     break;
+        // }
+        // case ReflectType::Quaternion:
+        // {
+        //     Math::Quaternion q;
+        //     prop.Get(instance, &q);
+        //     float vals[4] = {q.x, q.y, q.z, q.w};
+        //     if (ImGui::InputFloat4("##quat", vals))
+        //     {
+        //         q.x = vals[0];
+        //         q.y = vals[1];
+        //         q.z = vals[2];
+        //         q.w = vals[3];
+        //         q = q.Normalized();
+        //         prop.Set(instance, &q);
+        //         isChanged = true;
+        //     }
+
+        //     break;
+        // }
         case ReflectType::String:
         {
             std::string s;

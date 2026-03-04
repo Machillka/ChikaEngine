@@ -30,6 +30,7 @@ namespace ChikaEngine::Physics
     {
         // Default gravity: downwards on Y
         Math::Vector3 gravity = Math::Vector3(0.0f, -9.8f, 0.0f);
+        // Math::Vector3 gravity = Math::Vector3(0.0f, 0.0f, 0.0f);
     };
 
     struct PhysicsSystemDesc

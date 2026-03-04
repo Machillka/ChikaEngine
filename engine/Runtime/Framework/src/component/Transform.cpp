@@ -6,13 +6,11 @@ namespace ChikaEngine::Framework
 {
     void Transform::Translate(const Math::Vector3& delta)
     {
-        LOG_WARN("Transform", "Now Position x: {}, y: {}, z: {}", this->position.x, this->position.y, this->position.z);
         position += delta;
     }
 
     void Transform::Translate(float x, float y, float z)
     {
-        LOG_WARN("Transform", "Now Position x: {}, y: {}, z: {}", this->position.x, this->position.y, this->position.z);
         Math::Vector3 delta = Math::Vector3(x, y, z);
         position += delta;
     }

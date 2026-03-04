@@ -1,8 +1,10 @@
+#include "ChikaEngine/component/Transform.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/debug/log_system.h"
 #include "ChikaEngine/debug/console_sink.h"
 #include "ChikaEngine/io/FileStream.h"
 #include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/reflection/TypeRegister.h"
 #include "ChikaEngine/renderer.h"
 #include "ChikaEngine/serialization/JsonSaveArchive.h"
 #include "ChikaEngine/window/window_factory.h"
@@ -11,10 +13,10 @@
 #include "Editor.h"
 #include "ChikaEngine/scene/scene.h"
 #include "engine.h"
+#include "imgui.h"
 #include <cstddef>
 #include <cstdlib>
 #include <memory>
-#include <vector>
 
 int main()
 {
@@ -40,6 +42,7 @@ int main()
         ChikaEngine::Serialization::JsonSaveArchive jsonAr(debugFile);
         jsonAr("scene", *a);
     }
+
     while (!window->ShouldClose())
     {
         // LOG_INFO("MainLoop", "Tick start");

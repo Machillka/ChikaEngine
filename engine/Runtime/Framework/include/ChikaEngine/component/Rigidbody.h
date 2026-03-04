@@ -12,6 +12,7 @@ namespace ChikaEngine::Framework
 
     MCLASS(Rigidbody) : public Component
     {
+        // TODO: 制作运动学刚体
         REFLECTION_BODY(Rigidbody)
       public:
         Rigidbody() = default;
@@ -21,8 +22,11 @@ namespace ChikaEngine::Framework
         void OnDisable() override;
         void OnDestroy() override;
 
+        MFUNCTION()
         void ApplyImpulse(const Math::Vector3& impulse);
+        MFUNCTION()
         void SetLinearVelocity(const ChikaEngine::Math::Vector3& vel);
+
         Physics::PhysicsBodyHandle GetBackendHandle() const
         {
             return _physicsBodyHandle;

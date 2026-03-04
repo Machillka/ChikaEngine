@@ -8,23 +8,23 @@ from jinja2 import Template
 from gen_id import get_unique_id
 import re
 
-reflect_map = {
-    "int": "Int",
-    "float": "Float",
-    "bool": "Bool",
-    "std::string": "String",
-    "Math::Vector3": "Vector3",
-    "Math::Quaternion": "Quaternion",
-    "Resource::MeshHandle": "MeshHandle",
-    "Resource::MaterialHandle": "MaterialHandle",
-    "Framework::Transform": "Transform",
-}
+# reflect_map = {
+#     "int": "Int",
+#     "float": "Float",
+#     "bool": "Bool",
+#     "std::string": "String",
+#     "Math::Vector3": "Vector3",
+#     "Math::Quaternion": "Quaternion",
+#     "Resource::MeshHandle": "MeshHandle",
+#     "Resource::MaterialHandle": "MaterialHandle",
+#     "Framework::Transform": "Transform",
+# }
 
 
-def type_to_reflect(t):
-    if t in reflect_map:
-        return reflect_map[t]
-    return "Unknown"
+# def type_to_reflect(t):
+#     if t in reflect_map:
+#         return reflect_map[t]
+#     return "Unknown"
 
 
 class ReflectionContext:
@@ -199,23 +199,24 @@ def get_clean_type_name(cursor_type):
     # Canonical Type (去除 typedef 别名，但保留基础结构)
     canonical = cursor_type.get_canonical()
 
-    # 2. 原始拼写
-    spelling = cursor_type.spelling
-
-    # 无效类型 ( 被解析成 int
-    if cursor_type.kind == TypeKind.INT and "int" not in spelling:  # type: ignore
-        return "UNKNOWN_TYPE_ERROR"
+    # # 2. 原始拼写
+    # spelling = cursor_type.spelling
+    # 得到完整拼写
+    spelling = canonical.spelling
+    # # 无效类型 ( 被解析成 int
+    # if cursor_type.kind == TypeKind.INT and "int" not in spelling:  # type: ignore
+    #     return "UNKNOWN_TYPE_ERROR"
 
     if "basic_string" in spelling:
         return "std::string"
-    # 4. STL 容器清洗逻辑
-    # 原因是 string 可能会作为别名被解析
-    if "std::" in spelling or "std::" in canonical.spelling:
-        # 处理 string
-        if "string" in spelling and "std::" in spelling:
-            return "std::string"
+    # # 4. STL 容器清洗逻辑
+    # # 原因是 string 可能会作为别名被解析
+    # if "std::" in spelling or "std::" in canonical.spelling:
+    #     # 处理 string
+    #     if "string" in spelling and "std::" in spelling:
+    # return "std::string"
 
-        # TODO: 递归清理 vector 等容器 (虽然大概率用不到)
+    # TODO: 递归清理 vector 等容器 (虽然大概率用不到)
     return spelling
 
 
@@ -255,7 +256,7 @@ def process_class(node, namespace):
                 {
                     "name": child.spelling,
                     "raw_type": get_clean_type_name(child.type),
-                    "reflect_type": type_to_reflect(get_clean_type_name(child.type)),
+                    # "reflect_type": type_to_reflect(get_clean_type_name(child.type)),
                 }
             )
         if child.kind == CursorKind.CXX_METHOD and is_reflected_function(child):  # type: ignore
