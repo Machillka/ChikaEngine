@@ -10,5 +10,10 @@ target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/engine)
 
 target_link_libraries(${TARGET_NAME} PRIVATE ChikaThirdParty ChikaCore ChikaPlatform ChikaFramework)
 
-add_subdirectory(rhi/opengl)
-target_link_libraries(${TARGET_NAME} PUBLIC ChikaRenderOpenGL)
+# add_subdirectory(rhi/opengl)
+# target_link_libraries(${TARGET_NAME} PUBLIC ChikaRenderOpenGL)
+
+# TODO: 使用宏定义包裹进行选择渲染后端
+
+add_subdirectory(rhi/Vulkan)
+target_link_libraries(${TARGET_NAME} PUBLIC ChikaRenderVulkan)
