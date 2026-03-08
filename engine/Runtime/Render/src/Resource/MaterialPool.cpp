@@ -3,11 +3,13 @@
 #include "ChikaEngine/RHI/RHIDevice.h"
 #include "ChikaEngine/Resource/ShaderPool.h"
 #include "ChikaEngine/Resource/TexturePool.h"
+#include "ChikaEngine/Resource/TextureCubePool.h"
 #include "ChikaEngine/debug/log_macros.h"
 namespace ChikaEngine::Render
 {
     IRHIDevice* MaterialPool::_device = nullptr;
-    std::vector<RHIMaterial> MaterialPool::_materials;
+    std::vector<Material> MaterialPool::_materials;
+    std::vector<RHIMaterial> MaterialPool::_rhiMaterials;
 
     void MaterialPool::Init(IRHIDevice* device)
     {
@@ -18,28 +20,43 @@ namespace ChikaEngine::Render
     {
         RHIMaterial matGPU{};
 
-        auto& shader = ShaderPool::Get(material.shaderHandle);
-        matGPU.pipeline = shader.pipeline;
+        // get compiled pipeline from shader pool
+        const auto& shaderRHI = ShaderPool::GetRHI(material.shaderHandle);
+        matGPU.pipeline = shaderRHI.pipeline;
 
+        // resolve textures
         for (auto& [name, texHandle] : material.textures)
         {
-            const auto& tex = TexturePool::Get(texHandle);
-            matGPU.textures[name] = tex.texture;
+            const auto& texRHI = TexturePool::GetRHI(texHandle);
+            matGPU.textures[name] = (IRHITexture2D*)texRHI.texture;
         }
         for (auto& [name, cubeHandle] : material.cubemaps)
         {
             const auto& cubeData = TextureCubePool::Get(cubeHandle);
-            matGPU.cubemaps[name] = cubeData.texture;
+            matGPU.cubemaps[name] = (IRHITextureCube*)cubeData.texture;
         }
 
         matGPU.uniformFloats = material.uniformFloats;
         matGPU.uniformVec4s = material.uniformVec4s;
         matGPU.uniformVec3s = material.uniformVec3s;
+        // material.uniformMat4s uses std::array<float,16> for mat4 storage
+        matGPU.uniformMat4s.clear();
+        for (const auto& [k, v] : material.uniformMat4s)
+        {
+            Math::Mat4 m{};
+            // Copy 16 floats into Math::Mat4 (row-major assumed)
+            for (int i = 0; i < 16; ++i)
+                m.m[i] = v[i];
+            matGPU.uniformMat4s[k] = m;
+        }
 
-        _materials.push_back(matGPU);
+        // store CPU and GPU
+        _materials.push_back(material);
+        _rhiMaterials.push_back(matGPU);
 
-        MaterialHandle h = static_cast<MaterialHandle>(_materials.size() - 1);
-        LOG_INFO("MaterialPool", "Created material handle={} textures={} total={}", h, matGPU.textures.size(), _materials.size());
+        uint32_t index = static_cast<uint32_t>(_materials.size() - 1);
+        MaterialHandle h = Core::THandle<struct MaterialTag>::FromParts(index, 0);
+        LOG_INFO("MaterialPool", "Created material index={} textures={} total={}", index, matGPU.textures.size(), _materials.size());
 
         return h;
     }
@@ -48,12 +65,13 @@ namespace ChikaEngine::Render
     {
         _device = nullptr;
         _materials.clear();
+        _rhiMaterials.clear();
     }
 
     // 把材质上的各种参数绑定到shader上 (RHI-agnostic)
     void MaterialPool::Apply(MaterialHandle handle)
     {
-        const auto& mat = Get(handle);
+        const auto& mat = GetRHI(handle);
 
         if (mat.pipeline == nullptr)
             return;
@@ -105,8 +123,13 @@ namespace ChikaEngine::Render
         // }
     }
 
-    RHIMaterial& MaterialPool::Get(MaterialHandle handle)
+    const Material& MaterialPool::GetData(MaterialHandle handle)
     {
-        return _materials[handle];
+        return _materials[handle.GetIndex()];
+    }
+
+    RHIMaterial& MaterialPool::GetRHI(MaterialHandle handle)
+    {
+        return _rhiMaterials[handle.GetIndex()];
     }
 } // namespace ChikaEngine::Render

@@ -1,6 +1,7 @@
 #include "ChikaEngine/window/GLFW/GlfwWindow.h"
 #include "ChikaEngine/window/window_desc.h"
 #include "ChikaEngine/window/window_system.h"
+#include <memory>
 #include <stdexcept>
 
 namespace ChikaEngine::Platform

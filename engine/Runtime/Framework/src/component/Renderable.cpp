@@ -28,7 +28,7 @@ namespace ChikaEngine::Framework
 
     ChikaEngine::Render::RenderObject Renderable::BuildRenderObject() const
     {
-        Render::RenderObject obj{.material = _matHandle, .mesh = _meshHandle};
+        Render::RenderObject obj{.mesh = _meshHandle, .material = _matHandle};
 
         if (GetOwner() && GetOwner()->transform)
         {

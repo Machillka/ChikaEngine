@@ -27,7 +27,7 @@ namespace ChikaEngine::Scripts
 
         fs::path venvPath = std::filesystem::current_path() / ".venv";
 #if defined(_WIN32)
-        fs::path pythonExe = engineRoot / "Scripts" / "python.exe";
+        fs::path pythonExe = venvPath / "Scripts" / "python.exe";
 #else
         fs::path pythonExe = venvPath / "bin" / "python";
 #endif

@@ -2,9 +2,13 @@ import argparse
 import os
 from jinja2 import Template
 from gen_id import get_unique_id
+import sys
+import io
 
 
 def main():
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     parser = argparse.ArgumentParser(description="ChikaEngine Registry Generator")
     parser.add_argument("--engine-root", required=True, help="Root path of the engine")
     parser.add_argument("--output", required=True, help="Output .cpp file path")

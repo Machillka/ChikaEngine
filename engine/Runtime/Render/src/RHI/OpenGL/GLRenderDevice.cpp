@@ -3,7 +3,7 @@
 #include "ChikaEngine/Resource/MeshPool.h"
 #include "ChikaEngine/Resource/ShaderPool.h"
 #include "ChikaEngine/Resource/TexturePool.h"
-#include "ChikaEngine/render_device.h"
+#include "ChikaEngine/Resource/TextureCubePool.h"
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 
@@ -106,8 +106,8 @@ namespace ChikaEngine::Render
     void GLRenderDevice::DrawObject(const RenderObject& obj, const CameraData& camera)
     {
         // LOG_INFO("GLRenderDevice", "Drawing object mesh={} material={}", obj.mesh, obj.material);
-        const RHIMesh& mesh = MeshPool::Get(obj.mesh);
-        RHIMaterial& mat = MaterialPool::Get(obj.material);
+        const RHIMesh& mesh = MeshPool::GetRHI(obj.mesh);
+        RHIMaterial& mat = MaterialPool::GetRHI(obj.material);
         Math::Mat4 mvp = camera.projectionMatrix * camera.viewMatrix * obj.modelMat;
         mat.uniformMat4s["u_MVP"] = mvp;
         mat.uniformMat4s["u_Model"] = obj.modelMat;
@@ -120,19 +120,23 @@ namespace ChikaEngine::Render
     {
         glDepthFunc(GL_LEQUAL);
         glDisable(GL_CULL_FACE);
-        auto& shader = ShaderPool::Get(_skyboxShader);
-        shader.pipeline->Bind();
+        const auto& shaderRHI = ShaderPool::GetRHI(_skyboxShader);
+        if (shaderRHI.pipeline)
+            shaderRHI.pipeline->Bind();
 
         Math::Mat4 view = camera.viewMatrix;
 
-        shader.pipeline->SetUniformMat4("u_View", view);
-        shader.pipeline->SetUniformMat4("u_Projection", camera.projectionMatrix);
+        if (shaderRHI.pipeline)
+        {
+            shaderRHI.pipeline->SetUniformMat4("u_View", view);
+            shaderRHI.pipeline->SetUniformMat4("u_Projection", camera.projectionMatrix);
+        }
 
         const auto& cubeData = TextureCubePool::Get(cubemap);
+        if (shaderRHI.pipeline)
+            shaderRHI.pipeline->SetUniformTextureCube("u_Skybox", cubeData.texture, 0);
 
-        shader.pipeline->SetUniformTextureCube("u_Skybox", cubeData.texture, 0);
-
-        const RHIMesh& mesh = MeshPool::Get(_skyboxMesh);
+        const RHIMesh& mesh = MeshPool::GetRHI(_skyboxMesh);
         _glRHIDevice->DrawIndexed(mesh);
 
         glDepthFunc(GL_LESS);

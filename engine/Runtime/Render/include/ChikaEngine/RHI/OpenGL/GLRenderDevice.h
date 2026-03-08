@@ -20,7 +20,7 @@ namespace ChikaEngine::Render
       private:
         IRHIDevice* _glRHIDevice = nullptr;
         void InitSkyboxResources();
-        MeshHandle _skyboxMesh = 0;
-        ShaderHandle _skyboxShader = 0;
+        MeshHandle _skyboxMesh = MeshHandle::Invalid();
+        ShaderHandle _skyboxShader = ShaderHandle::Invalid();
     };
 } // namespace ChikaEngine::Render

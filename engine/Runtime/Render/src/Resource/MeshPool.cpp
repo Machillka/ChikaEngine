@@ -8,7 +8,8 @@
 namespace ChikaEngine::Render
 {
     IRHIDevice* MeshPool::_device = nullptr;
-    std::vector<RHIMesh> MeshPool::_meshes;
+    std::vector<Mesh> MeshPool::_meshes;
+    std::vector<RHIMesh> MeshPool::_rhiMeshes;
 
     void MeshPool::Init(IRHIDevice* device)
     {
@@ -19,29 +20,46 @@ namespace ChikaEngine::Render
     // 创建资源 返回资源句柄
     MeshHandle MeshPool::Create(const Mesh& mesh)
     {
+        if (!_device)
+        {
+            LOG_ERROR("MeshPool", "Create called but _device is nullptr! Did you forget to call MeshPool::Init?");
+            throw std::runtime_error("MeshPool::_device is null");
+        }
+
+        // create GPU resources
         auto* vao = _device->CreateVertexArray();
         auto* vbo = _device->CreateVertexBuffer(mesh.vertices.size() * sizeof(Vertex), mesh.vertices.data());
         auto* ibo = _device->CreateIndexBuffer(mesh.indices.size() * sizeof(std::uint32_t), mesh.indices.data());
-
         _device->SetupMeshVertexLayout(vao, vbo, ibo);
 
         RHIMesh rhiMesh{};
         rhiMesh.vao = vao;
         rhiMesh.indexCount = static_cast<std::uint32_t>(mesh.indices.size());
         rhiMesh.indexType = IndexType::Uint32;
-        _meshes.push_back(rhiMesh);
 
-        MeshHandle h = static_cast<MeshHandle>(_meshes.size() - 1);
-        LOG_INFO("MeshPool", "Created mesh handle={} indexCount={} total={}", h, rhiMesh.indexCount, _meshes.size());
+        // store CPU and GPU data
+        _meshes.push_back(mesh);
+        _rhiMeshes.push_back(rhiMesh);
+
+        // create versioned handle (gen = 0)
+        uint32_t index = static_cast<uint32_t>(_meshes.size() - 1);
+        MeshHandle h = Core::THandle<struct MeshTag>::FromParts(index, 0);
+        LOG_INFO("MeshPool", "Created mesh index={} indexCount={} total={}", index, rhiMesh.indexCount, _meshes.size());
         return h;
     }
     void MeshPool::Reset()
     {
         _device = nullptr;
         _meshes.clear();
+        _rhiMeshes.clear();
     }
-    const RHIMesh& MeshPool::Get(MeshHandle handle)
+    const Mesh& MeshPool::GetData(MeshHandle handle)
     {
-        return _meshes[handle];
+        return _meshes[handle.GetIndex()];
+    }
+
+    const RHIMesh& MeshPool::GetRHI(MeshHandle handle)
+    {
+        return _rhiMeshes[handle.GetIndex()];
     }
 } // namespace ChikaEngine::Render

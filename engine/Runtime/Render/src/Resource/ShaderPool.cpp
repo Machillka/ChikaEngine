@@ -7,7 +7,8 @@
 namespace ChikaEngine::Render
 {
     IRHIDevice* ShaderPool::_device = nullptr;
-    std::vector<RHIShader> ShaderPool::_shaders;
+    std::vector<Shader> ShaderPool::_shaders;
+    std::vector<RHIShader> ShaderPool::_rhiShaders;
 
     void ShaderPool::Init(IRHIDevice* device)
     {
@@ -30,9 +31,14 @@ namespace ChikaEngine::Render
         RHIShader rhiShader{};
         rhiShader.pipeline = pipeline;
 
-        _shaders.push_back(rhiShader);
-        ShaderHandle h = static_cast<ShaderHandle>(_shaders.size() - 1);
-        LOG_INFO("ShaderPool", "Created shader handle={} total={}", h, _shaders.size());
+        // store CPU source and compiled pipeline
+        Shader src = shader;
+        _shaders.push_back(src);
+        _rhiShaders.push_back(rhiShader);
+
+        uint32_t index = static_cast<uint32_t>(_shaders.size() - 1);
+        ShaderHandle h = Core::THandle<struct ShaderTag>::FromParts(index, 0);
+        LOG_INFO("ShaderPool", "Created shader index={} total={}", index, _shaders.size());
         return h;
     }
     void ShaderPool::Reset()
@@ -40,8 +46,13 @@ namespace ChikaEngine::Render
         _device = nullptr;
         _shaders.clear();
     }
-    const RHIShader& ShaderPool::Get(ShaderHandle handle)
+    const Shader& ShaderPool::GetData(ShaderHandle handle)
     {
-        return _shaders[handle];
+        return _shaders[handle.GetIndex()];
+    }
+
+    const RHIShader& ShaderPool::GetRHI(ShaderHandle handle)
+    {
+        return _rhiShaders[handle.GetIndex()];
     }
 } // namespace ChikaEngine::Render

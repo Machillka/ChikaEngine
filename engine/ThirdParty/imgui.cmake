@@ -80,13 +80,14 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp # 核心：Vulkan 后端
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+    # ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
 add_library(imgui STATIC ${IMGUI_SOURCES})
 
-target_include_directories(imgui PUBLIC 
-    ${IMGUI_DIR} 
+target_include_directories(imgui PUBLIC
+    ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
 )
 

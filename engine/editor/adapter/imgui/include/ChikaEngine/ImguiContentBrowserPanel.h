@@ -1,4 +1,5 @@
 #include "IEditorPanel.h"
+#include <filesystem>
 
 namespace ChikaEngine::Editor
 {

@@ -3,7 +3,6 @@
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/math/vector4.h"
 #include <vector>
-#include <cmath>
 
 namespace ChikaEngine::Render
 {

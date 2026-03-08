@@ -2,11 +2,14 @@
 
 #include "ChikaEngine/RHI/RHIDevice.h"
 #include "ChikaEngine/RHI/RHIResources.h"
+#include "ChikaEngine/Resource/ResourceHandles.h"
+
 #include <cstdint>
 #include <vector>
+#include <array>
 namespace ChikaEngine::Render
 {
-    using TextureCubeHandle = std::uint32_t;
+    // using TextureCubeHandle = std::uint32_t;
 
     struct RHITextureCubeData
     {

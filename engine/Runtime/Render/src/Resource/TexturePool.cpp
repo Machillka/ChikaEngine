@@ -6,7 +6,8 @@ namespace ChikaEngine::Render
 {
 
     IRHIDevice* TexturePool::_device = nullptr;
-    std::vector<RHITexture2D> TexturePool::_textures;
+    std::vector<Texture> TexturePool::_textures;
+    std::vector<RHITexture2D> TexturePool::_rhiTextures;
     void TexturePool::Init(IRHIDevice* device)
     {
         _device = device;
@@ -26,21 +27,31 @@ namespace ChikaEngine::Render
             throw std::runtime_error("TexturePool::_device is null");
         }
         IRHITexture2D* tex = _device->CreateTexture2D(width, height, channels, pixels, sRGB);
-        LOG_INFO("TexturePool", "Successfully created RHI texture");
         RHITexture2D rhiTex{};
         rhiTex.texture = tex;
-        rhiTex.width = width;
-        rhiTex.height = height;
-        rhiTex.channels = channels;
-        rhiTex.sRGB = sRGB;
-        _textures.push_back(rhiTex);
-        TextureHandle h = static_cast<TextureHandle>(_textures.size() - 1);
-        LOG_INFO("TexturePool", "Created texture handle={} size={}x{} total={}", h, width, height, _textures.size());
+
+        // store CPU metadata and GPU resource
+        Texture texMeta{};
+        texMeta.width = width;
+        texMeta.height = height;
+        texMeta.channels = channels;
+        texMeta.srgb = sRGB;
+        _textures.push_back(texMeta);
+        _rhiTextures.push_back(rhiTex);
+
+        uint32_t index = static_cast<uint32_t>(_textures.size() - 1);
+        TextureHandle h = Core::THandle<struct TextureTag>::FromParts(index, 0);
+        LOG_INFO("TexturePool", "Created texture index={} size={}x{} total={}", index, width, height, _textures.size());
         return h;
     }
 
-    const RHITexture2D& TexturePool::Get(TextureHandle handle)
+    const Texture& TexturePool::GetData(TextureHandle handle)
     {
-        return _textures[handle];
+        return _textures[handle.GetIndex()];
+    }
+
+    const RHITexture2D& TexturePool::GetRHI(TextureHandle handle)
+    {
+        return _rhiTextures[handle.GetIndex()];
     }
 } // namespace ChikaEngine::Render

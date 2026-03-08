@@ -2,6 +2,7 @@
 #include "Gizmo.h"
 #include "RHI/RHIDevice.h"
 #include "ChikaEngine/CameraData.h"
+#include <memory>
 
 namespace ChikaEngine::Render
 {

@@ -8,10 +8,14 @@ add_library(${TARGET_NAME} STATIC ${RENDER_HEADERS} ${RENDER_SOURCES})
 
 target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/engine)
 
-target_link_libraries(${TARGET_NAME} PRIVATE ChikaThirdParty ChikaCore ChikaPlatform ChikaFramework)
+target_link_libraries(${TARGET_NAME} PRIVATE
+    ChikaThirdParty
+    ChikaCore
+    ChikaPlatform
+)
 
-# add_subdirectory(rhi/opengl)
-# target_link_libraries(${TARGET_NAME} PUBLIC ChikaRenderOpenGL)
+add_subdirectory(rhi/opengl)
+target_link_libraries(${TARGET_NAME} PUBLIC ChikaRenderOpenGL)
 
 # TODO: 使用宏定义包裹进行选择渲染后端
 

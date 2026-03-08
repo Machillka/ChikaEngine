@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <mutex>
-
 namespace ChikaEngine::Core
 {
 

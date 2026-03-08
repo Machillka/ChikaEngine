@@ -2,6 +2,7 @@
 #include "ChikaEngine/RHI/RHIDevice.h"
 #include "ChikaEngine/RHI/RHIResources.h"
 #include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/Resource/ResourceHandles.h"
 #include <vector>
 namespace ChikaEngine::Render
 {
@@ -38,14 +39,15 @@ namespace ChikaEngine::Render
         IRHITextureCube* tex = _device->CreateTextureCube(width, height, channels, facesData, sRGB);
         RHITextureCubeData data = {.texture = tex};
         _textures.push_back(data);
-        TextureCubeHandle handle = static_cast<TextureCubeHandle>(_textures.size() - 1);
-        LOG_INFO("TextureCubePool", "Created TextureCube Handle ID={} total={}", handle, _textures.size());
+        uint32_t index = static_cast<uint32_t>(_textures.size() - 1);
+        Render::TextureCubeHandle handle = Core::THandle<struct TextureCubeTag>::FromParts(index, 0);
+        LOG_INFO("TextureCubePool", "Created TextureCube index={} total={}", index, _textures.size());
 
         return handle;
     }
 
     const RHITextureCubeData& TextureCubePool::Get(TextureCubeHandle handle)
     {
-        return _textures[handle];
+        return _textures[handle.GetIndex()];
     }
 } // namespace ChikaEngine::Render

@@ -48,7 +48,7 @@ add_library(${TARGET_NAME} INTERFACE)
 target_link_libraries(${TARGET_NAME} INTERFACE
     glfw
     Vulkan-Headers
-    volk  
+    volk
     glad
     imgui
     fmt::fmt
@@ -58,7 +58,6 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     Jolt
     pybind11::module
     pybind11::embed
-
 )
 
 target_include_directories(${TARGET_NAME} INTERFACE ${THIRD_PARTY_PATH})

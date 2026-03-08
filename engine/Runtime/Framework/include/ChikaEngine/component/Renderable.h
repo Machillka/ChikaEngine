@@ -1,9 +1,7 @@
 #pragma once
 
-#include "ChikaEngine/Resource/Material.h"
 #include "ChikaEngine/ResourceTypes.h"
 #include "ChikaEngine/component/Component.h"
-#include "ChikaEngine/MaterialImporter.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include "ChikaEngine/renderobject.h"
 

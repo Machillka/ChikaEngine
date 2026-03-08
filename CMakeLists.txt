@@ -4,12 +4,16 @@ project(ChikaEngine VERSION 0.0.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF) 
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_WARN_UNINITIALIZED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(PROJECT_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin")
 
 add_compile_definitions(CHIKA_DEBUG)
 
@@ -40,6 +44,31 @@ find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
 
 message(STATUS "[ChikaEngine] Found Python Include: ${Python3_INCLUDE_DIRS}")
 message(STATUS "[ChikaEngine] Found Python Libraries: ${Python3_LIBRARIES}")
+
+if(CMAKE_HOST_WIN32)
+    message(STATUS "[ChikaEngine] Resolving Python Runtime DLL for Windows deployment...")
+    set(PYTHON_GET_DLL_SCRIPT
+        "import sys, os; \
+        dll_name = f'python{sys.version_info.major}{sys.version_info.minor}.dll'; \
+        path = os.path.join(sys.base_prefix, dll_name); \
+        print(path if os.path.exists(path) else '', end='')"
+    )
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -c "${PYTHON_GET_DLL_SCRIPT}"
+        OUTPUT_VARIABLE PYTHON_RUNTIME_DLL
+        RESULT_VARIABLE PYTHON_DLL_FIND_RESULT
+    )
+    if(PYTHON_DLL_FIND_RESULT EQUAL 0 AND EXISTS "${PYTHON_RUNTIME_DLL}")
+        message(STATUS "[ChikaEngine] Found Python DLL: ${PYTHON_RUNTIME_DLL}")
+        # 确保输出目录存在
+        file(MAKE_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+        file(COPY "${PYTHON_RUNTIME_DLL}" DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+        message(STATUS "[ChikaEngine] Successfully copied Python DLL to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+    else()
+        message(WARNING "[ChikaEngine] Could not automatically locate the Python DLL. EXE might fail to run.")
+    endif()
+endif()
+
 
 # 加入 engine。构建
 add_subdirectory(engine)

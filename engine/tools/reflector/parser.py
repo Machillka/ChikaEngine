@@ -62,7 +62,7 @@ class ReflectionContext:
                         includes.append("-isystem")
                         includes.append(p)
         else:
-            print("[Warning] 未找到 system_includes.txt")
+            print("[Warning] system_includes.txt")
         return includes
 
     def _check_is_msvc(self):
@@ -357,7 +357,9 @@ def read():
     source_file = file_path
     ctx = ReflectionContext(build_dir)
     args = ctx.get_args_for_file(source_file)
+
     args.append("-D__REFLECTION_PARSER__")
+    args.append("-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH")
 
     tu = ctx.index.parse(source_file, args=args)
 
@@ -367,12 +369,13 @@ def read():
             print(f"[Clang Error] {diag.spelling} (Line {diag.location.line})")
             found_fatal = True
     res = []
+    # TODO: 使用一个优雅的 error check 机制
     if found_fatal:
-        print("解析过程中出现错误")
+        print("Error in parsering")
     else:
-        print("--- 解析成功，提取数据ing ---")
-        res = find_reflection(tu.cursor, source_file)
-        print(res)
+        print("--- parsered successfully ---")
+    res = find_reflection(tu.cursor, source_file)
+    print(res)
 
     if res:
         code_render = CodeRenderer("templates/reflection.cpp.j2")
