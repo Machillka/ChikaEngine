@@ -31,3 +31,6 @@
 [submodule "engine/ThirdParty/vulkan-headers"]
 	path = engine/ThirdParty/vulkan-headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "engine/ThirdParty/VulkanMemoryAllocator"]
+	path = engine/ThirdParty/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
