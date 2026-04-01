@@ -4,12 +4,13 @@ set(TARGET_NAME "ChikaThirdParty")
 add_subdirectory(${THIRD_PARTY_PATH}/glfw)
 
 # Add GLAD
-add_library(glad STATIC ${THIRD_PARTY_PATH}/glad/src/glad.c)
-target_include_directories(glad PUBLIC ${THIRD_PARTY_PATH}/glad/include)
+# add_library(glad STATIC ${THIRD_PARTY_PATH}/glad/src/glad.c)
+# target_include_directories(glad PUBLIC ${THIRD_PARTY_PATH}/glad/include)
 
 # Vulkan
-add_subdirectory(${THIRD_PARTY_PATH}/vulkan-headers)
-add_subdirectory(${THIRD_PARTY_PATH}/volk)
+
+find_package(Vulkan REQUIRED)
+add_subdirectory(${THIRD_PARTY_PATH}/VulkanMemoryAllocator)
 
 # Add imgui
 find_package(OpenGL REQUIRED)
@@ -36,7 +37,7 @@ set(TARGET_SAMPLES OFF CACHE BOOL "Build samples" FORCE)
 set(TARGET_HELLO_WORLD OFF CACHE BOOL "Build hello world" FORCE)
 set(TARGET_VIEWER OFF CACHE BOOL "Build Jolt viewer" FORCE)
 set(GENERATE_DEBUG_SYMBOLS ON CACHE BOOL "Generate debug symbols" FORCE)
-add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
+# add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
 
 # pybind11
 # set(PYBIND11_INSTALL OFF CACHE BOOL "" FORCE)
@@ -47,15 +48,15 @@ add_subdirectory(${THIRD_PARTY_PATH}/pybind11)
 add_library(${TARGET_NAME} INTERFACE)
 target_link_libraries(${TARGET_NAME} INTERFACE
     glfw
-    Vulkan-Headers
-    volk
-    glad
+    Vulkan::Vulkan
+    GPUOpen::VulkanMemoryAllocator
+    # glad
     imgui
     fmt::fmt
     nlohmann_json
     tinyobjloader
     stb
-    Jolt
+    # Jolt
     pybind11::module
     pybind11::embed
 )

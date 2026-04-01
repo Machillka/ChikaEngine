@@ -1,0 +1,182 @@
+
+#include "ChikaEngine/renderer.h"
+#include "ChikaEngine/Gizmo.h"
+#include "ChikaEngine/RHI/OpenGL/GLRHIDevice.h"
+#include "ChikaEngine/debug/assert.h"
+#include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/render_device.h"
+#include "ChikaEngine/RHI/OpenGL/GLRenderDevice.h"
+
+#include <memory>
+#include <stdexcept>
+
+namespace ChikaEngine::Render
+{
+    void Renderer::Init(RenderAPI api)
+    {
+        if (api == RenderAPI::None)
+        {
+            throw std::runtime_error("RenderAPI is None");
+        }
+
+        switch (api)
+        {
+        case RenderAPI::OpenGL:
+            _rhiDevice = std::make_unique<GLRHIDevice>();
+            CHIKA_ASSERT(_rhiDevice != nullptr, "null rhi device");
+            _renderDevice = std::make_unique<GLRenderDevice>(_rhiDevice.get());
+            break;
+        default:
+            throw std::runtime_error("Unknow RenderAPI");
+        }
+        _renderDevice->Init();
+
+        // 初始化 gizmo
+        _gizmoRenderer = std::make_unique<GizmoRenderer>();
+        _gizmoRenderer->Init(_rhiDevice.get());
+    }
+
+    void Renderer::Shutdown()
+    {
+        if (_gizmoRenderer)
+        {
+            _gizmoRenderer->Shutdown();
+            _gizmoRenderer.reset();
+        }
+
+        if (_renderDevice)
+        {
+            _renderDevice->Shutdown();
+            _renderDevice.reset();
+            _rhiDevice.reset();
+        }
+    }
+
+    void Renderer::BeginFrame()
+    {
+        if (_renderDevice)
+            _renderDevice->BeginFrame();
+    }
+
+    void Renderer::EndFrame()
+    {
+        if (_renderDevice)
+            _renderDevice->EndFrame();
+    }
+
+    void Renderer::RenderObjects(const std::vector<RenderObject>& ros, const CameraData& camera)
+    {
+        if (!_renderDevice)
+            return;
+        Math::Mat4 view = camera.viewMatrix;
+        Math::Mat4 proj = camera.projectionMatrix;
+        for (const auto& obj : ros)
+        {
+            _renderDevice->DrawObject(obj, camera);
+        }
+    }
+
+    void Renderer::RenderObjectsToTarget(IRHIRenderTarget* target, const std::vector<RenderObject>& ros, const CameraData& camera)
+    {
+        if (!target || !_renderDevice)
+            return;
+
+        LOG_INFO("Renderer", "Rendering {} objects", ros.size());
+
+        try
+        {
+            target->Bind();
+
+            _renderDevice->BeginFrame();
+            Math::Mat4 view = camera.viewMatrix;
+            Math::Mat4 proj = camera.projectionMatrix;
+            for (const auto& obj : ros)
+            {
+                _renderDevice->DrawObject(obj, camera);
+            }
+
+            const auto& lines = Gizmo::Instance().GetLineVertices();
+            if (!lines.empty() && _gizmoRenderer)
+            {
+                _gizmoRenderer->Render(target, camera, lines);
+            }
+
+            _renderDevice->EndFrame();
+            target->UnBind();
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("Renderer", "Exception during rendering: {}", e.what());
+            try
+            {
+                target->UnBind();
+            }
+            catch (const std::exception& unbindError)
+            {
+                LOG_ERROR("Renderer", "Exception during target unbind: {}", unbindError.what());
+            }
+        }
+
+        // 无论成功或失败都清空 Gizmo 数据
+        Gizmo::Instance().Clear();
+    }
+
+    void Renderer::RenderObjectsToTargetWithSkyBox(IRHIRenderTarget* target, TextureCubeHandle cubemap, const std::vector<RenderObject>& ros, const CameraData& camera)
+    {
+        if (!target || !_renderDevice)
+            return;
+
+        // LOG_INFO("Renderer", "Rendering {} objects", ros.size());
+
+        try
+        {
+            target->Bind();
+            _renderDevice->BeginFrame();
+
+            Math::Mat4 view = camera.viewMatrix;
+            Math::Mat4 proj = camera.projectionMatrix;
+            for (const auto& obj : ros)
+            {
+                _renderDevice->DrawObject(obj, camera);
+            }
+
+            _renderDevice->DrawSkybox(cubemap, camera);
+
+            const auto& lines = Gizmo::Instance().GetLineVertices();
+            if (!lines.empty() && _gizmoRenderer)
+            {
+                _gizmoRenderer->Render(target, camera, lines);
+            }
+
+            _renderDevice->EndFrame();
+            target->UnBind();
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("Renderer", "Exception during skybox rendering: {}", e.what());
+            try
+            {
+                target->UnBind();
+            }
+            catch (const std::exception& unbindError)
+            {
+                LOG_ERROR("Renderer", "Exception during target unbind: {}", unbindError.what());
+            }
+        }
+
+        // 无论成功或失败都清空 Gizmo 数据
+        Gizmo::Instance().Clear();
+    }
+
+    IRHIRenderTarget* Renderer::CreateRenderTarget(int width, int height)
+    {
+        return _rhiDevice->CreateRenderTarget(width, height);
+    }
+
+    void Renderer::DrawSkybox(TextureCubeHandle cubemap, const CameraData& camera)
+    {
+        if (!_renderDevice)
+            return;
+        _renderDevice->DrawSkybox(cubemap, camera);
+    }
+} // namespace ChikaEngine::Render

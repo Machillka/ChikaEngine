@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 namespace ChikaEngine::Core
 {
     template <typename Tag> struct THandle
@@ -66,3 +67,15 @@ namespace ChikaEngine::Core
         }
     };
 } // namespace ChikaEngine::Core
+
+namespace std
+{
+    // 提供 hash 支持, 用于在 unordered_map 中使用
+    template <typename Tag> struct hash<ChikaEngine::Core::THandle<Tag>>
+    {
+        size_t operator()(const ChikaEngine::Core::THandle<Tag>& h) const
+        {
+            return hash<uint32_t>()(h.raw_value);
+        }
+    };
+} // namespace std

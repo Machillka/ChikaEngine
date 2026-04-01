@@ -1,6 +1,6 @@
 set(TARGET_NAME ChikaResource)
 
-file(GLOB_RECURSE CORE_PUBLIC_HEADERS "include/*.h")
+file(GLOB_RECURSE CORE_PUBLIC_HEADERS "include/*.h" "include/*.hpp")
 file(GLOB_RECURSE CORE_SOURCES "src/*.cpp")
 
 add_library(${TARGET_NAME} STATIC
@@ -9,9 +9,9 @@ add_library(${TARGET_NAME} STATIC
 )
 
 target_include_directories(${TARGET_NAME}
-    PUBLIC 
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>    
+        $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -20,6 +20,7 @@ target_link_libraries(${TARGET_NAME}
     PUBLIC
         ChikaThirdParty
         ChikaCore
+        ChikaAsset
         ChikaRender
 )
 
