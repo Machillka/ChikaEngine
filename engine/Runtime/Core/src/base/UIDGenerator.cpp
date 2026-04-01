@@ -2,6 +2,7 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include <cstdint>
 #include <mutex>
+#include <chrono>
 
 namespace ChikaEngine::Core
 {

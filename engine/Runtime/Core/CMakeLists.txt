@@ -1,6 +1,6 @@
 set(TARGET_NAME ChikaCore)
 
-file(GLOB_RECURSE CORE_PUBLIC_HEADERS CONFIGURE_DEPENDS "include/*.h")
+file(GLOB_RECURSE CORE_PUBLIC_HEADERS CONFIGURE_DEPENDS "include/*.h" "include/*.hpp")
 file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 add_library(${TARGET_NAME} STATIC
@@ -9,9 +9,9 @@ add_library(${TARGET_NAME} STATIC
 )
 
 target_include_directories(${TARGET_NAME}
-    PUBLIC 
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>    
+        $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -21,7 +21,7 @@ target_link_libraries(${TARGET_NAME}
         ChikaThirdParty
 )
 
-reflection_generator(${TARGET_NAME})
+# reflection_generator(${TARGET_NAME})
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include PREFIX "Header Files" FILES ${CORE_PUBLIC_HEADERS})
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files" FILES ${CORE_SOURCES})

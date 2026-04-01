@@ -35,14 +35,14 @@ namespace ChikaEngine::Serialization
     template <typename T>
     concept EnumType = std::is_enum_v<std::remove_cvref_t<T>>;
 
-    template <typename T, typename Archive> class has_serialize_method
-    {
-        template <typename U> static auto test(int) -> decltype(std::declval<U>().serialize(std::declval<Archive&>()), std::true_type());
-        template <typename> static std::false_type test(...);
+    // template <typename T, typename Archive> class has_serialize_method
+    // {
+    //     template <typename U> static auto test(int) -> decltype(std::declval<U>().serialize(std::declval<Archive&>()), std::true_type());
+    //     template <typename> static std::false_type test(...);
 
-      public:
-        static constexpr bool value = decltype(test<T>(0))::value;
-    };
+    //   public:
+    //     static constexpr bool value = decltype(test<T>(0))::value;
+    // };
 
     // 检测是否是 vector 类型
     template <typename T> struct is_vector : std::false_type
@@ -52,13 +52,19 @@ namespace ChikaEngine::Serialization
     {
     };
 
-    template <typename T> struct has_get_reflected_classname
-    {
-        template <typename U> static auto test(int) -> decltype(std::declval<U>().GetReflectedClassName(), std::true_type());
-        template <typename> static std::false_type test(...);
-
-        static constexpr bool value = decltype(test<T>(0))::value;
+    template <typename T>
+    concept HasGetReflectedClassName = requires(T t) {
+        { t.GetReflectedClassName() } -> std::convertible_to<std::string>;
     };
+
+    // NOTE: 旧写法
+    // template <typename T> struct has_get_reflected_classname
+    // {
+    //     template <typename U> static auto test(int) -> decltype(std::declval<U>().GetReflectedClassName(), std::true_type());
+    //     template <typename> static std::false_type test(...);
+
+    //     static constexpr bool value = decltype(test<T>(0))::value;
+    // };
 
     // 分发器
     class Serializer
@@ -149,7 +155,8 @@ namespace ChikaEngine::Serialization
         {
             using RawT = std::remove_cvref_t<T>;
             std::string className;
-            if constexpr (has_get_reflected_classname<RawT>::value)
+            // NOTE: 使用 20 concepts 语法
+            if constexpr (HasGetReflectedClassName<RawT>)
             {
                 className = instance.GetReflectedClassName();
             }
