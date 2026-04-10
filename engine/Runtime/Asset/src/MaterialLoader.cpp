@@ -1,4 +1,5 @@
 #include "ChikaEngine/AssetLayouts.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/MaterialLoader.hpp"
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -14,9 +15,7 @@ namespace ChikaEngine::Asset
      * @author Machillka (machillka2007@gmail.com)
      * @date 2026-04-01
      */
-    static void FlattenParameters(const nlohmann::json& j,
-                                  const std::string& prefix,
-                                  MaterialData* mat)
+    static void FlattenParameters(const nlohmann::json& j, const std::string& prefix, MaterialData* mat)
     {
         for (auto& [key, value] : j.items())
         {
@@ -47,6 +46,11 @@ namespace ChikaEngine::Asset
         auto mat = std::make_unique<MaterialData>();
 
         std::ifstream f(path);
+        if (!f.is_open())
+        {
+            LOG_ERROR("ShaderTemplMaterialLoaderateLoader", "Failed to open material file: {}", path);
+            return nullptr;
+        }
         nlohmann::json j;
         f >> j;
 

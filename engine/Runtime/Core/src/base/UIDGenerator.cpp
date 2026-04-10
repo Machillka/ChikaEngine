@@ -26,6 +26,7 @@ namespace ChikaEngine::Core
 
         _machineID = machineID;
         _isInitialized = true;
+        LOG_INFO("UID Generator", "Initialized Successfully");
     }
 
     GameObjectID UIDGenerator::Generate()

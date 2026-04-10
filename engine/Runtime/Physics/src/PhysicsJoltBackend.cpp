@@ -22,9 +22,7 @@
 #include "Jolt/Physics/Body/BodyID.h"
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/CastResult.h>
-#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -208,20 +206,20 @@ namespace ChikaEngine::Physics
     void PhysicsJoltBackend::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3 v)
     {
         std::lock_guard lock(_commandMutex);
-        _velocityCommands.push_back(VelocityCommand{.handle = handle, .v = v});
+        _velocityCommands.push_back(VelocityCommand{ .handle = handle, .v = v });
     }
 
     void PhysicsJoltBackend::ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse)
     {
         std::lock_guard lock(_commandMutex);
-        _impulseCommands.push_back(ImpulseCommand{.handle = handle, .impulse = impulse});
+        _impulseCommands.push_back(ImpulseCommand{ .handle = handle, .impulse = impulse });
     }
 
     void PhysicsJoltBackend::Simulate(float fixedDeltaTime)
     {
         if (!_physicsSystem)
             return;
-        // LOG_INFO("Physics backend", "Simulating...");
+
         // TODO[x]: 提供设置速度,以及impulse
         {
             std::lock_guard lk(_commandMutex);

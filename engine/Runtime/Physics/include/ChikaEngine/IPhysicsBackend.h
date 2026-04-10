@@ -30,5 +30,7 @@ namespace ChikaEngine::Physics
         virtual bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit) = 0;
 
         virtual std::vector<CollisionEvent> PollCollisionEvents() = 0;
+
+        virtual void SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot) = 0;
     };
 } // namespace ChikaEngine::Physics

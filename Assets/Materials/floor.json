@@ -1,0 +1,10 @@
+{
+    "name": "ChikaBodyMaterial",
+    "shader": {
+        "template": "Assets/Materials/test.template.json"
+    },
+    "parameters": {},
+    "textures": {
+        "Albedo": "Assets/Textures/woodAlbedo.png"
+    }
+}

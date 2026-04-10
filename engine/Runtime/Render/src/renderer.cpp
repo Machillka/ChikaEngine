@@ -13,6 +13,7 @@ namespace ChikaEngine::Render
         m_window = createInfo.windowHandle;
         m_width = createInfo.width;
         m_height = createInfo.height;
+        m_assetMgr = createInfo.assetManager;
 
         RHI_InitParams params{
             .nativeWindowHandle = createInfo.windowHandle,
@@ -23,23 +24,7 @@ namespace ChikaEngine::Render
 
         m_rhi = std::make_unique<VulkanRHIDevice>(params);
         m_renderGraph = std::make_unique<RenderGraph>(m_rhi.get());
-        m_resourceMgr = std::make_unique<Resource::ResourceManager>(*m_rhi, m_assetMgr);
-
-        m_meshAsset = m_assetMgr.LoadMesh("Assets/Meshes/cube.obj");
-        m_floorMatAsset = m_assetMgr.LoadMaterial("Assets/Materials/test.json");
-        m_cubeMatAsset = m_assetMgr.LoadMaterial("Assets/Materials/test01.json");
-
-        m_meshGPU = m_resourceMgr->UploadMesh(m_meshAsset);
-        m_floorMatGPU = m_resourceMgr->UploadMaterial(m_floorMatAsset);
-        m_cubeMatGPU = m_resourceMgr->UploadMaterial(m_cubeMatAsset);
-
-        // m_matGPU = m_resourceMgr->UploadMaterial(m_matAsset);
-
-        // TextureDesc colorDesc{};
-        // colorDesc.width = m_width;
-        // colorDesc.height = m_height;
-        // colorDesc.format = RHI_Format::RGBA8_UNorm;
-        // m_offscreenColor = m_rhi->CreateTexture(colorDesc);
+        m_resourceMgr = std::make_unique<Resource::ResourceManager>(*m_rhi, *m_assetMgr);
 
         // 场景 UBO 创建
         BufferDesc uboDesc{
@@ -74,7 +59,7 @@ namespace ChikaEngine::Render
 
         // Shadow
         Render::TextureDesc shadowDepthDesc{
-            .width = 2048, // 阴影分辨率稍微给高点
+            .width = 2048,
             .height = 2048,
             .format = Render::RHI_Format::D32_SFloat,
             .mipLevels = 1,
@@ -104,12 +89,17 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::ColorAttachment,
         };
         m_rgSwapchain = m_renderGraph->ImportTexture("Swapchain", TextureHandle{}, swapDesc);
-        // BuildRenderGraph();
+    }
+
+    void Renderer::SubmitDrawCommands(const std::vector<DrawCommand>& drawCommandQueue)
+    {
+        m_drawCommandQueue = drawCommandQueue;
     }
 
     void Renderer::BuildRenderGraph()
     {
         m_renderGraph->Clear();
+
         Render::TextureDesc depthDesc{
             .width = m_width,
             .height = m_height,
@@ -148,6 +138,7 @@ namespace ChikaEngine::Render
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::ColorAttachment,
         };
+
         // 每一帧获取最新的 Backbuffer 导入
         m_rgSwapchain = m_renderGraph->ImportTexture("Swapchain", m_rhi->GetActiveSwapchainTexture(), swapDesc);
 
@@ -159,6 +150,7 @@ namespace ChikaEngine::Render
 
         m_renderGraph->Compile();
     }
+
     void Renderer::AddUploadPasses()
     {
         auto bufferJobs = m_resourceMgr->GetBufferUploadJobs();
@@ -198,44 +190,28 @@ namespace ChikaEngine::Render
             },
             [this](IRHICommandList* cmd, RenderGraph* graph)
             {
-                const auto& renderMesh = m_resourceMgr->GetMesh(m_meshGPU);
-                const auto& cubeMat = m_resourceMgr->GetMaterial(m_cubeMatGPU);
-                const auto& floorMat = m_resourceMgr->GetMaterial(m_floorMatGPU);
-
-                cmd->BindVertexBuffer(renderMesh.vertexBuffer, 0);
-                cmd->BindIndexBuffer(renderMesh.indexBuffer, 0, renderMesh.isUint32);
-
                 using namespace ChikaEngine::Math;
                 PC pc;
                 pc.isShadowPass = 1;
+                for (const auto& drawCmd : m_drawCommandQueue)
+                {
+                    const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
+                    const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
 
-                // Cube
-                Mat4 cubeModel = Mat4::Identity();
-                cubeModel.Translate(Vector3(0.0f, 1.0f, 0.0f));
-                cubeModel.RotateY(m_time);
-                pc.model = cubeModel.Transposed();
+                    cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
+                    cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
 
-                cmd->BindPipeline(cubeMat.pipeline);
-                auto cubeBindings = cubeMat.bindings;
-                cubeBindings.BindBuffer(0, m_sceneUBO, 0, sizeof(SceneData));
-                cubeBindings.BindTexture(4, m_dummyTexture);
-                cmd->BindResources(0, cubeBindings);
-                cmd->PushConstants(sizeof(PC), &pc);
-                cmd->DrawIndexed(renderMesh.indexCount, 1);
+                    cmd->BindPipeline(material.pipeline);
+                    auto bindings = material.bindings;
+                    bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
+                    bindings.BindTexture(4, m_dummyTexture);
 
-                // Floor
-                Mat4 floorModel = Mat4::Identity();
-                floorModel.Scale(Vector3(10.0f, 0.1f, 10.0f));
-                floorModel.Translate(Vector3(0.0f, -2.0f, 0.0f));
-                pc.model = floorModel.Transposed();
+                    cmd->BindResources(0, bindings);
 
-                cmd->BindPipeline(floorMat.pipeline);
-                auto floorBindings = floorMat.bindings;
-                floorBindings.BindBuffer(0, m_sceneUBO, 0, sizeof(SceneData));
-                floorBindings.BindTexture(4, m_dummyTexture);
-                cmd->BindResources(0, floorBindings);
-                cmd->PushConstants(sizeof(PC), &pc);
-                cmd->DrawIndexed(renderMesh.indexCount, 1);
+                    pc.model = drawCmd.model.Transposed();
+                    cmd->PushConstants(sizeof(PC), &pc);
+                    cmd->DrawIndexed(mesh.indexCount, 1);
+                }
             });
     }
 
@@ -252,45 +228,31 @@ namespace ChikaEngine::Render
             },
             [this](IRHICommandList* cmd, RenderGraph* graph)
             {
-                const auto& renderMesh = m_resourceMgr->GetMesh(m_meshGPU);
-                const auto& cubeMat = m_resourceMgr->GetMaterial(m_cubeMatGPU);
-                const auto& floorMat = m_resourceMgr->GetMaterial(m_floorMatGPU);
-
-                cmd->BindVertexBuffer(renderMesh.vertexBuffer, 0);
-                cmd->BindIndexBuffer(renderMesh.indexBuffer, 0, renderMesh.isUint32);
-
                 using namespace ChikaEngine::Math;
                 PC pc;
                 pc.isShadowPass = 0;
+                for (const auto& drawCmd : m_drawCommandQueue)
+                {
+                    const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
+                    const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
 
-                Mat4 cubeModel = Mat4::Identity();
-                cubeModel.Translate(Vector3(0.0f, 1.0f, 0.0f));
-                cubeModel.RotateY(m_time);
-                pc.model = cubeModel.Transposed();
+                    cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
+                    cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
 
-                cmd->BindPipeline(cubeMat.pipeline);
-                auto cubeBindings = cubeMat.bindings;
-                cubeBindings.BindBuffer(0, m_sceneUBO, 0, sizeof(SceneData));
-                cubeBindings.BindTexture(4, m_shadowDepthTexture); // 正式绑定渲染好的阴影图
-                cmd->BindResources(0, cubeBindings);
-                cmd->PushConstants(sizeof(PC), &pc);
-                cmd->DrawIndexed(renderMesh.indexCount, 1);
+                    cmd->BindPipeline(material.pipeline);
+                    auto bindings = material.bindings;
+                    bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
+                    bindings.BindTexture(4, m_shadowDepthTexture);
 
+                    cmd->BindResources(0, bindings);
 
-                Mat4 floorModel = Mat4::Identity();
-                floorModel.Scale(Vector3(10.0f, 0.1f, 10.0f));
-                floorModel.Translate(Vector3(0.0f, -2.0f, 0.0f));
-                pc.model = floorModel.Transposed();
-
-                cmd->BindPipeline(floorMat.pipeline);
-                auto floorBindings = floorMat.bindings;
-                floorBindings.BindBuffer(0, m_sceneUBO, 0, sizeof(SceneData));
-                floorBindings.BindTexture(4, m_shadowDepthTexture);
-                cmd->BindResources(0, floorBindings);
-                cmd->PushConstants(sizeof(PC), &pc);
-                cmd->DrawIndexed(renderMesh.indexCount, 1);
+                    pc.model = drawCmd.model.Transposed();
+                    cmd->PushConstants(sizeof(PC), &pc);
+                    cmd->DrawIndexed(mesh.indexCount, 1);
+                }
             });
     }
+
     void Renderer::BeginFrame()
     {
         m_rhi->BeginFrame();
@@ -299,40 +261,6 @@ namespace ChikaEngine::Render
     void Renderer::Tick(float deltaTime)
     {
         m_time += deltaTime;
-
-        using namespace ChikaEngine::Math;
-
-        Vector3 lightPos(5.0f, 8.0f, 5.0f);
-        Mat4 lightView = Mat4::LookAt(lightPos, Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
-        Mat4 lightProj = Mat4::Perspective(3.1415926f / 3.0f, 1.0f, 0.1f, 100.0f);
-        lightProj(1, 1) *= -1.0f;
-        lightProj(2, 2) = -100.0f / (100.0f - 0.1f);
-        lightProj(2, 3) = -(100.0f * 0.1f) / (100.0f - 0.1f);
-        Mat4 lightVP = lightProj * lightView;
-
-        Vector3 camPos(0.0f, 4.0f, 8.0f);
-        Mat4 cameraView = Mat4::LookAt(camPos, Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
-        Mat4 cameraProj = Mat4::Perspective(3.1415926f / 4.0f, float(m_width) / float(m_height), 0.1f, 100.0f);
-        cameraProj(1, 1) *= -1.0f;
-        cameraProj(2, 2) = -100.0f / (100.0f - 0.1f);
-        cameraProj(2, 3) = -(100.0f * 0.1f) / (100.0f - 0.1f);
-        Mat4 cameraVP = cameraProj * cameraView;
-
-        SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
-        if (sceneData)
-        {
-            sceneData->cameraVP = cameraVP.Transposed();
-            sceneData->lightVP = lightVP.Transposed();
-            // 平行光方向即从 lightPos 指向原点
-            sceneData->lightDir[0] = lightPos.x;
-            sceneData->lightDir[1] = lightPos.y;
-            sceneData->lightDir[2] = lightPos.z;
-            sceneData->lightDir[3] = 0.0f;
-            sceneData->viewPos[0] = camPos.x;
-            sceneData->viewPos[1] = camPos.y;
-            sceneData->viewPos[2] = camPos.z;
-            sceneData->viewPos[3] = 1.0f;
-        }
 
         BuildRenderGraph();
 
@@ -347,6 +275,44 @@ namespace ChikaEngine::Render
     IRHIDevice* Renderer::GetRHIHandle() const
     {
         return m_rhi.get();
+    }
+
+    void Renderer::SubmitLight(Math::Mat4& lightMat, Math::Vector3 lightPos)
+    {
+        SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
+
+        if (sceneData)
+        {
+            sceneData->lightVP = lightMat.Transposed();
+
+            sceneData->lightDir[0] = lightPos.x;
+            sceneData->lightDir[1] = lightPos.y;
+            sceneData->lightDir[2] = lightPos.z;
+            sceneData->lightDir[3] = 0.0f;
+        }
+    }
+    void Renderer::SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos)
+    {
+        SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
+        if (sceneData)
+        {
+            sceneData->cameraVP = cameraMat.Transposed();
+
+            sceneData->viewPos[0] = cameraPos.x;
+            sceneData->viewPos[1] = cameraPos.y;
+            sceneData->viewPos[2] = cameraPos.z;
+            sceneData->viewPos[3] = 1.0f;
+        }
+    }
+
+    Asset::AssetManager* Renderer::GetAssetManager()
+    {
+        return m_assetMgr;
+    }
+
+    Resource::ResourceManager* Renderer::GetResourceManager()
+    {
+        return m_resourceMgr.get();
     }
 
     void Renderer::Shutdown()

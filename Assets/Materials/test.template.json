@@ -17,7 +17,7 @@
     },
     "textures": {
         "Albedo": {
-            "slot": 4
+            "slot": 5
         }
     }
 }

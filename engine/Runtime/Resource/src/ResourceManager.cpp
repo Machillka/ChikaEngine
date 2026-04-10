@@ -4,6 +4,7 @@
 #include "ChikaEngine/IRHICommandList.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>

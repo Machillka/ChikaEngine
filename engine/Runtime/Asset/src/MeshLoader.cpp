@@ -8,6 +8,7 @@ namespace ChikaEngine::Asset
 
     std::unique_ptr<MeshData> MeshLoader::Load(const std::string& path)
     {
+        LOG_INFO("Mesh Loader", "Loading {}", path);
         tinyobj::ObjReader reader;
         tinyobj::ObjReaderConfig config;
         config.triangulate = true;

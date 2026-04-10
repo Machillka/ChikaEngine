@@ -21,6 +21,7 @@ namespace ChikaEngine::Resource
         ResourceManager(Render::IRHIDevice& rhi, Asset::AssetManager& assetMgr);
         ~ResourceManager();
 
+        // 带缓冲的上传
         MeshHandle UploadMesh(Asset::MeshHandle assetHandle);
         TextureHandle UploadTexture(Asset::TextureHandle assetHandle);
         MaterialHandle UploadMaterial(Asset::MaterialHandle assetHandle);
