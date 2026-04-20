@@ -18,21 +18,6 @@ namespace ChikaEngine::Reflection
     // 方法调用的后端, 在用户调用层使用模板来实现不同参数的展开
     using MethodInvoker = std::function<void(void* instance, const std::vector<std::any>& args)>;
 
-    // WORKFLOW: 添加新的类型
-    // enum class ReflectType
-    // {
-    //     Int,
-    //     Float,
-    //     Bool,
-    //     String,
-    //     Vector3,
-    //     Quaternion,
-    //     MeshHandle,
-    //     MaterialHandle,
-    //     Transform,
-    //     Unknown
-    // };
-
     // 测试用
     enum class ReflectType
     {

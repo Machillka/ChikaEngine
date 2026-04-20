@@ -31,7 +31,9 @@ namespace ChikaEngine::Math
         static Quaternion FromToRotation(const Vector3& from, const Vector3& to);
         // 计算使得 forward 可以和 up 正交的四元数（达到物体看向forward方向的目的
         static Quaternion LookAtRotation(const Vector3& forward, const Vector3& up);
-        // Mat4 ToRotationMat() const;
+
+        float Dot(const Quaternion& other) const;
+        static Quaternion Slerp(const Quaternion& a, const Quaternion& b, float t);
     };
 
 } // namespace ChikaEngine::Math

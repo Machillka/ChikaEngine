@@ -36,7 +36,7 @@ namespace ChikaEngine::Physics
     struct PhysicsSystemDesc
     {
         // 制定后端类型
-        PhysicsBackendTypes backendType;
+        PhysicsBackendTypes backendType = PhysicsBackendTypes::Jolt;
 
         // 默认的物理参数
         PhysicsInitDesc initDesc;
@@ -65,10 +65,10 @@ namespace ChikaEngine::Physics
     struct ColliderShapeDesc
     {
         RigidbodyShapes type = RigidbodyShapes::Box;
-        Math::Vector3 center = {0, 0, 0}; // 相对偏移
+        Math::Vector3 center = { 0, 0, 0 }; // 相对偏移
 
         // Box / Sphere 参数
-        Math::Vector3 halfExtents = {0.5f, 0.5f, 0.5f};
+        Math::Vector3 halfExtents = { 0.5f, 0.5f, 0.5f };
         float radius = 0.5f;
         float height = 1.0f;
     };
@@ -78,15 +78,15 @@ namespace ChikaEngine::Physics
         Core::GameObjectID ownerId = 0; // 用于查找 go
 
         // 变换 从 transform 中解耦
-        Math::Vector3 position = {0, 0, 0};
-        Math::Quaternion rotation = {0, 0, 0, 1};
+        Math::Vector3 position = { 0, 0, 0 };
+        Math::Quaternion rotation = { 0, 0, 0, 1 };
 
         // 形状 (从 Collider 获取 if 有)
         ColliderShapeDesc shapeDesc;
         bool isTrigger = false;
 
         // 动力学属性 (来自 Rigidbody，如果没有则为默认)
-        MotionType motionType = MotionType::Static;
+        MotionType motionType = MotionType::Dynamic;
         float mass = 1.0f;
         float friction = 0.5f;
         float restitution = 0.0f;

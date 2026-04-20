@@ -1,0 +1,23 @@
+{
+    "name": "SkinnedStandardPBR",
+    "stages": {
+        "vertex": "Assets/Shaders/skinned.vert.spv",
+        "fragment": "Assets/Shaders/test.frag.spv"
+    },
+    "parameters": {
+        "Base.Color": {
+            "type": "vec4",
+            "default": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ]
+        }
+    },
+    "textures": {
+        "Albedo": {
+            "slot": 5
+        }
+    }
+}

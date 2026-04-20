@@ -47,7 +47,7 @@ namespace ChikaEngine::Physics
 
         bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit) override;
 
-        void SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot);
+        void SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot) override;
 
       private:
         // Jolt objects (owned)

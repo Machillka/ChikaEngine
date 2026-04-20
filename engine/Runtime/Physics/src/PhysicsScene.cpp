@@ -73,7 +73,7 @@ namespace ChikaEngine::Physics
 
     void PhysicsScene::Tick(float dt)
     {
-        LOG_INFO("Physics System", "Tick");
+        // LOG_INFO("Physics System", "Tick");
 
         // ProcessCreateRigidbodyQueue();
         ProcessDestroyRigidbodyQueue();
@@ -206,12 +206,18 @@ namespace ChikaEngine::Physics
         std::lock_guard lock(_createRigidbodyMutex);
 
         PhysicsBodyHandle handle = _backend->CreateBodyFromDesc(desc);
-        if (handle != 0)
+        if (handle == 0)
         {
-            RegisterRigidbody(handle, desc.ownerId);
-            LOG_INFO("Physics System", "Create physicsbody successfully, phyid = {}, ownerId = {}", handle, desc.ownerId);
+            LOG_INFO("Physics System", "Failed to reate physicsbody, ownerId = {}", desc.ownerId);
+            return 0;
         }
+
+        RegisterRigidbody(handle, desc.ownerId);
+        LOG_INFO("Physics System", "Create physicsbody successfully, phyid = {}, ownerId = {}", handle, desc.ownerId);
         return handle;
     }
-    void PhysicsScene::SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot) {}
+    void PhysicsScene::SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot)
+    {
+        _backend->SetBodyTransform(handle, pos, rot);
+    }
 } // namespace ChikaEngine::Physics

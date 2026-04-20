@@ -1,5 +1,6 @@
 set(THIRD_PARTY_PATH "${ENGINE_ROOT_DIR}/ThirdParty")
 set(TARGET_NAME "ChikaThirdParty")
+
 # Add GLFW
 add_subdirectory(${THIRD_PARTY_PATH}/glfw)
 
@@ -37,12 +38,29 @@ set(TARGET_SAMPLES OFF CACHE BOOL "Build samples" FORCE)
 set(TARGET_HELLO_WORLD OFF CACHE BOOL "Build hello world" FORCE)
 set(TARGET_VIEWER OFF CACHE BOOL "Build Jolt viewer" FORCE)
 set(GENERATE_DEBUG_SYMBOLS ON CACHE BOOL "Generate debug symbols" FORCE)
-# add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
+add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
 
 # pybind11
-# set(PYBIND11_INSTALL OFF CACHE BOOL "" FORCE)
+set(PYBIND11_INSTALL OFF CACHE BOOL "" FORCE)
 set(PYBIND11_PYTHON_VERSION 3)
 add_subdirectory(${THIRD_PARTY_PATH}/pybind11)
+
+# tinygltf
+add_library(tinygltf INTERFACE)
+target_include_directories(tinygltf INTERFACE ${THIRD_PARTY_PATH}/tinygltf)
+
+# head-only
+file(GLOB THIRD_PARTY_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
+)
+add_library(ChikaThirdPartyObjects OBJECT ${THIRD_PARTY_SOURCES})
+target_link_libraries(ChikaThirdPartyObjects PRIVATE
+    stb
+    tinygltf
+    GPUOpen::VulkanMemoryAllocator
+    Vulkan::Vulkan
+)
+target_include_directories(ChikaThirdPartyObjects PRIVATE ${THIRD_PARTY_PATH})
 
 # Output
 add_library(${TARGET_NAME} INTERFACE)
@@ -56,9 +74,11 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     nlohmann_json
     tinyobjloader
     stb
-    # Jolt
+    Jolt
     pybind11::module
     pybind11::embed
+    tinygltf
+    $<TARGET_OBJECTS:ChikaThirdPartyObjects>
 )
 
 target_include_directories(${TARGET_NAME} INTERFACE ${THIRD_PARTY_PATH})

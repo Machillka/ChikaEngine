@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include "ChikaEngine/AssetHandle.hpp"
+#include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/ResourceHandle.hpp"
 #include "ChikaEngine/ResourceManager.hpp"
 #include "IRHICommandList.hpp"
@@ -19,6 +19,7 @@
 #include "RenderGraph.hpp"
 #include <cstdint>
 #include <memory>
+#include <vector>
 #include "ChikaEngine/math/mat4.h"
 
 namespace ChikaEngine::Render
@@ -37,24 +38,46 @@ namespace ChikaEngine::Render
     {
         Math::Mat4 model;
         int isShadowPass;
-        int padding[3];
+        int isSkinned;
     };
 
     struct RendererCreateInfo
     {
         void* windowHandle = nullptr;
+        Asset::AssetManager* assetManager;
         uint32_t width = 1920;
         uint32_t height = 1080;
+    };
+
+    struct DrawCommand
+    {
+        Math::Mat4 model;
+        Resource::MaterialHandle materialHandle;
+        Resource::MeshHandle meshHandle;
+        bool isSkinned = false;
+        Render::BufferHandle boneUBO;
     };
 
     class Renderer
     {
       public:
+        // TODO[x]: asset manager 应当是依赖注入
         void Initialize(const RendererCreateInfo& createInfo);
         void Shutdown();
         void BeginFrame();
         void Tick(float deltaTimt); // 渲染逻辑 Tick
         void EndFrame();
+
+      public:
+        void SubmitDrawCommands(const std::vector<DrawCommand>& drawCommandQueue);
+
+        // 先使用单全局光
+        void SubmitLight(Math::Mat4& lightMat, Math::Vector3 lightPos);
+        void SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos);
+
+      public:
+        Asset::AssetManager* GetAssetManager();
+        Resource::ResourceManager* GetResourceManager();
 
       public:
         IRHIDevice* GetRHIHandle() const;
@@ -71,6 +94,9 @@ namespace ChikaEngine::Render
         void AddShadowPass();
 
       private:
+        std::vector<DrawCommand> m_drawCommandQueue;
+
+      private:
         void* m_window = nullptr;
         std::unique_ptr<IRHIDevice> m_rhi = nullptr;
         std::unique_ptr<RenderGraph> m_renderGraph = nullptr;
@@ -79,21 +105,8 @@ namespace ChikaEngine::Render
         uint32_t m_height = 1080;
         TextureHandle m_offscreenColor;
 
-        std::unique_ptr<Resource::ResourceManager> m_resourceMgr;
-        Asset::AssetManager m_assetMgr;
-
-        Asset::MeshHandle m_meshAsset;
-        Asset::MeshHandle m_objAsset;
-
-        // Asset::MaterialHandle m_matAsset;
-        Asset::MaterialHandle m_cubeMatAsset;
-        Asset::MaterialHandle m_floorMatAsset;
-
-        Resource::MaterialHandle m_floorMatGPU;
-        Resource::MaterialHandle m_cubeMatGPU;
-
-        Resource::MeshHandle m_meshGPU;
-        Resource::MeshHandle m_objGPU;
+        std::unique_ptr<Resource::ResourceManager> m_resourceMgr = nullptr;
+        Asset::AssetManager* m_assetMgr = nullptr;
 
         TextureHandle m_depthTexture;
         RGTextureHandle m_rgSwapchain;
@@ -109,6 +122,9 @@ namespace ChikaEngine::Render
 
         BufferHandle m_sceneUBO;
         TextureHandle m_dummyTexture;
+
+        // bone
+        BufferHandle m_dummyBoneUBO;
     };
 
 } // namespace ChikaEngine::Render

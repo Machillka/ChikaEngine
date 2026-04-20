@@ -8,24 +8,6 @@ from jinja2 import Template
 from gen_id import get_unique_id
 import re
 
-# reflect_map = {
-#     "int": "Int",
-#     "float": "Float",
-#     "bool": "Bool",
-#     "std::string": "String",
-#     "Math::Vector3": "Vector3",
-#     "Math::Quaternion": "Quaternion",
-#     "Resource::MeshHandle": "MeshHandle",
-#     "Resource::MaterialHandle": "MaterialHandle",
-#     "Framework::Transform": "Transform",
-# }
-
-
-# def type_to_reflect(t):
-#     if t in reflect_map:
-#         return reflect_map[t]
-#     return "Unknown"
-
 
 class ReflectionContext:
     """反射上下文定义"""

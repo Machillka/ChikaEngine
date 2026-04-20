@@ -105,22 +105,39 @@ namespace ChikaEngine::Math
         Quaternion rotUp = FromToRotation(rotatedUp, up.Normalized());
         return (rotUp * r).Normalized();
     }
+    float Quaternion::Dot(const Quaternion& other) const
+    {
+        return x * other.x + y * other.y + z * other.z + w * other.w;
+    }
 
-    // Mat4 Quaternion::ToRotationMat() const
-    // {
-    //     Mat4 m = Mat4::Identity();
-    //     float xx = x * x, yy = y * y, zz = z * z;
-    //     float xy = x * y, xz = x * z, yz = y * z;
-    //     float wx = w * x, wy = w * y, wz = w * z;
-    //     m(0, 0) = 1 - 2 * (yy + zz);
-    //     m(0, 1) = 2 * (xy - wz);
-    //     m(0, 2) = 2 * (xz + wy);
-    //     m(1, 0) = 2 * (xy + wz);
-    //     m(1, 1) = 1 - 2 * (xx + zz);
-    //     m(1, 2) = 2 * (yz - wx);
-    //     m(2, 0) = 2 * (xz - wy);
-    //     m(2, 1) = 2 * (yz + wx);
-    //     m(2, 2) = 1 - 2 * (xx + yy);
-    //     return m;
-    // }
+    // 四元数插值
+    Quaternion Quaternion::Slerp(const Quaternion& a, const Quaternion& b, float t)
+    {
+        float cosTheta = a.Dot(b);
+        Quaternion end = b;
+
+        // 走最短路径
+        if (cosTheta < 0.0f)
+        {
+            cosTheta = -cosTheta;
+            end.x = -b.x;
+            end.y = -b.y;
+            end.z = -b.z;
+            end.w = -b.w;
+        }
+
+        if (cosTheta > 0.9995f)
+        {
+            // 夹角极小，退化为线性插值 (NLerp)
+            return Quaternion(a.x + t * (end.x - a.x), a.y + t * (end.y - a.y), a.z + t * (end.z - a.z), a.w + t * (end.w - a.w)).Normalized();
+        }
+
+        float theta = std::acos(cosTheta);
+        float sinTheta = std::sin(theta);
+
+        float w1 = std::sin((1.0f - t) * theta) / sinTheta;
+        float w2 = std::sin(t * theta) / sinTheta;
+
+        return Quaternion(a.x * w1 + end.x * w2, a.y * w1 + end.y * w2, a.z * w1 + end.z * w2, a.w * w1 + end.w * w2);
+    }
 } // namespace ChikaEngine::Math

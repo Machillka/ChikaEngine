@@ -34,3 +34,6 @@
 [submodule "engine/ThirdParty/VulkanMemoryAllocator"]
 	path = engine/ThirdParty/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "engine/ThirdParty/tinygltf"]
+	path = engine/ThirdParty/tinygltf
+	url = https://github.com/syoyo/tinygltf.git

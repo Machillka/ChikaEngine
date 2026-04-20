@@ -16,7 +16,7 @@ namespace ChikaEngine::Physics
 
         bool Initialize(const PhysicsSystemDesc& desc);
         void Shutdown();
-        void Tick(float fixedDeltaTime); // 每一帧的物理运算
+        void Tick(float fixedDeltaTime); // 每一帧的物理运算 仅进行物理运算
 
         // 创建 Rigidbody
         // void EnqueueRigidbodyCreate(const PhysicsBodyCreateDesc& desc);

@@ -1,5 +1,6 @@
 #include "ChikaEngine/ShaderTemplateLoader.hpp"
 #include "ChikaEngine/AssetLayouts.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 #include <string>
 #include <unordered_map>
 #include <nlohmann/json.hpp>
@@ -44,6 +45,13 @@ namespace ChikaEngine::Asset
     {
         auto tmpl = std::make_unique<ShaderTemplateData>();
         std::ifstream f(path);
+        ;
+        if (!f.is_open())
+        {
+            LOG_ERROR("ShaderTemplateLoader", "Failed to open shader template file: {}", path);
+            return nullptr;
+        }
+
         nlohmann::json j;
         f >> j;
 

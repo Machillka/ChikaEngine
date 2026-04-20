@@ -21,9 +21,13 @@ namespace ChikaEngine::Resource
         ResourceManager(Render::IRHIDevice& rhi, Asset::AssetManager& assetMgr);
         ~ResourceManager();
 
+        // 带缓冲的上传
         MeshHandle UploadMesh(Asset::MeshHandle assetHandle);
         TextureHandle UploadTexture(Asset::TextureHandle assetHandle);
         MaterialHandle UploadMaterial(Asset::MaterialHandle assetHandle);
+
+        // 辅助方法 用于上传骨骼矩阵
+        Render::BufferHandle UploadBoneMatrices(const std::vector<Math::Mat4>& matrices, Render::BufferHandle bufferHandle);
 
         const MeshGPU& GetMesh(MeshHandle handle) const;
         const TextureGPU& GetTexture(TextureHandle handle) const;
