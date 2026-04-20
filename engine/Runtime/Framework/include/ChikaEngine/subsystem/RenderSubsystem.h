@@ -34,6 +34,7 @@ namespace ChikaEngine::Framework
       private:
         std::vector<Render::DrawCommand> _drawCommands;
 
+        Scene* _ownerScene = nullptr;
         Render::Renderer* _renderer;
         Asset::AssetManager* _assetMgr = nullptr;
         Resource::ResourceManager* _resourceMgr = nullptr;

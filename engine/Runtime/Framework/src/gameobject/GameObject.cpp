@@ -1,5 +1,6 @@
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include <memory>
 #include <mutex>
 #include <string>

@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include "AssetAnimation.hpp"
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -71,6 +72,10 @@ namespace ChikaEngine::Asset
         float position[3];
         float normal[3];
         float uv[2];
+
+        // 每个顶点受到 四个骨骼的影响
+        std::uint32_t boneIndices[4];
+        float boneWeights[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     };
 
     struct MeshData
@@ -79,6 +84,11 @@ namespace ChikaEngine::Asset
 
         std::vector<VertexData> vertices;
         std::vector<uint32_t> indices;
+
+        // 针对蒙皮网络的数据
+        // FIXME: 上层做 MeshRender 和 SkeletonRender, 底层数据分离
+        bool isSkinned = false;
+        SkeletonData skeleton;
     };
 
     struct ShaderData

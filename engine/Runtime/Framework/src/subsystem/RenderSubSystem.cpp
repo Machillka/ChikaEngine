@@ -5,12 +5,12 @@
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/scene/scene.hpp"
+#include "ChikaEngine/component/Animator.hpp"
 
 namespace ChikaEngine::Framework
 {
-    RenderSubsystem::RenderSubsystem(Scene* ownerScene, Render::Renderer* renderInstance) : _renderer(renderInstance)
+    RenderSubsystem::RenderSubsystem(Scene* ownerScene, Render::Renderer* renderInstance) : _ownerScene(ownerScene), _renderer(renderInstance)
     {
-        _ownerScene = ownerScene;
         _assetMgr = _renderer->GetAssetManager();
         if (_assetMgr == nullptr)
         {
@@ -90,6 +90,22 @@ namespace ChikaEngine::Framework
 
             if (go->transform)
                 cmd.model = go->transform->GetWorldMat();
+
+            // 添加蒙皮动画处理
+            auto animator = go->GetComponent<Animator>();
+            if (animator && !animator->finalMatrices.empty())
+            {
+                // 直接拿到 System 算好的矩阵上传 GPU
+                Render::BufferHandle boneUBO = _resourceMgr->UploadBoneMatrices(animator->finalMatrices, meshComp->GetBoneUBO());
+
+                meshComp->SetBoneUBO(boneUBO);
+                cmd.boneUBO = boneUBO;
+                cmd.isSkinned = true;
+            }
+            else
+            {
+                cmd.isSkinned = false;
+            }
 
             _drawCommands.push_back(cmd);
         }

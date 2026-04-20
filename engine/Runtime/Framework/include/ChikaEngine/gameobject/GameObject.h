@@ -73,7 +73,7 @@ namespace ChikaEngine::Framework
 
         template <typename T> T* GetComponent()
         {
-            std::lock_guard lock(_compMutex);
+            // std::lock_guard lock(_compMutex);
             for (auto& comp : _components)
             {
                 if (auto p = dynamic_cast<T*>(comp.get()))

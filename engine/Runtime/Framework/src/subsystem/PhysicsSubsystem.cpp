@@ -6,9 +6,8 @@
 
 namespace ChikaEngine::Framework
 {
-    PhysicsSubsystem::PhysicsSubsystem(Scene* scene)
+    PhysicsSubsystem::PhysicsSubsystem(Scene* scene) : _ownerScene(scene)
     {
-        _ownerScene = scene;
 
         Physics::PhysicsSystemDesc createInfo{};
 
@@ -51,7 +50,7 @@ namespace ChikaEngine::Framework
     {
         // FIXME: 非常的不现代, 效率极低
         auto physicsTransforms = _physics->PollTransform();
-        LOG_INFO("Physics Subsystem", "size of padding: {}, id = {}", physicsTransforms.size(), physicsTransforms[0].first);
+        // LOG_INFO("Physics Subsystem", "size of padding: {}, id = {}", physicsTransforms.size(), physicsTransforms[0].first);
 
         for (auto const& [goId, physicsTransform] : physicsTransforms)
         {

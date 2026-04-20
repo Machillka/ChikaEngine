@@ -14,6 +14,7 @@
 namespace ChikaEngine::Asset
 {
 
+    // Render Assets
     struct TextureTag
     {
     };
@@ -35,4 +36,10 @@ namespace ChikaEngine::Asset
     using ShaderHandle = Core::THandle<ShaderTag>;
     using ShaderTemplateHandle = Core::THandle<ShaderTemplateTag>;
     using MaterialHandle = Core::THandle<MaterialTag>;
+
+    // Animation Assets
+    struct AnimationClipTag
+    {
+    };
+    using AnimationClipHandle = Core::THandle<AnimationClipTag>;
 } // namespace ChikaEngine::Asset

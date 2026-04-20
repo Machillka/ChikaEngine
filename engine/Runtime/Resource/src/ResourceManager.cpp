@@ -4,7 +4,6 @@
 #include "ChikaEngine/IRHICommandList.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
-#include "ChikaEngine/debug/log_macros.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -204,9 +203,12 @@ namespace ChikaEngine::Resource
         // build pipeline
         Render::PipelineDesc pipelineDesc
         {
-            .vertexShader = vs, .fragmentShader = fs, .vertexLayout = {
+            .vertexShader = vs,
+            .fragmentShader = fs,
+            .vertexLayout = {
                 .stride = sizeof(Asset::VertexData),
-                .attributes = { {
+                .attributes = {
+                                {
                                     0,
                                     Render::RHI_Format::RGB32_Float,
                                     offsetof(Asset::VertexData, position),
@@ -221,6 +223,16 @@ namespace ChikaEngine::Resource
                                     Render::RHI_Format::RG32_Float,
                                     offsetof(Asset::VertexData, uv),
                                 },
+                                {
+                                    3,
+                                    Render::RHI_Format::RGBA32_SInt,
+                                    offsetof(Asset::VertexData, boneIndices)
+                                },
+                                {
+                                    4,
+                                    Render::RHI_Format::RGBA32_Float,
+                                    offsetof(Asset::VertexData, boneWeights)
+                            }
                 },
             },
             .depthTest = true,
@@ -370,5 +382,43 @@ namespace ChikaEngine::Resource
         auto copy = m_pendingTextureUploads;
         m_pendingTextureUploads.clear();
         return copy;
+    }
+
+    Render::BufferHandle ResourceManager::UploadBoneMatrices(const std::vector<Math::Mat4>& matrices, Render::BufferHandle bufferHandle)
+    {
+        if (!bufferHandle.IsValid())
+        {
+            Render::BufferDesc boneDesc{
+                .size = 128 * sizeof(Math::Mat4),
+                .usage = Render::RHI_BufferUsage::Uniform,
+                .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
+            };
+            bufferHandle = m_rhi.CreateBuffer(boneDesc);
+        }
+
+        if (bufferHandle.IsValid())
+        {
+            auto* data = static_cast<Math::Mat4*>(m_rhi.GetMappedData(bufferHandle));
+            if (data)
+            {
+                // NOTE: 初始化数据, 后期拷贝的时候不会出现未定义数据
+                for (int i = 0; i < 128; ++i)
+                {
+                    data[i] = Math::Mat4::Identity();
+                }
+                size_t copyCount = std::min(matrices.size(), (size_t)128);
+                std::vector<Math::Mat4> transposed;
+                transposed.resize(copyCount);
+                for (size_t i = 0; i < copyCount; ++i)
+                {
+                    // 转制后的结果
+                    transposed[i] = matrices[i].Transposed();
+                }
+
+                std::memcpy(data, transposed.data(), copyCount * sizeof(Math::Mat4));
+            }
+        }
+
+        return bufferHandle;
     }
 } // namespace ChikaEngine::Resource

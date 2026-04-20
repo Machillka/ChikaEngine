@@ -1,10 +1,15 @@
 #include "ChikaEngine/scene/scene.hpp"
 #include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 
+#include "ChikaEngine/subsystem/AnimationSubsystem.hpp"
 #include "ChikaEngine/subsystem/PhysicsSubsystem.h"
 #include "ChikaEngine/subsystem/RenderSubsystem.h"
+#include "ChikaEngine/serialization/JsonSaveArchive.h"
+#include "ChikaEngine/serialization/JsonLoadArchive.h"
+#include "ChikaEngine/io/MemoryStream.h"
 #include <memory>
 #include <utility>
 #include <vector>
@@ -14,9 +19,10 @@ namespace ChikaEngine::Framework
 
     void Scene::Initialize(const SceneCreateInfo& createInfo)
     {
-        // 初始化 render sub sysytem
+        // 初始化 sub sysytem
         _renderSubsystem = std::make_unique<RenderSubsystem>(this, createInfo.renderInstance);
         _physicsSubsystem = std::make_unique<PhysicsSubsystem>(this);
+        _animationSubsystem = std::make_unique<AnimationSubsystem>(this, createInfo.renderInstance->GetAssetManager());
     }
 
     Core::GameObjectID Scene::CreateGameobject(std::string name)
@@ -57,6 +63,12 @@ namespace ChikaEngine::Framework
 
     void Scene::Tick(float deltaTime)
     {
+        for (auto& go : _gameobjects)
+        {
+            // LOG_INFO("Scene", "Ticking GameObject: {}", go->GetName());
+            go->Tick(deltaTime);
+        }
+
         if (_mode == SceneModes::Play)
         {
             for (auto& go : _gameobjects)
@@ -79,6 +91,9 @@ namespace ChikaEngine::Framework
             }
         }
 
+        if (_animationSubsystem)
+            _animationSubsystem->Tick(deltaTime);
+
         if (_renderSubsystem)
             _renderSubsystem->Tick(deltaTime);
     }
@@ -96,5 +111,61 @@ namespace ChikaEngine::Framework
     Physics::PhysicsScene* Scene::GetPhysicsSubsystem()
     {
         return _physicsSubsystem->GetPhysicsInstace();
+    }
+
+    void Scene::OnDeserialized()
+    {
+        _gameobjectMap.clear();
+        for (auto& go : _gameobjects)
+        {
+            go->SetScene(this);
+            _gameobjectMap[go->GetID()] = go.get();
+            go->OnDeserialized();
+        }
+    }
+
+    void Scene::SaveToStream(IO::IStream& stream) const
+    {
+        Serialization::JsonSaveArchive ar(stream);
+        ar.EnterNode("Scene");
+        const_cast<Scene*>(this)->serialize(ar);
+        ar.LeaveNode();
+    }
+    void Scene::LoadFromStream(IO::IStream& stream)
+    {
+        Serialization::JsonLoadArchive ar(stream);
+        ar.EnterNode("Scene");
+        serialize(ar);
+        ar.LeaveNode();
+        OnDeserialized();
+    }
+
+    void Scene::StartPlayMode()
+    {
+        if (_mode == SceneModes::Play)
+            return;
+
+        IO::MemoryStream mem;
+        SaveToStream(mem);
+
+        // 保存 snapshot
+        _playBackup = mem.GetRawData();
+
+        _mode = SceneModes::Play;
+    }
+
+    void Scene::StopPlayMode()
+    {
+        if (_mode == SceneModes::Edit)
+            return;
+
+        if (_playBackup.empty())
+            return;
+
+        IO::MemoryStream mem(_playBackup.data(), _playBackup.size());
+        LoadFromStream(mem);
+
+        _playBackup.clear();
+        _mode = SceneModes::Edit;
     }
 } // namespace ChikaEngine::Framework

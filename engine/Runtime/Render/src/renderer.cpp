@@ -34,6 +34,47 @@ namespace ChikaEngine::Render
         };
         m_sceneUBO = m_rhi->CreateBuffer(uboDesc);
 
+        // 初始化 Scene UBO 为默认值
+        {
+            SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
+            if (sceneData)
+            {
+                sceneData->cameraVP = Math::Mat4::Identity().Transposed();
+                sceneData->lightVP = Math::Mat4::Identity().Transposed();
+
+                Math::Vector3 defaultLightDir(0.5f, -1.0f, 0.3f);
+                Math::Vector3 n = defaultLightDir.Normalized();
+                sceneData->lightDir[0] = n.x;
+                sceneData->lightDir[1] = n.y;
+                sceneData->lightDir[2] = n.z;
+                sceneData->lightDir[3] = 0.0f;
+
+                // 默认摄像机位置在原点
+                sceneData->viewPos[0] = 0.0f;
+                sceneData->viewPos[1] = 0.0f;
+                sceneData->viewPos[2] = 0.0f;
+                sceneData->viewPos[3] = 1.0f;
+            }
+        }
+
+        // bone 的 ubo
+        BufferDesc dummyBoneDesc{
+            .size = 128 * sizeof(Math::Mat4),
+            .usage = Render::RHI_BufferUsage::Uniform,
+            .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
+        };
+        m_dummyBoneUBO = m_rhi->CreateBuffer(dummyBoneDesc);
+
+        // 填充空数据
+        Math::Mat4* mappedBones = static_cast<Math::Mat4*>(m_rhi->GetMappedData(m_dummyBoneUBO));
+        if (mappedBones)
+        {
+            for (int i = 0; i < 128; ++i)
+            {
+                mappedBones[i] = Math::Mat4::Identity();
+            }
+        }
+
         // 深度 dump texture
         TextureDesc dummyDesc{
             .width = 1,
@@ -156,12 +197,19 @@ namespace ChikaEngine::Render
         auto bufferJobs = m_resourceMgr->GetBufferUploadJobs();
         auto textureJobs = m_resourceMgr->GetTextureUploadJobs();
 
-        if (bufferJobs.empty() && textureJobs.empty())
+        static bool s_dummyTextureTransitioned = false;
+
+        if (bufferJobs.empty() && textureJobs.empty() && s_dummyTextureTransitioned)
             return;
 
         m_renderGraph->AddUploadPass("Upload Resources",
-                                     [bufferJobs, textureJobs](IRHICommandList* cmd, RenderGraph* graph)
+                                     [this, bufferJobs, textureJobs](IRHICommandList* cmd, RenderGraph* graph)
                                      {
+                                         if (!s_dummyTextureTransitioned)
+                                         {
+                                             cmd->InsertTextureBarrier(m_dummyTexture, ResourceState::Undefined, ResourceState::ShaderResource);
+                                             s_dummyTextureTransitioned = true;
+                                         }
                                          // Buffer 上传：只需要 CopyBuffer
                                          for (const auto& job : bufferJobs)
                                          {
@@ -206,9 +254,20 @@ namespace ChikaEngine::Render
                     bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
                     bindings.BindTexture(4, m_dummyTexture);
 
-                    cmd->BindResources(0, bindings);
+                    if (drawCmd.isSkinned && drawCmd.boneUBO.IsValid())
+                    {
+                        bindings.BindBuffer(2, drawCmd.boneUBO, 0, 128 * sizeof(Math::Mat4));
+                        pc.isSkinned = 1;
+                    }
+                    else
+                    {
+                        bindings.BindBuffer(2, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
+                        pc.isSkinned = 0;
+                    }
 
                     pc.model = drawCmd.model.Transposed();
+
+                    cmd->BindResources(0, bindings);
                     cmd->PushConstants(sizeof(PC), &pc);
                     cmd->DrawIndexed(mesh.indexCount, 1);
                 }
@@ -238,15 +297,28 @@ namespace ChikaEngine::Render
 
                     cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
                     cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
-
                     cmd->BindPipeline(material.pipeline);
+
                     auto bindings = material.bindings;
                     bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
                     bindings.BindTexture(4, m_shadowDepthTexture);
 
-                    cmd->BindResources(0, bindings);
+                    // 骨骼绑到 slot 2 上
+                    if (drawCmd.isSkinned && drawCmd.boneUBO.IsValid())
+                    {
+                        bindings.BindBuffer(2, drawCmd.boneUBO, 0, 128 * sizeof(Math::Mat4));
+                        pc.isSkinned = 1;
+                    }
+                    else
+                    {
+                        bindings.BindBuffer(2, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
+                        pc.isSkinned = 0;
+                    }
 
                     pc.model = drawCmd.model.Transposed();
+
+                    cmd->BindResources(0, bindings);
+
                     cmd->PushConstants(sizeof(PC), &pc);
                     cmd->DrawIndexed(mesh.indexCount, 1);
                 }

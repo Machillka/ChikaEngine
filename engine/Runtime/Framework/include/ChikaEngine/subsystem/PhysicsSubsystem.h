@@ -26,6 +26,7 @@ namespace ChikaEngine::Framework
         void SyncTransform();
 
       private:
+        Scene* _ownerScene = nullptr;
         std::unique_ptr<Physics::PhysicsScene> _physics = nullptr;
     };
 } // namespace ChikaEngine::Framework

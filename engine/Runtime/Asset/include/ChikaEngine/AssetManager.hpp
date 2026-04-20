@@ -12,6 +12,7 @@
  */
 #pragma once
 
+#include "AssetAnimation.hpp"
 #include "AssetHandle.hpp"
 #include "AssetLayouts.hpp"
 #include "ChikaEngine/base/SlotMap.h"
@@ -29,6 +30,9 @@ namespace ChikaEngine::Asset
         ShaderHandle LoadShader(const std::string& path);
         MaterialHandle LoadMaterial(const std::string& path);
         ShaderTemplateHandle LoadShaderTemplate(const std::string& path);
+
+        AnimationClipHandle LoadAnimationClip(const std::string& path);
+
         template <typename HandleType> MaterialHandle Load(const std::string& path) {}
 
       public:
@@ -39,6 +43,8 @@ namespace ChikaEngine::Asset
         const MaterialData* GetMaterial(MaterialHandle h) const;
         const ShaderTemplateData* GetShaderTemplate(ShaderTemplateHandle h) const;
 
+        const AnimationClipData* GetAnimationClip(AnimationClipHandle h) const;
+
       private:
         Core::SlotMap<TextureHandle, TextureData> m_textures;
         Core::SlotMap<MeshHandle, MeshData> m_meshes;
@@ -46,11 +52,15 @@ namespace ChikaEngine::Asset
         Core::SlotMap<MaterialHandle, MaterialData> m_materials;
         Core::SlotMap<ShaderTemplateHandle, ShaderTemplateData> m_shaderTemplates;
 
+        Core::SlotMap<AnimationClipHandle, AnimationClipData> m_animationClips;
+
         // 路径缓存（避免重复加载）
         std::unordered_map<std::string, TextureHandle> m_texturePathCache;
         std::unordered_map<std::string, MeshHandle> m_meshPathCache;
         std::unordered_map<std::string, ShaderHandle> m_shaderPathCache;
         std::unordered_map<std::string, MaterialHandle> m_materialPathCache;
         std::unordered_map<std::string, ShaderTemplateHandle> m_shaderTemplatePathCache;
+
+        std::unordered_map<std::string, AnimationClipHandle> m_animationClipPathCache;
     };
 } // namespace ChikaEngine::Asset

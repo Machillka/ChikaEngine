@@ -183,8 +183,16 @@ namespace ChikaEngine::Render
 
     BufferHandle VulkanRHIDevice::CreateBuffer(const BufferDesc& desc)
     {
+        if (desc.size == 0)
+        {
+            LOG_ERROR("Vulkan", "Attempted to create a buffer with size 0! Usage Enum: {}", (int)desc.usage);
+            return BufferHandle{};
+        }
+
         VkBufferCreateInfo bInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         bInfo.size = desc.size;
+        bInfo.usage = 0;
+
         switch (desc.usage)
         {
         case RHI_BufferUsage::Vertex:
@@ -203,7 +211,16 @@ namespace ChikaEngine::Render
             bInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
             break;
         default:
+            LOG_ERROR("Vulkan", "Unknown RHI_BufferUsage: {}", (int)desc.usage);
+            bInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT; // 降级处理
+
             break;
+        }
+
+        if (bInfo.usage == 0)
+        {
+            LOG_ERROR("Vulkan", "Buffer usage is 0! VMA allocation will fail.");
+            return BufferHandle{};
         }
 
         VmaAllocationCreateInfo aInfo{};
@@ -514,7 +531,7 @@ namespace ChikaEngine::Render
         allocatorInfo.physicalDevice = m_physicalDevice;
         allocatorInfo.device = m_device;
         allocatorInfo.instance = m_instance;
-
+        allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
         VmaVulkanFunctions vulkanFunctions = {};
         vulkanFunctions.vkGetInstanceProcAddr = &vkGetInstanceProcAddr;
         vulkanFunctions.vkGetDeviceProcAddr = &vkGetDeviceProcAddr;

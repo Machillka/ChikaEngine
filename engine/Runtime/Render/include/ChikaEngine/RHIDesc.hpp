@@ -21,11 +21,13 @@ namespace ChikaEngine::Render
         RGBA8_UNorm,
         BGRA8_UNorm,
         RGBA16_Float,
+        RGBA32_Float,
         R32_Float,
         D32_SFloat,
         RGB32_Float,
         RG32_Float,
         D24S8,
+        RGBA32_SInt,
     };
 
     // TODO: 实现 位运算

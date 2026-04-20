@@ -38,7 +38,7 @@ namespace ChikaEngine::Render
     {
         Math::Mat4 model;
         int isShadowPass;
-        int padding[3];
+        int isSkinned;
     };
 
     struct RendererCreateInfo
@@ -54,6 +54,8 @@ namespace ChikaEngine::Render
         Math::Mat4 model;
         Resource::MaterialHandle materialHandle;
         Resource::MeshHandle meshHandle;
+        bool isSkinned = false;
+        Render::BufferHandle boneUBO;
     };
 
     class Renderer
@@ -120,6 +122,9 @@ namespace ChikaEngine::Render
 
         BufferHandle m_sceneUBO;
         TextureHandle m_dummyTexture;
+
+        // bone
+        BufferHandle m_dummyBoneUBO;
     };
 
 } // namespace ChikaEngine::Render

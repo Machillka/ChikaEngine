@@ -6,7 +6,6 @@ layout(location = 2) in vec2 inUV;
 
 layout(location = 0) out vec4 outColor;
 
-
 layout(set = 0, binding = 0) uniform MaterialData {
     vec4 BaseColor;
 } material;
@@ -18,25 +17,22 @@ layout(set = 0, binding = 1) uniform SceneData {
     vec4 viewPos;
 } scene;
 
-
 layout(set = 0, binding = 4) uniform sampler2D shadowMap;
 layout(set = 0, binding = 5) uniform sampler2D Albedo;
 
 layout(push_constant) uniform PC {
     mat4 model;
     int isShadowPass;
+    int isSkinned;
 } pc;
 
 float ShadowCalculation(vec3 worldPos, vec3 normal)
 {
     vec4 fragPosLightSpace = scene.lightVP * vec4(worldPos, 1.0);
 
-    // 透视除法
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    // NDC [-1,1] -> [0,1]
     projCoords.xy = projCoords.xy * 0.5 + 0.5;
 
-    // 超出光源视锥：不投影
     if (projCoords.z > 1.0 || projCoords.z < 0.0)
         return 0.0;
     if (projCoords.x > 1.0 || projCoords.x < 0.0 ||
@@ -49,7 +45,6 @@ float ShadowCalculation(vec3 worldPos, vec3 normal)
     vec3 L = normalize(scene.lightDir.xyz);
     float ndotl = max(dot(normalize(normal), L), 0.0);
 
-    // 固定 bias + 角度相关，先保证不自阴影
     float bias = max(0.005 * (1.0 - ndotl), 0.001);
 
     float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
@@ -68,12 +63,13 @@ void main()
     vec3 V = normalize(scene.viewPos.xyz - inWorldPos);
     vec3 H = normalize(L + V);
 
+    N = normalize(mix(N, V, 0.2));
+
     vec3 albedoColor = texture(Albedo, inUV).rgb;
     vec3 objectColor = albedoColor * material.BaseColor.rgb;
 
-    // vec3 objectColor = vec3(0.8, 0.8, 0.8);
+    vec3 ambient = 0.4 * objectColor;
 
-    vec3 ambient = 0.2 * objectColor;
     float diff = max(dot(N, L), 0.0);
     vec3 diffuse = diff * objectColor;
 
@@ -82,7 +78,14 @@ void main()
 
     float shadow = ShadowCalculation(inWorldPos, N);
 
-    vec3 lighting = ambient + (1.0 - shadow) * (diffuse + specular);
+    float rim = 1.0 - max(dot(N, V), 0.0);
+    rim = pow(rim, 2.0);             // 柔和一点
+    vec3 rimColor = rim * objectColor * 0.4;
+
+    vec3 lighting =
+        ambient +
+        (1.0 - shadow) * (diffuse + specular) +
+        rimColor;
 
     outColor = vec4(lighting, 1.0);
 }

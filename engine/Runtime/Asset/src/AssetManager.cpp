@@ -1,3 +1,4 @@
+#include "ChikaEngine/AnimationLoader.hpp"
 #include "ChikaEngine/AssetHandle.hpp"
 #include "ChikaEngine/AssetLayouts.hpp"
 #include "ChikaEngine/MaterialLoader.hpp"
@@ -61,6 +62,16 @@ namespace ChikaEngine::Asset
         return handle;
     }
 
+    AnimationClipHandle AssetManager::LoadAnimationClip(const std::string& path)
+    {
+        if (m_animationClipPathCache.contains(path))
+            return m_animationClipPathCache[path];
+        auto data = AnimationLoader::Load(path);
+        auto handle = m_animationClips.Create(*data);
+        m_animationClipPathCache[path] = handle;
+        return handle;
+    }
+
     const MeshData* AssetManager::GetMesh(MeshHandle h) const
     {
         return m_meshes.Get(h);
@@ -84,6 +95,11 @@ namespace ChikaEngine::Asset
     const MaterialData* AssetManager::GetMaterial(MaterialHandle h) const
     {
         return m_materials.Get(h);
+    }
+
+    const AnimationClipData* AssetManager::GetAnimationClip(AnimationClipHandle h) const
+    {
+        return m_animationClips.Get(h);
     }
 
 } // namespace ChikaEngine::Asset

@@ -1,0 +1,19 @@
+{
+    "name": "ChikaBodyMaterial",
+    "shader": {
+        "template": "Assets/Materials/skinned.template.json"
+    },
+    "parameters": {
+        "Base": {
+            "Color": [
+                1.0,
+                0.8,
+                0.8,
+                1.0
+            ]
+        }
+    },
+    "textures": {
+        "Albedo": "Assets/Textures/fox.png"
+    }
+}

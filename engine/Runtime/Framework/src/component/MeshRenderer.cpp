@@ -4,6 +4,9 @@ namespace ChikaEngine::Framework
 {
     MeshRenderer::MeshRenderer(const std::string& meshPath, const std::string& materialPath) : _dirty(true), _meshPath(meshPath), _materialPath(materialPath) {}
 
+    // write down by copilot
+    MeshRenderer::MeshRenderer() : _dirty(true) {}
+
     /*!
      * @brief 把 Path 从 Asset 中加载并且缓存 handle
      *

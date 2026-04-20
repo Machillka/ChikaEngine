@@ -22,8 +22,5 @@ namespace ChikaEngine::Framework
         // virtual void Initialize(Scene* ownerWorld) = 0;
         virtual void Tick(float deltaTime) = 0;
         virtual void Cleanup() = 0;
-
-      protected:
-        Scene* _ownerScene;
     };
 } // namespace ChikaEngine::Framework

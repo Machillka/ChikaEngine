@@ -36,6 +36,8 @@ namespace ChikaEngine::Render
             return VK_FORMAT_B8G8R8A8_UNORM;
         case RHI_Format::RGBA16_Float:
             return VK_FORMAT_R16G16B16A16_SFLOAT;
+        case RHI_Format::RGBA32_Float:
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
         case RHI_Format::R32_Float:
             return VK_FORMAT_R32_SFLOAT;
         case RHI_Format::D24S8:
@@ -46,7 +48,8 @@ namespace ChikaEngine::Render
             return VK_FORMAT_R32G32B32_SFLOAT;
         case RHI_Format::RG32_Float:
             return VK_FORMAT_R32G32_SFLOAT;
-
+        case RHI_Format::RGBA32_SInt:
+            return VK_FORMAT_R32G32B32A32_SINT;
         default:
             return VK_FORMAT_UNDEFINED;
         }

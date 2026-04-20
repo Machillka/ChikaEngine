@@ -3,13 +3,17 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
-#include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/component/Animator.hpp"
 #include "ChikaEngine/debug/log_system.h"
 #include "ChikaEngine/debug/console_sink.h"
+#include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/scene/scene.hpp"
 #include "glfw/glfw3.h"
+
+#include "ChikaEngine/reflection/TypeRegister.h"
 #include <iostream>
 #include <memory>
+
 int main()
 {
     ChikaEngine::Debug::LogSystem::Instance().AddSink(std::make_unique<ChikaEngine::Debug::ConsoleLogSink>());
@@ -35,16 +39,20 @@ int main()
         Framework::SceneCreateInfo sceneCreateInfo{ .renderInstance = render.get() };
         scene.Initialize(sceneCreateInfo);
 
-        auto batmanID = scene.CreateGameobject("batman");
-        scene.GetGameObject(batmanID)->AddComponent<Framework::MeshRenderer>("Assets/Meshes/batman.obj", "Assets/Materials/test.json");
-        scene.GetGameObject(batmanID)->transform->Translate(0.0f, 0.0f, 1.0f);
-        // scene.GetGameObject(batmanID)->AddComponent<Framework::Rigidbody>();
+        ChikaEngine::Reflection::InitAllReflection();
 
+        auto batmanID = scene.CreateGameobject("batman");
+        scene.GetGameObject(batmanID)->AddComponent<Framework::MeshRenderer>("Assets/Meshes/Fox.gltf", "Assets/Materials/fox.json");
+        scene.GetGameObject(batmanID)->transform->Scale(0.02f);
+        scene.GetGameObject(batmanID)->transform->Translate(Math::Vector3(0.0f, 0.2f, 0.0f));
+        scene.GetGameObject(batmanID)->transform->Rotate(Math::Vector3(0.0f, 0.5f, 0.0f));
+        scene.GetGameObject(batmanID)->AddComponent<Framework::Animator>("Assets/Meshes/Fox.gltf");
+
+        scene.GetGameObject(batmanID)->GetComponent<Framework::Animator>()->IsPlaying = true;
         auto planeId = scene.CreateGameobject("plane");
-        scene.GetGameObject("plane")->AddComponent<Framework::MeshRenderer>("Assets/Meshes/cube.obj", "Assets/Materials/floor.json");
+        scene.GetGameObject("plane")->AddComponent<Framework::MeshRenderer>("Assets/Meshes/Box.gltf", "Assets/Materials/floor.json");
         scene.GetGameObject("plane")->transform->Scale(10.0f, 0.1f, 10.f);
-        scene.GetGameObject("plane")->AddComponent<Framework::Rigidbody>();
-        LOG_INFO("Main", "Plane ID = {}", planeId);
+
         double lastTime = glfwGetTime();
         while (!glfwWindowShouldClose(window))
         {
@@ -54,7 +62,6 @@ int main()
             float dt = float(now - lastTime);
             lastTime = now;
             render->BeginFrame();
-            scene.GetGameObject(batmanID)->transform->Rotate(Math::Vector3(0.0f, 1.0f, 0.0f) * dt);
             scene.Tick(dt);
             render->Tick(dt);
             render->EndFrame();
