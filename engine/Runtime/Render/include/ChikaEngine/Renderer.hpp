@@ -82,19 +82,48 @@ namespace ChikaEngine::Render
       public:
         IRHIDevice* GetRHIHandle() const;
 
-      private:
+      public:
+        void SubmitImGuiData(void* drawData)
+        {
+            m_imguiDrawData = drawData;
+        }
+        void RequestResize(uint32_t width, uint32_t height);
+        uint32_t GetViewportWidth() const
+        {
+            return m_viewportWidth;
+        }
+        uint32_t GetViewportHeight() const
+        {
+            return m_viewportHeight;
+        }
         // 写死 Imgui 的使用逻辑
-        void SetupImgui();
+        TextureHandle GetOffscreenTexture() const
+        {
+            return m_offscreenColor;
+        }
+      private:
+
         void BuildRenderGraph();
-        void RecordImGuiPass(IRHICommandList* cmd);
 
       private:
         void AddMainScenePass();
         void AddUploadPasses();
         void AddShadowPass();
+        void HandlePendingResize();
+        void AddImGuiPass();
 
       private:
         std::vector<DrawCommand> m_drawCommandQueue;
+
+      private:
+        // 视口尺寸状态
+        uint32_t m_viewportWidth = 1920;
+        uint32_t m_viewportHeight = 1080;
+        bool m_isResizePending = false;
+        uint32_t m_pendingWidth = 1920;
+        uint32_t m_pendingHeight = 1080;
+
+        void* m_imguiDrawData = nullptr;
 
       private:
         void* m_window = nullptr;
@@ -104,6 +133,7 @@ namespace ChikaEngine::Render
         uint32_t m_width = 1920;
         uint32_t m_height = 1080;
         TextureHandle m_offscreenColor;
+        RGTextureHandle m_rgOffscreen;
 
         std::unique_ptr<Resource::ResourceManager> m_resourceMgr = nullptr;
         Asset::AssetManager* m_assetMgr = nullptr;

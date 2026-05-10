@@ -15,6 +15,9 @@ namespace ChikaEngine::Render
         m_height = createInfo.height;
         m_assetMgr = createInfo.assetManager;
 
+        m_viewportWidth = m_width;
+        m_viewportHeight = m_height;
+
         RHI_InitParams params{
             .nativeWindowHandle = createInfo.windowHandle,
             .width = createInfo.width,
@@ -75,6 +78,17 @@ namespace ChikaEngine::Render
             }
         }
 
+        // 离屏纹理
+        TextureDesc colorDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::RGBA8_UNorm,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
+        };
+        m_offscreenColor = m_rhi->CreateTexture(colorDesc);
+
         // 深度 dump texture
         TextureDesc dummyDesc{
             .width = 1,
@@ -87,14 +101,16 @@ namespace ChikaEngine::Render
         m_dummyTexture = m_rhi->CreateTexture(dummyDesc);
 
         // 深度纹理
+        // FIXED: 修改成 view port 大小
         TextureDesc depthDesc{
-            .width = m_width,
-            .height = m_height,
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
             .format = Render::RHI_Format::D32_SFloat,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
         };
+        m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_rgDepth = m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc);
 
@@ -141,9 +157,19 @@ namespace ChikaEngine::Render
     {
         m_renderGraph->Clear();
 
+        Render::TextureDesc offscreenDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::RGBA8_UNorm,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
+        };
+        m_rgOffscreen = m_renderGraph->ImportTexture("OffscreenColor", m_offscreenColor, offscreenDesc);
+
         Render::TextureDesc depthDesc{
-            .width = m_width,
-            .height = m_height,
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
             .format = Render::RHI_Format::D32_SFloat,
             .mipLevels = 1,
             .arrayLayers = 1,
@@ -186,6 +212,7 @@ namespace ChikaEngine::Render
         AddUploadPasses();
         AddShadowPass();
         AddMainScenePass();
+        AddImGuiPass();
 
         m_renderGraph->AddPresentPass("Present", m_rgSwapchain);
 
@@ -282,7 +309,9 @@ namespace ChikaEngine::Render
             {
                 builder.ReadTexture(m_rgShadowDepth, ResourceState::ShaderResource);
                 const float clearColor[4] = { 0.1f, 0.2f, 0.3f, 1.0f };
-                builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
+                // builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
+                // builder.WriteDepth(m_rgDepth, LoadOp::Clear);
+                builder.WriteColor(m_rgOffscreen, LoadOp::Clear, clearColor);
                 builder.WriteDepth(m_rgDepth, LoadOp::Clear);
             },
             [this](IRHICommandList* cmd, RenderGraph* graph)
@@ -324,9 +353,28 @@ namespace ChikaEngine::Render
                 }
             });
     }
+    void Renderer::AddImGuiPass()
+    {
+        m_renderGraph->AddPass(
+            "ImGui UI Pass",
+            [&](RGPassBuilder& builder)
+            {
+                builder.ReadTexture(m_rgOffscreen, ResourceState::ShaderResource);
 
+                const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+                builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
+            },
+            [this](IRHICommandList* cmd, RenderGraph* graph)
+            {
+                if (m_imguiDrawData)
+                {
+                    cmd->DrawImGui(m_imguiDrawData);
+                }
+            });
+    }
     void Renderer::BeginFrame()
     {
+        HandlePendingResize();
         m_rhi->BeginFrame();
     }
 
@@ -392,4 +440,60 @@ namespace ChikaEngine::Render
         m_renderGraph->Clear();
         m_rhi->DestroyTexture(m_offscreenColor);
     }
+
+    /*!
+     * @brief  提供 resize 的标记, 这样在一次 drawcall 之间多次调用只会记录最后一次数据
+     *
+     * @param  width
+     * @param  height
+     * @author Machillka (machillka2007@gmail.com)
+     * @date 2026-04-26
+     */
+    void Renderer::RequestResize(uint32_t width, uint32_t height)
+    {
+        if (width == 0 || height == 0)
+            return;
+        if (width != m_viewportWidth || height != m_viewportHeight)
+        {
+            m_isResizePending = true;
+            m_pendingWidth = width;
+            m_pendingHeight = height;
+        }
+    }
+
+    void Renderer::HandlePendingResize()
+    {
+        if (!m_isResizePending)
+            return;
+
+        m_viewportWidth = m_pendingWidth;
+        m_viewportHeight = m_pendingHeight;
+        m_isResizePending = false;
+
+        m_rhi->DestroyTexture(m_offscreenColor);
+        m_rhi->DestroyTexture(m_depthTexture);
+
+        // 重建 Color
+        TextureDesc colorDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::RGBA8_UNorm,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
+        };
+        m_offscreenColor = m_rhi->CreateTexture(colorDesc);
+
+        // 重建 Depth
+        TextureDesc depthDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::D32_SFloat,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
+        };
+        m_depthTexture = m_rhi->CreateTexture(depthDesc);
+    }
+
 } // namespace ChikaEngine::Render

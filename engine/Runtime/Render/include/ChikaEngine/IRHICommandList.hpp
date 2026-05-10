@@ -46,5 +46,8 @@ namespace ChikaEngine::Render
 
         // 绘制命令
         virtual void DrawIndexed(uint32_t indexCount, uint32_t instanceCount) = 0;
+
+        // imgui 特化
+        virtual void DrawImGui(void* drawData) = 0;
     };
 } // namespace ChikaEngine::Render

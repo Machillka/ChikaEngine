@@ -40,6 +40,8 @@ namespace ChikaEngine::Render
         void* GetImGuiTextureHandle(TextureHandle handle) override;
         TextureHandle GetActiveSwapchainTexture() override;
 
+        void InitializeImgui() override;
+
       public:
         VkDescriptorSet AllocateTransientDescriptorSet();
         VulkanBuffer* GetVkBuffer(BufferHandle h)

@@ -8,6 +8,7 @@
 #include "ChikaEngine/debug/console_sink.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/scene/scene.hpp"
+#include "EditorManager.hpp"
 #include "glfw/glfw3.h"
 
 #include "ChikaEngine/reflection/TypeRegister.h"
@@ -25,12 +26,10 @@ int main()
             throw std::runtime_error("Failed to initialize GLFW");
         }
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        GLFWwindow* window = glfwCreateWindow(1280, 720, "Chika Engine - Pure Renderer Test", nullptr, nullptr);
+        GLFWwindow* window = glfwCreateWindow(1280, 720, "Chika Engine", nullptr, nullptr);
 
         Core::UIDGenerator::Instance().Init(114);
-
         auto assetManager = std::make_unique<Asset::AssetManager>();
-
         auto render = std::make_unique<ChikaEngine::Render::Renderer>();
         ChikaEngine::Render::RendererCreateInfo info{ .windowHandle = window, .assetManager = assetManager.get(), .width = 1280, .height = 720 };
         render->Initialize(info);
@@ -40,6 +39,12 @@ int main()
         scene.Initialize(sceneCreateInfo);
 
         ChikaEngine::Reflection::InitAllReflection();
+
+        std::unique_ptr<Editor::EditorManager> editor = std::make_unique<Editor::EditorManager>();
+        Editor::EditorCreateInfo editorCreateInfo = {};
+        editorCreateInfo.renderer = render.get();
+        editorCreateInfo.window = window;
+        editor->Initialize(editorCreateInfo);
 
         auto batmanID = scene.CreateGameobject("batman");
         scene.GetGameObject(batmanID)->AddComponent<Framework::MeshRenderer>("Assets/Meshes/Fox.gltf", "Assets/Materials/fox.json");
@@ -61,6 +66,10 @@ int main()
             double now = glfwGetTime();
             float dt = float(now - lastTime);
             lastTime = now;
+
+            editor->BeginFrame();
+            editor->OnImGuiRender();
+            editor->Tick(dt);
             render->BeginFrame();
             scene.Tick(dt);
             render->Tick(dt);

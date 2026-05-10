@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ChikaEngine/RHIDesc.hpp"
+#include "RHIDesc.hpp"
 #include "RenderGraphHandle.hpp"
 #include <string>
 namespace ChikaEngine::Render

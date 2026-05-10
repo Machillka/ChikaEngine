@@ -45,6 +45,8 @@ namespace ChikaEngine::Render
 
         virtual TextureHandle GetActiveSwapchainTexture() = 0;
 
+        virtual void InitializeImgui() = 0;
+
         // 暴露 texture handle 给上层 如 imgui 等 display
         // virtual void GetTextureHandle(TextureHandle handle) = 0;
         // 对 imgui 特化

@@ -4,6 +4,7 @@
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include "VulkanRHIDevice.hpp"
 #include <vulkan/vulkan.h>
+#include <backends/imgui_impl_vulkan.h>
 
 namespace ChikaEngine::Render
 {
@@ -39,6 +40,15 @@ namespace ChikaEngine::Render
         VkCommandBuffer GetVkCmdRaw() const
         {
             return m_cmd;
+        }
+
+        void DrawImGui(void* drawData) override
+        {
+            if (!drawData)
+                return;
+            // 强制转换回 ImDrawData，调用 Vulkan 后端将其录制进当前 CommandBuffer
+            ImDrawData* data = static_cast<ImDrawData*>(drawData);
+            ImGui_ImplVulkan_RenderDrawData(data, m_cmd);
         }
 
       private:
