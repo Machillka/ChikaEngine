@@ -1,6 +1,6 @@
 set(TARGET_NAME ChikaPlatform)
 
-file(GLOB_RECURSE CORE_PUBLIC_HEADERS "include/*.h")
+file(GLOB_RECURSE CORE_PUBLIC_HEADERS "include/*.hpp")
 file(GLOB_RECURSE CORE_SOURCES "src/*.cpp")
 
 add_library(${TARGET_NAME} STATIC

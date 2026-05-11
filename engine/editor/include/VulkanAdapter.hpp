@@ -10,3 +10,28 @@
  */
 #pragma once
 
+namespace ChikaEngine::Render
+{
+    class Renderer;
+}
+
+struct GLFWwindow;
+
+namespace ChikaEngine::Editor
+{
+    class VulkanAdapter
+    {
+      public:
+        // 初始化 ImGui 上下文，对接 GLFW，并调用 RHI 的 ImGui 初始化
+        void Initialize(GLFWwindow* window, Render::Renderer* renderer);
+        void Shutdown();
+
+        // 开启新的一帧 ImGui
+        void BeginFrame();
+        // 结束 ImGui 逻辑提交，生成 DrawData，并处理多窗口 Viewport
+        void EndFrame();
+
+      private:
+        Render::Renderer* _renderer = nullptr;
+    };
+} // namespace ChikaEngine::Editor

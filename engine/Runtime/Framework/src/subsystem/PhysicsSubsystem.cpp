@@ -59,7 +59,7 @@ namespace ChikaEngine::Framework
             if (!go)
                 continue;
 
-            LOG_INFO("Sync Transform", "ID = {}, originY: {}, phyY: {}", goId, go->transform->position.y, physicsTransform.pos.y);
+            // LOG_INFO("Sync Transform", "ID = {}, originY: {}, phyY: {}", goId, go->transform->position.y, physicsTransform.pos.y);
             go->transform->position = physicsTransform.pos;
             go->transform->rotation = physicsTransform.rot;
         }

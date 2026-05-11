@@ -23,6 +23,8 @@ namespace ChikaEngine::Framework
         _renderSubsystem = std::make_unique<RenderSubsystem>(this, createInfo.renderInstance);
         _physicsSubsystem = std::make_unique<PhysicsSubsystem>(this);
         _animationSubsystem = std::make_unique<AnimationSubsystem>(this, createInfo.renderInstance->GetAssetManager());
+
+        _mode = SceneModes::Edit;
     }
 
     Core::GameObjectID Scene::CreateGameobject(std::string name)
@@ -63,12 +65,6 @@ namespace ChikaEngine::Framework
 
     void Scene::Tick(float deltaTime)
     {
-        for (auto& go : _gameobjects)
-        {
-            // LOG_INFO("Scene", "Ticking GameObject: {}", go->GetName());
-            go->Tick(deltaTime);
-        }
-
         if (_mode == SceneModes::Play)
         {
             for (auto& go : _gameobjects)

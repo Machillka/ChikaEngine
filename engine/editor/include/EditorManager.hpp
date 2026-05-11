@@ -3,11 +3,17 @@
 #include "ChikaEngine/Renderer.hpp"
 #include "EditorContext.hpp"
 #include "IEditorPanel.hpp"
+#include "VulkanAdapter.hpp"
 #include <memory>
 #include <utility>
 #include <vector>
 
-class GLFWwindow;
+struct GLFWwindow;
+
+namespace ChikaEngine::Framework
+{
+    class Scene;
+}
 
 namespace ChikaEngine::Editor
 {
@@ -16,6 +22,7 @@ namespace ChikaEngine::Editor
     {
         Render::Renderer* renderer;
         void* window; // TODO: 重构窗口类
+        Framework::Scene* scene;
     };
 
     class EditorManager
@@ -24,6 +31,7 @@ namespace ChikaEngine::Editor
         void Initialize(const EditorCreateInfo& createInfo);
         void Shutdown();
         void Tick(float deltaTime);
+
         void OnImGuiRender();
 
         void BeginFrame();
@@ -44,7 +52,9 @@ namespace ChikaEngine::Editor
       private:
         EditorContext _context;
         std::vector<std::unique_ptr<IEditorPanel>> _panels;
-        GLFWwindow* _windowHandle;
-        Render::Renderer* _renderer;
+        GLFWwindow* _windowHandle = nullptr;
+        Render::Renderer* _renderer = nullptr;
+
+        VulkanAdapter _adapter;
     };
 } // namespace ChikaEngine::Editor

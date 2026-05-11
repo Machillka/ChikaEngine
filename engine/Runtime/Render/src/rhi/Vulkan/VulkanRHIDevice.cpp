@@ -5,6 +5,7 @@
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include <ChikaEngine/rhi/Vulkan/VulkanRHIDevice.hpp>
 #include <ChikaEngine/rhi/Vulkan/VulkanHelper.hpp>
+#include <algorithm>
 #include <array>
 #include <backends/imgui_impl_vulkan.h>
 #include <cstdint>
@@ -51,7 +52,13 @@ namespace ChikaEngine::Render
         // {
         //     vkDestroyImageView(m_device, imageView, nullptr);
         // }
-        vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+        // vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+        CleanupSwapchain();
+
+        if (imguiPool != VK_NULL_HANDLE)
+        {
+            ImGui_ImplVulkan_Shutdown();
+        }
 
         for (uint32_t i = 0; i < m_imageCount; i++)
         {
@@ -65,6 +72,12 @@ namespace ChikaEngine::Render
             vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
             vkDestroyCommandPool(m_device, m_commandPools[i], nullptr);
             vkDestroyDescriptorPool(m_device, m_descriptorPools[i], nullptr);
+        }
+
+        if (imguiPool != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(m_device, imguiPool, nullptr);
+            imguiPool = VK_NULL_HANDLE;
         }
 
         vkDestroySampler(m_device, m_defaultSampler, nullptr);
@@ -108,12 +121,23 @@ namespace ChikaEngine::Render
 
     void VulkanRHIDevice::BeginFrame()
     {
+        m_frameSkipped = false;
         vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
-        VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex), "Failed to acquire swapchain image");
+        VkResult res = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex);
+
+        if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            m_frameSkipped = true; // 告诉底层本帧作废
+            return;
+        }
+        else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+        {
+            LOG_ERROR("Vulkan", "Failed to acquire swapchain image");
+            return;
+        }
 
         vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
-
         vkResetCommandPool(m_device, m_commandPools[m_currentFrame], 0);
         vkResetDescriptorPool(m_device, m_descriptorPools[m_currentFrame], 0);
 
@@ -123,6 +147,10 @@ namespace ChikaEngine::Render
 
     void VulkanRHIDevice::EndFrame()
     {
+        // 获得图像失败, 先跳过
+        if (m_frameSkipped)
+            return;
+
         // Submit
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -167,7 +195,12 @@ namespace ChikaEngine::Render
         presentInfo.pSwapchains = &m_swapchain;
         presentInfo.pImageIndices = &m_currentImageIndex;
 
-        vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+        // 如果呈现的时候出现问题——
+        VkResult res = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+        if (res != VK_SUCCESS && res != VK_ERROR_OUT_OF_DATE_KHR && res != VK_SUBOPTIMAL_KHR)
+        {
+            LOG_ERROR("Vulkan", "Failed to present");
+        }
 
         m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         m_absoluteFrame++;
@@ -613,10 +646,31 @@ namespace ChikaEngine::Render
 
     void VulkanRHIDevice::CreateSwapchain()
     {
-        auto glfwWindowHandle = static_cast<GLFWwindow*>(m_windowHandle);
+        // auto glfwWindowHandle = static_cast<GLFWwindow*>(m_windowHandle);
         m_swapchainExtent = { m_width, m_height };
 
-        // TODO: 检查是否支持托惨
+        // TODO[x]: 检查是否支持
+
+        VkSurfaceCapabilitiesKHR capabilities;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &capabilities);
+
+        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+        {
+            m_swapchainExtent = capabilities.currentExtent;
+        }
+        else
+        {
+            // 严格钳制在允许的大小范围内
+            m_swapchainExtent.width = std::clamp(m_width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            m_swapchainExtent.height = std::clamp(m_height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        }
+
+        uint32_t imageCount = capabilities.minImageCount + 1;
+        if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount)
+        {
+            imageCount = capabilities.maxImageCount;
+        }
+
         m_swapchainFormat = VK_FORMAT_B8G8R8A8_UNORM;
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -632,6 +686,7 @@ namespace ChikaEngine::Render
         createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR; // V-Sync
         createInfo.clipped = VK_TRUE;
+        createInfo.oldSwapchain = VK_NULL_HANDLE;
 
         VK_CHECK(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain), "Failed to create swapchain");
 
@@ -739,13 +794,18 @@ namespace ChikaEngine::Render
                 {
                     TextureHandle h{ it->handleRaw };
                     VulkanTexture* tex = m_textures.Get(h);
-                    if (tex->view)
+                    if (tex)
                     {
-                        vkDestroyImageView(m_device, tex->view, nullptr);
-                    }
-                    if (tex->allocation)
-                    {
-                        vmaDestroyImage(m_allocator, tex->image, tex->allocation);
+                        if (tex->view)
+                            vkDestroyImageView(m_device, tex->view, nullptr);
+                        if (tex->allocation)
+                            vmaDestroyImage(m_allocator, tex->image, tex->allocation);
+
+                        tex->view = VK_NULL_HANDLE;
+                        tex->image = VK_NULL_HANDLE;
+                        tex->allocation = nullptr;
+
+                        m_textures.Destroy(h);
                     }
                     it = m_textureDeletionQueue.erase(it);
                 }
@@ -804,19 +864,75 @@ namespace ChikaEngine::Render
         pool_info.pPoolSizes = pool_sizes;
 
         // NOTE: 这里 imgui pool 不是直接被清理掉了吗？？生命周期这块
-        VkDescriptorPool imguiPool;
+
         VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool), "Create descriptor pool for imgui failed");
 
         ImGui_ImplVulkan_InitInfo initInfo = {};
+        initInfo.ApiVersion = VK_API_VERSION_1_3;
         initInfo.Instance = m_instance;
         initInfo.PhysicalDevice = m_physicalDevice;
         initInfo.Device = m_device;
+        initInfo.QueueFamily = m_graphicsQueueFamily;
         initInfo.Queue = m_graphicsQueue;
-        // initInfo.DescriptorPool = m_descriptorPools[m_currentFrame];
         initInfo.MinImageCount = 2;
         initInfo.ImageCount = m_imageCount;
         initInfo.DescriptorPool = imguiPool;
+        initInfo.UseDynamicRendering = true;
+        initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo = {};
+        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_swapchainFormat;
 
         ImGui_ImplVulkan_Init(&initInfo);
     }
+
+    void VulkanRHIDevice::WaitIdle()
+    {
+        // 强制 CPU 等待整个 Vulkan 逻辑设备完全空闲
+        vkDeviceWaitIdle(m_device);
+    }
+
+    void VulkanRHIDevice::CleanupSwapchain()
+    {
+        for (size_t i = 0; i < m_swapchainImageViews.size(); i++)
+        {
+            if (m_swapchainImageViews[i] != VK_NULL_HANDLE)
+            {
+                vkDestroyImageView(m_device, m_swapchainImageViews[i], nullptr);
+            }
+            if (m_swapchainTextures[i].IsValid())
+            {
+                VulkanTexture* tex = m_textures.Get(m_swapchainTextures[i]);
+                if (tex)
+                {
+                    tex->view = VK_NULL_HANDLE;
+                    tex->image = VK_NULL_HANDLE;
+                }
+                m_textures.Destroy(m_swapchainTextures[i]);
+            }
+        }
+
+        if (m_swapchain != VK_NULL_HANDLE)
+        {
+            vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+            m_swapchain = VK_NULL_HANDLE;
+        }
+
+        m_swapchainImageViews.clear();
+        m_swapchainImages.clear();
+        m_swapchainTextures.clear();
+    }
+
+    void VulkanRHIDevice::Resize(uint32_t width, uint32_t height)
+    {
+        m_width = width;
+        m_height = height;
+
+        WaitIdle();
+
+        CleanupSwapchain();
+        CreateSwapchain();
+    }
+
 } // namespace ChikaEngine::Render

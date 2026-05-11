@@ -2,7 +2,7 @@ set(TARGET_NAME ChikaRuntime)
 
 add_subdirectory(Core)
 add_subdirectory(Asset)
-# add_subdirectory(Platform)
+add_subdirectory(Platform)
 add_subdirectory(Render)
 add_subdirectory(Resource)
 add_subdirectory(Input)
@@ -16,7 +16,7 @@ add_library(${TARGET_NAME} INTERFACE)
 target_link_libraries(${TARGET_NAME} INTERFACE
     ChikaCore
     ChikaAsset
-    # ChikaPlatform
+    ChikaPlatform
     ChikaRender
     ChikaResource
     ChikaInput

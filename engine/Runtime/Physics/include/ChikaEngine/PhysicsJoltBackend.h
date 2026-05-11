@@ -27,7 +27,7 @@ namespace ChikaEngine::Physics
     {
       public:
         PhysicsJoltBackend();
-        ~PhysicsJoltBackend();
+        ~PhysicsJoltBackend() override;
         bool Initialize(const PhysicsInitDesc& desc) override;
         void Shutdown() override;
         void Simulate(float fixedDeltaTime) override;

@@ -10,10 +10,10 @@
  */
 #pragma once
 
+#include "Camera.hpp"
 #include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/ResourceHandle.hpp"
 #include "ChikaEngine/ResourceManager.hpp"
-#include "IRHICommandList.hpp"
 #include "IRHIDevice.hpp"
 #include "RHIResourceHandle.hpp"
 #include "RenderGraph.hpp"
@@ -73,7 +73,22 @@ namespace ChikaEngine::Render
 
         // 先使用单全局光
         void SubmitLight(Math::Mat4& lightMat, Math::Vector3 lightPos);
-        void SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos);
+        // void SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos);
+
+      public:
+        // 相机设置
+        void SetActiveCamera(Camera* camera)
+        {
+            m_activeCamera = camera;
+        }
+        Camera* GetActiveCamera() const
+        {
+            return m_activeCamera;
+        }
+        float GetViewportAspectRatio() const
+        {
+            return static_cast<float>(m_viewportWidth) / static_cast<float>(m_viewportHeight);
+        }
 
       public:
         Asset::AssetManager* GetAssetManager();
@@ -87,7 +102,7 @@ namespace ChikaEngine::Render
         {
             m_imguiDrawData = drawData;
         }
-        void RequestResize(uint32_t width, uint32_t height);
+        // void RequestResize(uint32_t width, uint32_t height);
         uint32_t GetViewportWidth() const
         {
             return m_viewportWidth;
@@ -96,13 +111,19 @@ namespace ChikaEngine::Render
         {
             return m_viewportHeight;
         }
-        // 写死 Imgui 的使用逻辑
+
         TextureHandle GetOffscreenTexture() const
         {
             return m_offscreenColor;
         }
-      private:
 
+      public:
+        // handle window resize -> notified by window layer
+        void OnWindowResize(uint32_t width, uint32_t height);
+        // Handle view port resize -> notified by editor layer
+        void OnViewResize(uint32_t width, uint32_t height);
+
+      private:
         void BuildRenderGraph();
 
       private:
@@ -119,9 +140,15 @@ namespace ChikaEngine::Render
         // 视口尺寸状态
         uint32_t m_viewportWidth = 1920;
         uint32_t m_viewportHeight = 1080;
-        bool m_isResizePending = false;
-        uint32_t m_pendingWidth = 1920;
-        uint32_t m_pendingHeight = 1080;
+
+        // bool m_isResizePending = false;
+        // uint32_t m_pendingWidth = 1920;
+        // uint32_t m_pendingHeight = 1080;
+
+        // 给 view 试图重建构建的记录参数
+        bool m_isViewResizePending = false;
+        uint32_t m_pendingViewWidth;
+        uint32_t m_pendingViewHeight;
 
         void* m_imguiDrawData = nullptr;
 
@@ -130,6 +157,7 @@ namespace ChikaEngine::Render
         std::unique_ptr<IRHIDevice> m_rhi = nullptr;
         std::unique_ptr<RenderGraph> m_renderGraph = nullptr;
 
+        // window 大小
         uint32_t m_width = 1920;
         uint32_t m_height = 1080;
         TextureHandle m_offscreenColor;
@@ -155,6 +183,13 @@ namespace ChikaEngine::Render
 
         // bone
         BufferHandle m_dummyBoneUBO;
+
+      private:
+        // 指向当前 被激活的相机
+        Camera* m_activeCamera = nullptr;
+
+        // 默认指针
+        std::unique_ptr<Camera> m_defaultCamera;
     };
 
 } // namespace ChikaEngine::Render

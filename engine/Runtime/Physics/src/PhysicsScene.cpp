@@ -25,6 +25,7 @@ namespace ChikaEngine::Physics
             LOG_ERROR("Physics", "No supported backend");
             return false;
         case PhysicsBackendTypes::Jolt:
+        default:
             _backend = std::make_unique<PhysicsJoltBackend>();
         }
 

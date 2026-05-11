@@ -378,7 +378,8 @@ namespace ChikaEngine::Physics
         const JPH::NarrowPhaseQuery& query = _physicsSystem->GetNarrowPhaseQuery();
 
         // if (query.CastRay(ray, hit))
-        if (query.CastRay(ray, hit, JPH::SpecifiedBroadPhaseLayerFilter(JoltHelper::BroadPhaseLayers::NON_MOVING), JPH::ObjectLayerFilter(), JPH::BodyFilter()))
+        // if (query.CastRay(ray, hit, JPH::SpecifiedBroadPhaseLayerFilter(JoltHelper::BroadPhaseLayers::NON_MOVING), JPH::ObjectLayerFilter(), JPH::BodyFilter()))
+        if (query.CastRay(ray, hit))
         {
             // 3. 获取详细信息
             JPH::BodyLockRead lock(_physicsSystem->GetBodyLockInterface(), hit.mBodyID);

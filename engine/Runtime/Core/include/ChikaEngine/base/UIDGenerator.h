@@ -7,6 +7,12 @@ namespace ChikaEngine::Core
 
     using GameObjectID = std::uint64_t; // 使用 64bits 符合雪花算法
 
+    inline constexpr GameObjectID InvalidGameObjectID = 0;
+    inline constexpr bool IsValidGameObjectID(GameObjectID id) noexcept
+    {
+        return id != InvalidGameObjectID;
+    }
+
     // TODO: 创建 machine 分配到能力,使得其可以处理多线程多机器
     class UIDGenerator
     {

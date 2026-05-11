@@ -13,13 +13,20 @@
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include <string>
+
+namespace ChikaEngine::Framework
+{
+    class Scene;
+}
+
 namespace ChikaEngine::Editor
 {
     struct EditorContext
     {
         Render::Renderer* renderer = nullptr;
+        Framework::Scene* activeScene = nullptr;
 
-        Core::GameObjectID selectedGameObject;
+        Core::GameObjectID selectedGameObject = Core::InvalidGameObjectID;
         std::string selectedPath = "";
 
         bool isViewportHovered = false;
