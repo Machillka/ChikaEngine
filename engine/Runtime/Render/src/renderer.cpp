@@ -1,6 +1,7 @@
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RenderPassBuilder.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/rhi/Vulkan/VulkanRHIDevice.hpp"
@@ -14,6 +15,20 @@ namespace ChikaEngine::Render
         m_width = createInfo.width;
         m_height = createInfo.height;
         m_assetMgr = createInfo.assetManager;
+
+        m_viewportWidth = m_width;
+        m_viewportHeight = m_height;
+
+        m_defaultCamera = std::make_unique<Camera>();
+        // 设置纵横比
+        m_defaultCamera->SetPerspective(45.0f, GetViewportAspectRatio(), 0.1f, 1000.0f);
+
+        // 设置初始位置和朝向
+        m_defaultCamera->SetPosition(Math::Vector3(0.0f, 4.0f, 8.0f));
+        m_defaultCamera->SetLookAt(Math::Vector3(0.0f, 0.0f, 0.0f));
+
+        // 初始状态下指向默认摄像机
+        m_activeCamera = m_defaultCamera.get();
 
         RHI_InitParams params{
             .nativeWindowHandle = createInfo.windowHandle,
@@ -75,6 +90,17 @@ namespace ChikaEngine::Render
             }
         }
 
+        // 离屏纹理
+        TextureDesc colorDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::BGRA8_UNorm,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
+        };
+        m_offscreenColor = m_rhi->CreateTexture(colorDesc);
+
         // 深度 dump texture
         TextureDesc dummyDesc{
             .width = 1,
@@ -87,14 +113,16 @@ namespace ChikaEngine::Render
         m_dummyTexture = m_rhi->CreateTexture(dummyDesc);
 
         // 深度纹理
+        // FIXED: 修改成 view port 大小
         TextureDesc depthDesc{
-            .width = m_width,
-            .height = m_height,
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
             .format = Render::RHI_Format::D32_SFloat,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
         };
+        m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_rgDepth = m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc);
 
@@ -141,9 +169,19 @@ namespace ChikaEngine::Render
     {
         m_renderGraph->Clear();
 
+        Render::TextureDesc offscreenDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::BGRA8_UNorm,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
+        };
+        m_rgOffscreen = m_renderGraph->ImportTexture("OffscreenColor", m_offscreenColor, offscreenDesc);
+
         Render::TextureDesc depthDesc{
-            .width = m_width,
-            .height = m_height,
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
             .format = Render::RHI_Format::D32_SFloat,
             .mipLevels = 1,
             .arrayLayers = 1,
@@ -186,6 +224,7 @@ namespace ChikaEngine::Render
         AddUploadPasses();
         AddShadowPass();
         AddMainScenePass();
+        AddImGuiPass();
 
         m_renderGraph->AddPresentPass("Present", m_rgSwapchain);
 
@@ -241,10 +280,29 @@ namespace ChikaEngine::Render
                 using namespace ChikaEngine::Math;
                 PC pc;
                 pc.isShadowPass = 1;
+
+                SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
+                if (m_activeCamera)
+                {
+                    sceneData->cameraVP = m_activeCamera->GetViewProjectionMatrix().Transposed();
+
+                    auto pos = m_activeCamera->GetPosition();
+                    sceneData->viewPos[0] = pos.x;
+                    sceneData->viewPos[1] = pos.y;
+                    sceneData->viewPos[2] = pos.z;
+                    sceneData->viewPos[3] = 1.0f;
+                }
+
                 for (const auto& drawCmd : m_drawCommandQueue)
                 {
+                    if (!drawCmd.meshHandle.IsValid() || !drawCmd.materialHandle.IsValid())
+                        continue;
+
                     const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
                     const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
+
+                    if (!material.pipeline.IsValid() || !mesh.vertexBuffer.IsValid())
+                        continue;
 
                     cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
                     cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
@@ -282,7 +340,9 @@ namespace ChikaEngine::Render
             {
                 builder.ReadTexture(m_rgShadowDepth, ResourceState::ShaderResource);
                 const float clearColor[4] = { 0.1f, 0.2f, 0.3f, 1.0f };
-                builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
+                // builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
+                // builder.WriteDepth(m_rgDepth, LoadOp::Clear);
+                builder.WriteColor(m_rgOffscreen, LoadOp::Clear, clearColor);
                 builder.WriteDepth(m_rgDepth, LoadOp::Clear);
             },
             [this](IRHICommandList* cmd, RenderGraph* graph)
@@ -290,11 +350,15 @@ namespace ChikaEngine::Render
                 using namespace ChikaEngine::Math;
                 PC pc;
                 pc.isShadowPass = 0;
+
                 for (const auto& drawCmd : m_drawCommandQueue)
                 {
+                    if (!drawCmd.meshHandle.IsValid() || !drawCmd.materialHandle.IsValid())
+                        continue;
                     const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
                     const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
-
+                    if (!material.pipeline.IsValid() || !mesh.vertexBuffer.IsValid())
+                        continue;
                     cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
                     cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
                     cmd->BindPipeline(material.pipeline);
@@ -324,9 +388,32 @@ namespace ChikaEngine::Render
                 }
             });
     }
+    void Renderer::AddImGuiPass()
+    {
+        m_renderGraph->AddPass(
+            "ImGui UI Pass",
+            [&](RGPassBuilder& builder)
+            {
+                builder.ReadTexture(m_rgOffscreen, ResourceState::ShaderResource);
 
+                const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+                builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
+            },
+            [this](IRHICommandList* cmd, RenderGraph* graph)
+            {
+                if (m_imguiDrawData)
+                {
+                    cmd->DrawImGui(m_imguiDrawData);
+                }
+            });
+    }
     void Renderer::BeginFrame()
     {
+        HandlePendingResize();
+        if (m_activeCamera)
+        {
+            m_activeCamera->SetAspectRatio(GetViewportAspectRatio());
+        }
         m_rhi->BeginFrame();
     }
 
@@ -363,19 +450,19 @@ namespace ChikaEngine::Render
             sceneData->lightDir[3] = 0.0f;
         }
     }
-    void Renderer::SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos)
-    {
-        SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
-        if (sceneData)
-        {
-            sceneData->cameraVP = cameraMat.Transposed();
+    // void Renderer::SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos)
+    // {
+    //     SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
+    //     if (sceneData)
+    //     {
+    //         sceneData->cameraVP = cameraMat.Transposed();
 
-            sceneData->viewPos[0] = cameraPos.x;
-            sceneData->viewPos[1] = cameraPos.y;
-            sceneData->viewPos[2] = cameraPos.z;
-            sceneData->viewPos[3] = 1.0f;
-        }
-    }
+    //         sceneData->viewPos[0] = cameraPos.x;
+    //         sceneData->viewPos[1] = cameraPos.y;
+    //         sceneData->viewPos[2] = cameraPos.z;
+    //         sceneData->viewPos[3] = 1.0f;
+    //     }
+    // }
 
     Asset::AssetManager* Renderer::GetAssetManager()
     {
@@ -389,7 +476,115 @@ namespace ChikaEngine::Render
 
     void Renderer::Shutdown()
     {
+
+        if (m_rhi)
+        {
+            m_rhi->WaitIdle();
+        }
+
         m_renderGraph->Clear();
         m_rhi->DestroyTexture(m_offscreenColor);
     }
+
+    /*!
+     * @brief  提供 resize 的标记, 这样在一次 drawcall 之间多次调用只会记录最后一次数据
+     *
+     * @param  width
+     * @param  height
+     * @author Machillka (machillka2007@gmail.com)
+     * @date 2026-04-26
+     */
+    // void Renderer::RequestResize(uint32_t width, uint32_t height)
+    // {
+    //     if (width == 0 || height == 0)
+    //         return;
+    //     if (width != m_viewportWidth || height != m_viewportHeight)
+    //     {
+    //         m_isResizePending = true;
+    //         m_pendingWidth = width;
+    //         m_pendingHeight = height;
+    //     }
+    // }
+
+    void Renderer::HandlePendingResize()
+    {
+        if (!m_isViewResizePending)
+            return;
+
+        // NOTE: 在销毁任何纹理或重建 Swapchain 前，必须确保 GPU 已经跑完所有正在执行的渲染指令！
+        if (m_rhi)
+        {
+            m_rhi->WaitIdle();
+        }
+
+        m_viewportWidth = m_pendingViewWidth;
+        m_viewportHeight = m_pendingViewHeight;
+        m_isViewResizePending = false;
+
+        m_rhi->DestroyTexture(m_offscreenColor);
+        m_rhi->DestroyTexture(m_depthTexture);
+
+        // 重建 Color
+        TextureDesc colorDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::BGRA8_UNorm,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
+        };
+        m_offscreenColor = m_rhi->CreateTexture(colorDesc);
+
+        // 重建 Depth
+        TextureDesc depthDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::D32_SFloat,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
+        };
+        m_depthTexture = m_rhi->CreateTexture(depthDesc);
+
+        // 通知 RenderGraph 更新物理句柄
+        m_renderGraph->UpdateImportedTexture(m_rgOffscreen, m_offscreenColor);
+        m_renderGraph->UpdateImportedTexture(m_rgDepth, m_depthTexture);
+
+        LOG_INFO("Renderer", "Successfully resized to {}x{}", m_viewportWidth, m_viewportHeight);
+    }
+
+    void Renderer::OnWindowResize(uint32_t width, uint32_t height)
+    {
+        if (width == 0 || height == 0)
+            return; // 忽略最小化
+
+        if (m_width == width && m_height == height)
+            return;
+
+        LOG_INFO("Renderer", "Main Window Resizing to {}x{}", width, height);
+
+        // 必须等待 GPU 完成当前帧，才能销毁 Swapchain 相关的视图
+        if (m_rhi)
+        {
+            m_rhi->WaitIdle();
+            m_rhi->Resize(width, height); // 底层 RHI 重建 Swapchain
+        }
+
+        m_width = width;
+        m_height = height;
+    }
+
+    void Renderer::OnViewResize(uint32_t width, uint32_t height)
+    {
+        if (width == 0 || height == 0)
+            return;
+
+        if (width != m_viewportWidth || height != m_viewportHeight)
+        {
+            m_isViewResizePending = true;
+            m_pendingViewWidth = width;
+            m_pendingViewHeight = height;
+        }
+    }
+
 } // namespace ChikaEngine::Render

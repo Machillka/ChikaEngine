@@ -2,6 +2,22 @@
 
 简单记录开发过程，非标 changelog
 
+## 2026-04-20
+
+现在的 Gameplay 框架 ——
+
+大体上还是基于 Component-Based 的 Game Object 的一种设计，基于 OOP
+
+不过实际上已经实现的 Rigidbody Component, MeshRender Component 等还是以 ECS 的理念为导向，打算尽量精简组件的内容，最好以纯数据为主。然后在每一帧的 tick 中通过 subsystem 来进行遍历调用 —— 保证了运行时各个组件的时序是确定的（在有 subsystem 的情况下）并且可以快速的手动管理
+
+渲染层一整套实现逻辑 ——
+
+- Asset 读取磁盘上的资源
+- Resource 把资源打包成 Render Command
+- Renderer 收集 GO 的信息（比如 Transform / Mesh / Material 等数据）然后丢给 Render Graph
+- Render Graph 读取 Renderer 的各种 Pass 和依赖，插入 Barrier（不过目前仅做了一个可达性检验）
+- RHI 后端执行 Draw Call
+
 ## 2026-03-04
 
 唔 之前写的几次的 Change log 被 dump 了

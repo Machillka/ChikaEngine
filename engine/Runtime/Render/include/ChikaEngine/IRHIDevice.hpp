@@ -45,9 +45,17 @@ namespace ChikaEngine::Render
 
         virtual TextureHandle GetActiveSwapchainTexture() = 0;
 
+        virtual void InitializeImgui() = 0;
+
         // 暴露 texture handle 给上层 如 imgui 等 display
         // virtual void GetTextureHandle(TextureHandle handle) = 0;
         // 对 imgui 特化
         virtual void* GetImGuiTextureHandle(TextureHandle handle) = 0;
+
+        // CPU 等待 GPU 执行完所有绘制操作
+        virtual void WaitIdle() = 0;
+
+        // 用于重建 swapchain 等
+        virtual void Resize(uint32_t width, uint32_t height) = 0;
     };
 } // namespace ChikaEngine::Render

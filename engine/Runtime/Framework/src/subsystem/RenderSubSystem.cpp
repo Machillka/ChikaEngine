@@ -48,7 +48,7 @@ namespace ChikaEngine::Framework
         cameraProj(2, 3) = -(100.0f * 0.1f) / (100.0f - 0.1f);
         Mat4 cameraVP = cameraProj * cameraView;
 
-        _renderer->SubmitCamera(cameraVP, camPos);
+        // _renderer->SubmitCamera(cameraVP, camPos);
         _renderer->SubmitLight(lightVP, lightPos);
         _renderer->SubmitDrawCommands(_drawCommands);
         // LOG_INFO("Render Subsystem", "Tickending...");

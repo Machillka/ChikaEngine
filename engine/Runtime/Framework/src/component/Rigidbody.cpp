@@ -1,5 +1,6 @@
 #include "ChikaEngine/component/Rigidbody.hpp"
 #include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/debug/Gizmo.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/math/vector3.h"
@@ -88,6 +89,29 @@ namespace ChikaEngine::Framework
         scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
         _physicsHandle = 0;
         _need2RecreateRigidbody = true;
+    }
+
+    void Rigidbody::OnGizmo() const
+    {
+        auto owner = GetOwner();
+        if (!owner || !owner->transform)
+            return;
+
+        // 1. 计算 Collider 的世界中心点 (Transform 位置 + 旋转后的 Offset)
+        Math::Vector3 worldCenter = owner->transform->position + owner->transform->rotation.Rotate(_colliderCenter);
+
+        // 2. 获取当前的旋转
+        Math::Quaternion worldRot = owner->transform->rotation;
+
+        // 3. 计算实际的 HalfExtents (基础大小 0.5 * Transform缩放)
+        // 假设当前默认是 Box，后续可以根据实际形状区分 DrawWireSphere 等
+        Math::Vector3 halfExtents(0.5f, 0.5f, 0.5f);
+        halfExtents.x *= owner->transform->scale.x;
+        halfExtents.y *= owner->transform->scale.y;
+        halfExtents.z *= owner->transform->scale.z;
+
+        // 4. 调用全局 Gizmo 绘制亮绿色线框
+        Debug::Gizmo::DrawWireBox(worldCenter, halfExtents, worldRot, { 0.2f, 1.0f, 0.2f, 1.0f });
     }
 
     void Rigidbody::SetLinearVelocity(Math::Vector3 v)

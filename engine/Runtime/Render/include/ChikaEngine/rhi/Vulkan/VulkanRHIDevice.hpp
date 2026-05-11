@@ -40,6 +40,12 @@ namespace ChikaEngine::Render
         void* GetImGuiTextureHandle(TextureHandle handle) override;
         TextureHandle GetActiveSwapchainTexture() override;
 
+        void InitializeImgui() override;
+
+        void WaitIdle() override;
+
+        void Resize(uint32_t width, uint32_t height) override;
+
       public:
         VkDescriptorSet AllocateTransientDescriptorSet();
         VulkanBuffer* GetVkBuffer(BufferHandle h)
@@ -67,6 +73,9 @@ namespace ChikaEngine::Render
             return m_defaultSampler;
         }
 
+      public:
+        VkDescriptorPool imguiPool = VK_NULL_HANDLE;
+
       private:
         void CreateInstance();
         void CreateSurface();
@@ -78,6 +87,11 @@ namespace ChikaEngine::Render
         void CreateSwapchain();
         void CreateSyncObjects();
         void FlushDeletionQueue();
+        void CleanupSwapchain();
+
+      private:
+        // 跳过失败帧
+        bool m_frameSkipped = false;
 
       private:
         uint32_t m_height;

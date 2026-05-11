@@ -5,6 +5,8 @@
 #include "PhysicsDescs.h"
 #include <queue>
 #include <unordered_map>
+#include <memory.h>
+
 namespace ChikaEngine::Physics
 {
     // 下沉到可以拥有多个实例——不同 scene 进行物理模拟

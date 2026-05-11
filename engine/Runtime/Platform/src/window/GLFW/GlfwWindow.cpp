@@ -1,88 +1,103 @@
-#include "ChikaEngine/window/window_desc.h"
-#include "ChikaEngine/window/GLFW/GlfwWindow.h"
-
-#include "glad/glad.h"
+#include "ChikaEngine/Window/GLFW/GlfwWindow.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 #include <GLFW/glfw3.h>
-#include <stdexcept>
 
 namespace ChikaEngine::Platform
 {
-    GlfwWindow::GlfwWindow(const WindowDesc& desc)
+    static void GLFWErrorCallback(int error, const char* description)
     {
-        InitGLFW(desc);
-        InitGLAD();
-        SetVSync(desc.vSync);
+        LOG_ERROR("GLFW", "GLFW Error ({0}): {1}", error, description);
     }
 
     GlfwWindow::~GlfwWindow()
     {
-        if (_window)
+        Shutdown();
+    }
+
+    void GlfwWindow::Initialize(const WindowDesc& desc)
+    {
+        m_data.title = desc.title;
+        m_data.width = desc.width;
+        m_data.height = desc.height;
+        m_data.isFullscreen = desc.isFullscreen;
+
+        m_data.windowedWidth = desc.width;
+        m_data.windowedHeight = desc.height;
+
+        int success = glfwInit();
+        if (!success)
         {
-            glfwDestroyWindow(_window);
-            _window = nullptr;
+            LOG_ERROR("GLFW", "Could not initialize GLFW!");
+            return;
         }
-        glfwTerminate();
-    }
 
-    void GlfwWindow::InitGLFW(const WindowDesc& desc)
-    {
-        if (!glfwInit())
-            throw std::runtime_error("Failed to initialize GLFW");
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        _window = glfwCreateWindow(static_cast<int>(desc.width), static_cast<int>(desc.height), desc.title.c_str(), nullptr, nullptr);
-        if (!_window)
-            throw std::runtime_error("Failed to create GLFW window");
-        glfwMakeContextCurrent(_window);
-        _width = desc.width;
-        _height = desc.height;
-        glfwSetWindowUserPointer(_window, this);
-        glfwSetFramebufferSizeCallback(_window,
-                                       [](GLFWwindow* win, int w, int h)
+        glfwSetErrorCallback(GLFWErrorCallback);
+
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+        m_window = glfwCreateWindow((int)desc.width, (int)desc.height, m_data.title.c_str(), nullptr, nullptr);
+
+        glfwSetWindowUserPointer(m_window, &m_data);
+
+        glfwSetFramebufferSizeCallback(m_window,
+                                       [](GLFWwindow* window, int width, int height)
                                        {
-                                           auto* self = static_cast<GlfwWindow*>(glfwGetWindowUserPointer(win));
-                                           self->_width = static_cast<std::uint32_t>(w);
-                                           self->_height = static_cast<std::uint32_t>(h);
-                                           glViewport(0, 0, w, h);
+                                           auto& data = *(WindowData*)glfwGetWindowUserPointer(window);
+                                           data.width = width;
+                                           data.height = height;
+
+                                           if (data.resizeCallback && width > 0 && height > 0)
+                                           {
+                                               data.resizeCallback(width, height);
+                                           }
                                        });
+
+        if (desc.isFullscreen)
+        {
+            SetFullScreen(true);
+        }
     }
 
-    void GlfwWindow::InitGLAD()
+    void GlfwWindow::Shutdown()
     {
-        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-            throw std::runtime_error("Failed to initialize GLAD");
+        if (m_window)
+        {
+            glfwDestroyWindow(m_window);
+            m_window = nullptr;
+            glfwTerminate();
+        }
     }
 
-    void GlfwWindow::PollEvents()
+    void GlfwWindow::Tick()
     {
         glfwPollEvents();
     }
 
-    void GlfwWindow::SwapBuffers()
-    {
-        glfwSwapBuffers(_window);
-    }
-
     bool GlfwWindow::ShouldClose() const
     {
-        return glfwWindowShouldClose(_window);
+        return glfwWindowShouldClose(m_window);
     }
 
-    void* GlfwWindow::GetNativeHandle() const
+    void GlfwWindow::SetFullScreen(bool fullscreen)
     {
-        return _window;
-    }
+        if (m_data.isFullscreen == fullscreen)
+            return;
 
-    void* GlfwWindow::GetNativeContext() const
-    {
-        // GLFW 隐式管理 OpenGL context
-        return nullptr;
-    }
+        if (fullscreen)
+        {
+            glfwGetWindowPos(m_window, &m_data.windowedX, &m_data.windowedY);
+            glfwGetWindowSize(m_window, &m_data.windowedWidth, &m_data.windowedHeight);
 
-    void GlfwWindow::SetVSync(const bool enabled)
-    {
-        _vSync = enabled;
-        glfwSwapInterval(_vSync ? 1 : 0);
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+            glfwSetWindowMonitor(m_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        }
+        else
+        {
+            glfwSetWindowMonitor(m_window, nullptr, m_data.windowedX, m_data.windowedY, m_data.windowedWidth, m_data.windowedHeight, 0);
+        }
+
+        m_data.isFullscreen = fullscreen;
     }
 } // namespace ChikaEngine::Platform

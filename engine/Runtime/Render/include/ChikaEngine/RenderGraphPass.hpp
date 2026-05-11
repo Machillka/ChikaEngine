@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ChikaEngine/RenderGraphResource.hpp"
+#include "RenderGraphResource.hpp"
 #include "RenderGraphHandle.hpp"
 #include "RenderGraphResource.hpp"
 #include <functional>

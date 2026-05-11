@@ -15,12 +15,12 @@ namespace ChikaEngine::Framework
 
       public:
         Rigidbody() = default;
-        ~Rigidbody() {}
+        ~Rigidbody() = default;
         void SetLinearVelocity(Math::Vector3 v);
         void Impulse(Math::Vector3 impulse);
 
         void Awake() override;
-        // void OnGizmo() const override;
+        void OnGizmo() const override;
         void OnDirty() override;
         void OnEnable() override;
         void OnDisable() override;
