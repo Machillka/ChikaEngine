@@ -1,5 +1,0 @@
-#include "GLBuffer.h"
-#include "GLHeader.h"
-#include "GLPipeline.h"
-#include "GLTexture2D.h"
-#include "GLVertexArray.h"

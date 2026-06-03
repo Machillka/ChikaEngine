@@ -1,31 +1,32 @@
 set(THIRD_PARTY_PATH "${ENGINE_ROOT_DIR}/ThirdParty")
 set(TARGET_NAME "ChikaThirdParty")
 
-# Add GLFW
+# GLFW
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "Build GLFW examples" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "Build GLFW tests" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "Build GLFW docs" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "Generate GLFW install target" FORCE)
 add_subdirectory(${THIRD_PARTY_PATH}/glfw)
 
-# Add GLAD
-# add_library(glad STATIC ${THIRD_PARTY_PATH}/glad/src/glad.c)
-# target_include_directories(glad PUBLIC ${THIRD_PARTY_PATH}/glad/include)
-
 # Vulkan
-
 find_package(Vulkan REQUIRED)
 add_subdirectory(${THIRD_PARTY_PATH}/VulkanMemoryAllocator)
 
-# Add imgui
+# imgui
 find_package(OpenGL REQUIRED)
-message(STATUS ${THIRD_PARTY_PATH})
 include(${THIRD_PARTY_PATH}/imgui.cmake)
 
 # fmt
+set(FMT_DOC OFF CACHE BOOL "Generate fmt docs" FORCE)
+set(FMT_TEST OFF CACHE BOOL "Generate fmt tests" FORCE)
+set(FMT_INSTALL OFF CACHE BOOL "Generate fmt install target" FORCE)
 add_subdirectory(${THIRD_PARTY_PATH}/fmt)
 
-#json
+# json
 add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json INTERFACE ${THIRD_PARTY_PATH}/json/include)
 
-#obj loader
+# obj loader
 add_subdirectory(${THIRD_PARTY_PATH}/objloader)
 
 # stb
@@ -49,8 +50,8 @@ add_subdirectory(${THIRD_PARTY_PATH}/pybind11)
 add_library(tinygltf INTERFACE)
 target_include_directories(tinygltf INTERFACE ${THIRD_PARTY_PATH}/tinygltf)
 
-# head-only
-file(GLOB THIRD_PARTY_SOURCES
+# Header-only wrappers with one translation unit for required implementations.
+file(GLOB THIRD_PARTY_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
 add_library(ChikaThirdPartyObjects OBJECT ${THIRD_PARTY_SOURCES})
@@ -68,7 +69,6 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     glfw
     Vulkan::Vulkan
     GPUOpen::VulkanMemoryAllocator
-    # glad
     imgui
     fmt::fmt
     nlohmann_json
