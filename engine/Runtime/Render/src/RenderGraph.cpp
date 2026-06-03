@@ -5,8 +5,9 @@
 #include "ChikaEngine/RenderGraphPass.hpp"
 #include "ChikaEngine/RenderGraphResource.hpp"
 #include "ChikaEngine/RenderPassBuilder.hpp"
-#include <ChikaEngine/rhi/Vulkan/VulkanRHIDevice.hpp>
 #include <cstdint>
+#include <functional>
+#include <unordered_set>
 #include <vector>
 #include "ChikaEngine/IRHICommandList.hpp"
 
@@ -138,7 +139,9 @@ namespace ChikaEngine::Render
     {
         m_sortedPasses.clear();
 
-        // 重置资源
+        std::unordered_set<uint32_t> livePasses;
+
+        // 重置资源与 pass 编译状态。
         m_textures.ForEach(
             [](RGTextureHandle h, RGTextureResource& res)
             {
@@ -152,8 +155,9 @@ namespace ChikaEngine::Render
             [&](RGPassHandle h, RGPass& pass)
             {
                 pass.refCount = 0;
+                pass.isCulled = true;
 
-                // 构建 producer
+                // 构建资源 producer。当前图模型中一个资源只允许最后一次写入作为 producer。
                 for (auto& write : pass.writes)
                 {
                     auto* res = m_textures.Get(write.handle);
@@ -170,25 +174,19 @@ namespace ChikaEngine::Render
                 }
             });
 
-        std::vector<RGPassHandle> sideEffectStack;
-        m_passes.ForEach(
-            [&](RGPassHandle h, RGPass& pass)
-            {
-                if (pass.hasSideEffects)
-                {
-                    pass.refCount++;
-                    sideEffectStack.push_back(h);
-                }
-            });
-
-        while (!sideEffectStack.empty())
+        std::function<void(RGPassHandle)> markLive = [&](RGPassHandle passHandle)
         {
-            RGPassHandle passHandle = sideEffectStack.back();
-            sideEffectStack.pop_back();
+            if (!passHandle.IsValid() || livePasses.contains(passHandle.raw_value))
+                return;
+
+            livePasses.insert(passHandle.raw_value);
 
             RGPass* pass = m_passes.Get(passHandle);
             if (!pass)
-                continue;
+                return;
+
+            pass->isCulled = false;
+            pass->refCount = 1;
 
             for (const auto& read : pass->reads)
             {
@@ -200,25 +198,55 @@ namespace ChikaEngine::Render
 
                 if (res->producerPass.IsValid())
                 {
-                    RGPass* producer = m_passes.Get(res->producerPass);
-                    if (producer && producer->refCount == 0)
-                    {
-                        producer->refCount++;
-                        sideEffectStack.push_back(res->producerPass);
-                    }
+                    markLive(res->producerPass);
                 }
             }
-        }
 
-        // 统计结果 —— 排除反向 ( 从输出结果出发 ) 不可达的节点
+            if (pass->hasDepth)
+            {
+                RGTextureResource* res = m_textures.Get(pass->depthWrite.handle);
+                if (res)
+                    res->refCount++;
+            }
+        };
+
         for (RGPassHandle h : m_passInsertionOrder)
         {
             RGPass* pass = m_passes.Get(h);
-            if (pass && pass->refCount > 0)
-            {
-                m_sortedPasses.push_back(h);
-            }
+            if (pass && pass->hasSideEffects)
+                markLive(h);
         }
+
+        std::unordered_set<uint32_t> visiting;
+        std::unordered_set<uint32_t> visited;
+
+        std::function<void(RGPassHandle)> schedule = [&](RGPassHandle passHandle)
+        {
+            if (!passHandle.IsValid() || visited.contains(passHandle.raw_value))
+                return;
+            if (visiting.contains(passHandle.raw_value))
+                return;
+
+            RGPass* pass = m_passes.Get(passHandle);
+            if (!pass || pass->isCulled)
+                return;
+
+            visiting.insert(passHandle.raw_value);
+
+            for (const auto& read : pass->reads)
+            {
+                RGTextureResource* res = m_textures.Get(read.handle);
+                if (res && res->producerPass.IsValid())
+                    schedule(res->producerPass);
+            }
+
+            visiting.erase(passHandle.raw_value);
+            visited.insert(passHandle.raw_value);
+            m_sortedPasses.push_back(passHandle);
+        };
+
+        for (RGPassHandle h : m_passInsertionOrder)
+            schedule(h);
 
         for (uint32_t i = 0; i < m_sortedPasses.size(); i++)
         {

@@ -32,6 +32,7 @@ namespace ChikaEngine::Render
 
         void BindVertexBuffer(BufferHandle buffer, uint64_t offset) override;
         void BindIndexBuffer(BufferHandle buffer, uint64_t offset, bool isUint32) override;
+        void Draw(uint32_t vertexCount, uint32_t instanceCount) override;
         void DrawIndexed(uint32_t indexCount, uint32_t instanceCount) override;
 
         void CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size) override;

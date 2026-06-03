@@ -17,6 +17,7 @@
 #include "IRHIDevice.hpp"
 #include "RHIResourceHandle.hpp"
 #include "RenderGraph.hpp"
+#include "ChikaEngine/rhi/RHIBackendFactory.hpp"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -24,6 +25,12 @@
 
 namespace ChikaEngine::Render
 {
+    enum class RenderPipelineMode
+    {
+        Forward,
+        Deferred,
+    };
+
     // ubo 临时定义
     struct SceneData
     {
@@ -39,14 +46,18 @@ namespace ChikaEngine::Render
         Math::Mat4 model;
         int isShadowPass;
         int isSkinned;
+        int renderMode;
+        int _padding;
     };
 
     struct RendererCreateInfo
     {
         void* windowHandle = nullptr;
-        Asset::AssetManager* assetManager;
+        Asset::AssetManager* assetManager = nullptr;
         uint32_t width = 1920;
         uint32_t height = 1080;
+        RHIBackendTypes backendType = RHIBackendTypes::Default;
+        RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
     };
 
     struct DrawCommand
@@ -96,6 +107,14 @@ namespace ChikaEngine::Render
 
       public:
         IRHIDevice* GetRHIHandle() const;
+        void SetPipelineMode(RenderPipelineMode mode)
+        {
+            m_pipelineMode = mode;
+        }
+        RenderPipelineMode GetPipelineMode() const
+        {
+            return m_pipelineMode;
+        }
 
       public:
         void SubmitImGuiData(void* drawData)
@@ -128,10 +147,14 @@ namespace ChikaEngine::Render
 
       private:
         void AddMainScenePass();
+        void AddGBufferPass();
+        void AddDeferredLightingPass();
         void AddUploadPasses();
         void AddShadowPass();
         void HandlePendingResize();
         void AddImGuiPass();
+        void DrawSceneGeometry(IRHICommandList* cmd, bool shadowPass, bool gbufferPass);
+        void CreateDeferredResources();
 
       private:
         std::vector<DrawCommand> m_drawCommandQueue;
@@ -156,6 +179,7 @@ namespace ChikaEngine::Render
         void* m_window = nullptr;
         std::unique_ptr<IRHIDevice> m_rhi = nullptr;
         std::unique_ptr<RenderGraph> m_renderGraph = nullptr;
+        RenderPipelineMode m_pipelineMode = RenderPipelineMode::Forward;
 
         // window 大小
         uint32_t m_width = 1920;
@@ -169,6 +193,14 @@ namespace ChikaEngine::Render
         TextureHandle m_depthTexture;
         RGTextureHandle m_rgSwapchain;
         RGTextureHandle m_rgDepth;
+        RGTextureHandle m_rgGBufferAlbedo;
+        RGTextureHandle m_rgGBufferNormal;
+        RGTextureHandle m_rgGBufferMaterial;
+
+        TextureHandle m_gbufferAlbedoTexture;
+        TextureHandle m_gbufferNormalTexture;
+        TextureHandle m_gbufferMaterialTexture;
+        PipelineHandle m_deferredLightingPipeline;
 
         // shadow
         TextureHandle m_shadowDepthTexture;

@@ -2,14 +2,49 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "CMake: build",
+            "label": "CMake: Configure Debug",
             "type": "shell",
-            "command": "cmake --build build --config Debug",
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "command": "cmake",
+            "args": [
+                "-S",
+                ".",
+                "-B",
+                "build/debug",
+                "-G",
+                "Ninja",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake: Build Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/debug"
+            ],
+            "group": "build",
+            "dependsOn": "CMake: Configure Debug",
             "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Git: Diff Stat",
+            "type": "shell",
+            "command": "git diff --stat",
+            "problemMatcher": []
+        },
+        {
+            "label": "Debug: LLDB Backtrace",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "scripts/debug/lldb_backtrace.sh"
+            ],
+            "dependsOn": "CMake: Build Debug",
+            "problemMatcher": []
         }
     ]
 }

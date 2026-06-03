@@ -128,6 +128,21 @@ namespace ChikaEngine::Editor
         ImVec2 windowSize = ImGui::GetContentRegionAvail();
         ImVec2 windowPos = ImGui::GetCursorScreenPos();
 
+        if (_context->renderer)
+        {
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 3));
+            const char* items[] = { "Forward", "Deferred" };
+            int selected = _context->renderer->GetPipelineMode() == Render::RenderPipelineMode::Deferred ? 1 : 0;
+            ImGui::SetNextItemWidth(120.0f);
+            if (ImGui::Combo("##RenderPipeline", &selected, items, 2))
+            {
+                _context->renderer->SetPipelineMode(selected == 1 ? Render::RenderPipelineMode::Deferred : Render::RenderPipelineMode::Forward);
+            }
+            ImGui::PopStyleVar();
+            windowSize = ImGui::GetContentRegionAvail();
+            windowPos = ImGui::GetCursorScreenPos();
+        }
+
         if (windowSize.x > 0 && windowSize.y > 0)
         {
             if (windowSize.x != _context->renderer->GetViewportWidth() || windowSize.y != _context->renderer->GetViewportHeight())

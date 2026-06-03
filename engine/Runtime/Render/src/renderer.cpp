@@ -4,8 +4,9 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
-#include "ChikaEngine/rhi/Vulkan/VulkanRHIDevice.hpp"
+#include "ChikaEngine/rhi/RHIBackendFactory.hpp"
 #include <memory>
+#include <stdexcept>
 
 namespace ChikaEngine::Render
 {
@@ -14,21 +15,15 @@ namespace ChikaEngine::Render
         m_window = createInfo.windowHandle;
         m_width = createInfo.width;
         m_height = createInfo.height;
+        m_viewportWidth = createInfo.width;
+        m_viewportHeight = createInfo.height;
+        m_pipelineMode = createInfo.pipelineMode;
         m_assetMgr = createInfo.assetManager;
 
-        m_viewportWidth = m_width;
-        m_viewportHeight = m_height;
-
-        m_defaultCamera = std::make_unique<Camera>();
-        // 设置纵横比
-        m_defaultCamera->SetPerspective(45.0f, GetViewportAspectRatio(), 0.1f, 1000.0f);
-
-        // 设置初始位置和朝向
-        m_defaultCamera->SetPosition(Math::Vector3(0.0f, 4.0f, 8.0f));
-        m_defaultCamera->SetLookAt(Math::Vector3(0.0f, 0.0f, 0.0f));
-
-        // 初始状态下指向默认摄像机
-        m_activeCamera = m_defaultCamera.get();
+        if (m_assetMgr == nullptr)
+        {
+            throw std::invalid_argument("RendererCreateInfo::assetManager must not be null");
+        }
 
         RHI_InitParams params{
             .nativeWindowHandle = createInfo.windowHandle,
@@ -37,9 +32,19 @@ namespace ChikaEngine::Render
             .enableValidation = true,
         };
 
-        m_rhi = std::make_unique<VulkanRHIDevice>(params);
+        m_rhi = RHIBackendFactory::CreateRHIDevice(createInfo.backendType, params);
+        if (!m_rhi)
+        {
+            throw std::runtime_error("Failed to create RHI device");
+        }
         m_renderGraph = std::make_unique<RenderGraph>(m_rhi.get());
         m_resourceMgr = std::make_unique<Resource::ResourceManager>(*m_rhi, *m_assetMgr);
+
+        m_defaultCamera = std::make_unique<Camera>();
+        m_defaultCamera->SetPosition(Math::Vector3(0.0f, 4.0f, 8.0f));
+        m_defaultCamera->SetLookAt(Math::Vector3(0.0f, 0.0f, 0.0f));
+        m_defaultCamera->SetPerspective(45.0f, GetViewportAspectRatio(), 0.1f, 1000.0f);
+        m_activeCamera = m_defaultCamera.get();
 
         // 场景 UBO 创建
         BufferDesc uboDesc{
@@ -123,7 +128,6 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
         };
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
-        m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_rgDepth = m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc);
 
         // Shadow
@@ -148,6 +152,8 @@ namespace ChikaEngine::Render
         };
         m_shadowColorTexture = m_rhi->CreateTexture(shadowColorDesc);
         m_rgShadowColor = m_renderGraph->ImportTexture("ShadowColorDummy", m_shadowColorTexture, shadowColorDesc);
+
+        CreateDeferredResources();
 
         Render::TextureDesc swapDesc{
             .width = m_width,
@@ -223,7 +229,15 @@ namespace ChikaEngine::Render
 
         AddUploadPasses();
         AddShadowPass();
-        AddMainScenePass();
+        if (m_pipelineMode == RenderPipelineMode::Deferred)
+        {
+            AddGBufferPass();
+            AddDeferredLightingPass();
+        }
+        else
+        {
+            AddMainScenePass();
+        }
         AddImGuiPass();
 
         m_renderGraph->AddPresentPass("Present", m_rgSwapchain);
@@ -277,10 +291,6 @@ namespace ChikaEngine::Render
             },
             [this](IRHICommandList* cmd, RenderGraph* graph)
             {
-                using namespace ChikaEngine::Math;
-                PC pc;
-                pc.isShadowPass = 1;
-
                 SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
                 if (m_activeCamera)
                 {
@@ -293,42 +303,7 @@ namespace ChikaEngine::Render
                     sceneData->viewPos[3] = 1.0f;
                 }
 
-                for (const auto& drawCmd : m_drawCommandQueue)
-                {
-                    if (!drawCmd.meshHandle.IsValid() || !drawCmd.materialHandle.IsValid())
-                        continue;
-
-                    const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
-                    const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
-
-                    if (!material.pipeline.IsValid() || !mesh.vertexBuffer.IsValid())
-                        continue;
-
-                    cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
-                    cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
-
-                    cmd->BindPipeline(material.pipeline);
-                    auto bindings = material.bindings;
-                    bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
-                    bindings.BindTexture(4, m_dummyTexture);
-
-                    if (drawCmd.isSkinned && drawCmd.boneUBO.IsValid())
-                    {
-                        bindings.BindBuffer(2, drawCmd.boneUBO, 0, 128 * sizeof(Math::Mat4));
-                        pc.isSkinned = 1;
-                    }
-                    else
-                    {
-                        bindings.BindBuffer(2, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
-                        pc.isSkinned = 0;
-                    }
-
-                    pc.model = drawCmd.model.Transposed();
-
-                    cmd->BindResources(0, bindings);
-                    cmd->PushConstants(sizeof(PC), &pc);
-                    cmd->DrawIndexed(mesh.indexCount, 1);
-                }
+                DrawSceneGeometry(cmd, true, false);
             });
     }
 
@@ -347,45 +322,7 @@ namespace ChikaEngine::Render
             },
             [this](IRHICommandList* cmd, RenderGraph* graph)
             {
-                using namespace ChikaEngine::Math;
-                PC pc;
-                pc.isShadowPass = 0;
-
-                for (const auto& drawCmd : m_drawCommandQueue)
-                {
-                    if (!drawCmd.meshHandle.IsValid() || !drawCmd.materialHandle.IsValid())
-                        continue;
-                    const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
-                    const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
-                    if (!material.pipeline.IsValid() || !mesh.vertexBuffer.IsValid())
-                        continue;
-                    cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
-                    cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
-                    cmd->BindPipeline(material.pipeline);
-
-                    auto bindings = material.bindings;
-                    bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
-                    bindings.BindTexture(4, m_shadowDepthTexture);
-
-                    // 骨骼绑到 slot 2 上
-                    if (drawCmd.isSkinned && drawCmd.boneUBO.IsValid())
-                    {
-                        bindings.BindBuffer(2, drawCmd.boneUBO, 0, 128 * sizeof(Math::Mat4));
-                        pc.isSkinned = 1;
-                    }
-                    else
-                    {
-                        bindings.BindBuffer(2, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
-                        pc.isSkinned = 0;
-                    }
-
-                    pc.model = drawCmd.model.Transposed();
-
-                    cmd->BindResources(0, bindings);
-
-                    cmd->PushConstants(sizeof(PC), &pc);
-                    cmd->DrawIndexed(mesh.indexCount, 1);
-                }
+                DrawSceneGeometry(cmd, false, false);
             });
     }
     void Renderer::AddImGuiPass()
@@ -407,6 +344,151 @@ namespace ChikaEngine::Render
                 }
             });
     }
+
+    void Renderer::AddGBufferPass()
+    {
+        Render::TextureDesc gbufferAlbedoDesc{
+            .width = m_viewportWidth,
+            .height = m_viewportHeight,
+            .format = Render::RHI_Format::RGBA8_UNorm,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
+        };
+        Render::TextureDesc gbufferNormalDesc = gbufferAlbedoDesc;
+        gbufferNormalDesc.format = Render::RHI_Format::RGBA16_Float;
+        Render::TextureDesc gbufferMaterialDesc = gbufferAlbedoDesc;
+
+        m_rgGBufferAlbedo = m_renderGraph->_RegisterTexture("GBuffer.Albedo", gbufferAlbedoDesc);
+        m_rgGBufferNormal = m_renderGraph->_RegisterTexture("GBuffer.Normal", gbufferNormalDesc);
+        m_rgGBufferMaterial = m_renderGraph->_RegisterTexture("GBuffer.Material", gbufferMaterialDesc);
+
+        m_renderGraph->AddPass(
+            "Deferred GBuffer Pass",
+            [&](RGPassBuilder& builder)
+            {
+                const float clearColor[4] = { 0.02f, 0.02f, 0.02f, 1.0f };
+                builder.WriteColor(m_rgGBufferAlbedo, LoadOp::Clear, clearColor);
+                builder.WriteColor(m_rgGBufferNormal, LoadOp::Clear, clearColor);
+                builder.WriteColor(m_rgGBufferMaterial, LoadOp::Clear, clearColor);
+                builder.WriteDepth(m_rgDepth, LoadOp::Clear);
+            },
+            [this](IRHICommandList* cmd, RenderGraph* graph)
+            {
+                DrawSceneGeometry(cmd, false, true);
+            });
+    }
+
+    void Renderer::AddDeferredLightingPass()
+    {
+        m_renderGraph->AddPass(
+            "Deferred Lighting Pass",
+            [&](RGPassBuilder& builder)
+            {
+                builder.ReadTexture(m_rgGBufferAlbedo, ResourceState::ShaderResource);
+                builder.ReadTexture(m_rgGBufferNormal, ResourceState::ShaderResource);
+                builder.ReadTexture(m_rgGBufferMaterial, ResourceState::ShaderResource);
+                builder.ReadTexture(m_rgShadowDepth, ResourceState::ShaderResource);
+
+                const float clearColor[4] = { 0.03f, 0.03f, 0.03f, 1.0f };
+                builder.WriteColor(m_rgOffscreen, LoadOp::Clear, clearColor);
+            },
+            [this](IRHICommandList* cmd, RenderGraph* graph)
+            {
+                if (!m_deferredLightingPipeline.IsValid())
+                    return;
+
+                Render::ResourceBindingGroup bindings;
+                bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
+                bindings.BindTexture(4, graph->GetPhysicalTexture(m_rgGBufferAlbedo));
+                bindings.BindTexture(5, graph->GetPhysicalTexture(m_rgGBufferNormal));
+                bindings.BindTexture(6, graph->GetPhysicalTexture(m_rgGBufferMaterial));
+
+                cmd->BindPipeline(m_deferredLightingPipeline);
+                cmd->BindResources(0, bindings);
+                cmd->Draw(3, 1);
+            });
+    }
+
+    void Renderer::DrawSceneGeometry(IRHICommandList* cmd, bool shadowPass, bool gbufferPass)
+    {
+        using namespace ChikaEngine::Math;
+        PC pc{};
+        pc.isShadowPass = shadowPass ? 1 : 0;
+        pc.renderMode = gbufferPass ? 1 : 0;
+
+        for (const auto& drawCmd : m_drawCommandQueue)
+        {
+            if (!drawCmd.meshHandle.IsValid() || !drawCmd.materialHandle.IsValid())
+                continue;
+
+            const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
+            const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
+            const PipelineHandle pipeline = gbufferPass ? material.gbufferPipeline : material.forwardPipeline;
+
+            if (!pipeline.IsValid() || !mesh.vertexBuffer.IsValid())
+                continue;
+
+            cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
+            cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
+            cmd->BindPipeline(pipeline);
+
+            auto bindings = material.bindings;
+            bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
+            bindings.BindTexture(4, shadowPass ? m_dummyTexture : m_shadowDepthTexture);
+
+            if (drawCmd.isSkinned && drawCmd.boneUBO.IsValid())
+            {
+                bindings.BindBuffer(2, drawCmd.boneUBO, 0, 128 * sizeof(Math::Mat4));
+                pc.isSkinned = 1;
+            }
+            else
+            {
+                bindings.BindBuffer(2, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
+                pc.isSkinned = 0;
+            }
+
+            pc.model = drawCmd.model.Transposed();
+
+            cmd->BindResources(0, bindings);
+            cmd->PushConstants(sizeof(PC), &pc);
+            cmd->DrawIndexed(mesh.indexCount, 1);
+        }
+    }
+
+    void Renderer::CreateDeferredResources()
+    {
+        Asset::ShaderHandle vsAsset = m_assetMgr->LoadShader("Assets/Shaders/fullscreen.vert.spv");
+        Asset::ShaderHandle fsAsset = m_assetMgr->LoadShader("Assets/Shaders/deferred_lighting.frag.spv");
+        const auto* vsSpirv = m_assetMgr->GetShader(vsAsset);
+        const auto* fsSpirv = m_assetMgr->GetShader(fsAsset);
+        if (!vsSpirv || !fsSpirv)
+            return;
+
+        ShaderHandle vs = m_rhi->CreateShader({
+            .stage = RHI_ShaderStage::Vertex,
+            .code = vsSpirv->spirv.data(),
+            .codeSize = vsSpirv->spirv.size(),
+        });
+        ShaderHandle fs = m_rhi->CreateShader({
+            .stage = RHI_ShaderStage::Fragment,
+            .code = fsSpirv->spirv.data(),
+            .codeSize = fsSpirv->spirv.size(),
+        });
+
+        PipelineDesc desc{
+            .vertexShader = vs,
+            .fragmentShader = fs,
+            .vertexLayout = {},
+            .depthTest = false,
+            .depthWrite = false,
+            .alphaBlendEnable = false,
+        };
+        desc.colorAttachmentFormats.push_back(RHI_Format::BGRA8_UNorm);
+        desc.depthAttachmentFormat = RHI_Format::Unknown;
+        m_deferredLightingPipeline = m_rhi->CreateGraphicsPipeline(desc);
+    }
+
     void Renderer::BeginFrame()
     {
         HandlePendingResize();

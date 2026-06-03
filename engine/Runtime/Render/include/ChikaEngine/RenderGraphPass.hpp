@@ -36,6 +36,7 @@ namespace ChikaEngine::Render
 
         // 是否必须要执行 —— 如果必须要执行 可达性必须为真 ( 统计引用次数的时候直接进行赋值 1 而不是 0 然后来遍历图统计计数 )
         bool hasSideEffects = false;
+        bool isCulled = false;
         uint32_t refCount = 0;
 
         RGExecuteCallback executeCallback;

@@ -7,6 +7,7 @@
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include "VulkanResource.hpp"
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -120,6 +121,7 @@ namespace ChikaEngine::Render
 
         // submit 的时候统一提交
         std::vector<VkCommandBuffer> m_pendingCmds[MAX_FRAMES_IN_FLIGHT];
+        std::vector<std::unique_ptr<IRHICommandList>> m_submittedCommandLists[MAX_FRAMES_IN_FLIGHT];
 
         // swapchain surface同步原语以及其他
         void* m_windowHandle = nullptr;
