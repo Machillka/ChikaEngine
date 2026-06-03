@@ -4,3 +4,6 @@ build/
 .cache
 
 temp.*
+
+.venv/
+.vscode/
