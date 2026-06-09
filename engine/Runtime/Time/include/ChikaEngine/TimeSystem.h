@@ -11,6 +11,8 @@ namespace ChikaEngine::Time
       public:
         static void Init(std::unique_ptr<ITimeBackend> backend);
         static void Init(TimeDesc desc);
+        static void Shutdown();
+        static bool IsInitialized();
         static void Update(); // 每帧更新 并且计算 fps
 
         static float GetDeltaTime(); // deltaTime

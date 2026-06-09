@@ -31,6 +31,11 @@ namespace ChikaEngine::Input
         s_backend.reset();
     }
 
+    bool InputSystem::IsInitialized()
+    {
+        return s_backend != nullptr;
+    }
+
     bool InputSystem::GetKeyUp(KeyCode key)
     {
         CHIKA_ASSERT(s_backend, "null input system backend");

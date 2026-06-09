@@ -33,5 +33,8 @@ namespace ChikaEngine::Editor
 
       private:
         Render::Renderer* _renderer = nullptr;
+        bool _contextInitialized = false;
+        bool _glfwBackendInitialized = false;
+        bool _vulkanBackendInitialized = false;
     };
 } // namespace ChikaEngine::Editor

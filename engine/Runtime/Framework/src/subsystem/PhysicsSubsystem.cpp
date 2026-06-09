@@ -21,7 +21,17 @@ namespace ChikaEngine::Framework
 
     void PhysicsSubsystem::Tick(float dt)
     {
-        _physics->Tick(dt);
+        if (_physics)
+            _physics->Tick(dt);
+    }
+
+    void PhysicsSubsystem::Cleanup()
+    {
+        if (_physics)
+        {
+            _physics->Shutdown();
+            _physics.reset();
+        }
     }
 
     bool PhysicsSubsystem::Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, Physics::RaycastHit& outHit)
@@ -48,6 +58,9 @@ namespace ChikaEngine::Framework
 
     void PhysicsSubsystem::SyncTransform()
     {
+        if (!_physics)
+            return;
+
         // FIXME: 非常的不现代, 效率极低
         auto physicsTransforms = _physics->PollTransform();
         // LOG_INFO("Physics Subsystem", "size of padding: {}, id = {}", physicsTransforms.size(), physicsTransforms[0].first);

@@ -32,8 +32,28 @@ namespace ChikaEngine::Time
         s_lastFrameTime = s_startTime;
     }
 
+    void TimeSystem::Shutdown()
+    {
+        s_backend.reset();
+        s_startTime = 0.0;
+        s_lastFrameTime = 0.0;
+        s_deltaTime = 0.0f;
+        s_accumulatedTime = 0.0f;
+        s_frameCount = 0;
+        s_fps = 0.0f;
+        s_frameTime = 0.0f;
+        s_isPaused = false;
+    }
+
+    bool TimeSystem::IsInitialized()
+    {
+        return s_backend != nullptr;
+    }
+
     void TimeSystem::Update()
     {
+        if (!s_backend)
+            return;
         double currentTime = s_backend->GetCurrentTimeSeconds();
         double rawTime = currentTime - s_lastFrameTime;
         s_lastFrameTime = currentTime;
@@ -62,6 +82,8 @@ namespace ChikaEngine::Time
 
     float TimeSystem::GetTotalTime()
     {
+        if (!s_backend)
+            return 0.0f;
         return static_cast<float>(s_backend->GetCurrentTimeSeconds()) - s_startTime;
     }
 
@@ -72,6 +94,8 @@ namespace ChikaEngine::Time
 
     float TimeSystem::GetCurrentTime()
     {
+        if (!s_backend)
+            return 0.0f;
         return static_cast<float>(s_backend->GetCurrentTimeSeconds());
     }
 

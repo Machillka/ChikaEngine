@@ -55,6 +55,55 @@ namespace ChikaEngine::Render
         }
     }
 
+    static VkPrimitiveTopology ToVkTopology(PrimitiveTopology topology)
+    {
+        switch (topology)
+        {
+        case PrimitiveTopology::LineList:
+            return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        case PrimitiveTopology::TriangleList:
+        default:
+            return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        }
+    }
+
+    static VkCullModeFlags ToVkCullMode(CullMode mode)
+    {
+        switch (mode)
+        {
+        case CullMode::Front:
+            return VK_CULL_MODE_FRONT_BIT;
+        case CullMode::Back:
+            return VK_CULL_MODE_BACK_BIT;
+        case CullMode::None:
+        default:
+            return VK_CULL_MODE_NONE;
+        }
+    }
+
+    static VkFrontFace ToVkFrontFace(FrontFace face)
+    {
+        return face == FrontFace::Clockwise ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    }
+
+    static VkCompareOp ToVkCompareOp(CompareOp op)
+    {
+        switch (op)
+        {
+        case CompareOp::Never:
+            return VK_COMPARE_OP_NEVER;
+        case CompareOp::Less:
+            return VK_COMPARE_OP_LESS;
+        case CompareOp::Greater:
+            return VK_COMPARE_OP_GREATER;
+        case CompareOp::Always:
+            return VK_COMPARE_OP_ALWAYS;
+        case CompareOp::LessOrEqual:
+        default:
+            return VK_COMPARE_OP_LESS_OR_EQUAL;
+        }
+    }
+
     static void GetVkStateInfo(ResourceState state, VkImageLayout& layout, VkAccessFlags& access, VkPipelineStageFlags& stage)
     {
         switch (state)

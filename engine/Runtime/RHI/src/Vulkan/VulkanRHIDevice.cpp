@@ -55,11 +55,6 @@ namespace ChikaEngine::Render
         // vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
         CleanupSwapchain();
 
-        if (imguiPool != VK_NULL_HANDLE)
-        {
-            ImGui_ImplVulkan_Shutdown();
-        }
-
         for (uint32_t i = 0; i < m_imageCount; i++)
         {
             vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
@@ -117,6 +112,12 @@ namespace ChikaEngine::Render
         m_textures.Clear();
         m_shaders.Clear();
         m_pipelines.Clear();
+
+        m_allocator = VK_NULL_HANDLE;
+        m_device = VK_NULL_HANDLE;
+        m_surface = VK_NULL_HANDLE;
+        m_instance = VK_NULL_HANDLE;
+        m_physicalDevice = VK_NULL_HANDLE;
     }
 
     void VulkanRHIDevice::BeginFrame()
@@ -142,6 +143,7 @@ namespace ChikaEngine::Render
         vkResetDescriptorPool(m_device, m_descriptorPools[m_currentFrame], 0);
 
         m_pendingCmds[m_currentFrame].clear();
+        m_submittedCommandLists[m_currentFrame].clear();
         FlushDeletionQueue();
     }
 
@@ -210,8 +212,7 @@ namespace ChikaEngine::Render
     {
         VulkanCommandList* vCmd = static_cast<VulkanCommandList*>(cmdList);
         m_pendingCmds[m_currentFrame].push_back(vCmd->GetVkCmdRaw());
-        // TODO: 写个 cmd 池
-        // delete vCmd;
+        m_submittedCommandLists[m_currentFrame].emplace_back(cmdList);
     }
 
     BufferHandle VulkanRHIDevice::CreateBuffer(const BufferDesc& desc)
@@ -357,23 +358,23 @@ namespace ChikaEngine::Render
             attrDescs.push_back({ attr.location, 0, ToVkFormat(attr.format), attr.offset });
         }
 
+        const bool hasVertexInput = desc.vertexLayout.stride > 0 && !attrDescs.empty();
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 1;
-        vertexInputInfo.pVertexBindingDescriptions = &bindingDesc;
+        vertexInputInfo.vertexBindingDescriptionCount = hasVertexInput ? 1u : 0u;
+        vertexInputInfo.pVertexBindingDescriptions = hasVertexInput ? &bindingDesc : nullptr;
         vertexInputInfo.vertexAttributeDescriptionCount = attrDescs.size();
-        vertexInputInfo.pVertexAttributeDescriptions = attrDescs.data();
+        vertexInputInfo.pVertexAttributeDescriptions = attrDescs.empty() ? nullptr : attrDescs.data();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.topology = ToVkTopology(desc.topology);
 
         VkPipelineRasterizationStateCreateInfo rasterizer{};
         rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        // rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.cullMode = VK_CULL_MODE_NONE;
-        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.cullMode = ToVkCullMode(desc.cullMode);
+        rasterizer.frontFace = ToVkFrontFace(desc.frontFace);
         rasterizer.lineWidth = 1.0f;
 
         VkPipelineMultisampleStateCreateInfo multisampling{};
@@ -384,7 +385,7 @@ namespace ChikaEngine::Render
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depthStencil.depthTestEnable = desc.depthTest ? VK_TRUE : VK_FALSE;
         depthStencil.depthWriteEnable = desc.depthWrite ? VK_TRUE : VK_FALSE;
-        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+        depthStencil.depthCompareOp = ToVkCompareOp(desc.depthCompare);
 
         std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments(desc.colorAttachmentFormats.size());
         for (auto& cba : colorBlendAttachments)
@@ -402,7 +403,7 @@ namespace ChikaEngine::Render
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlending.attachmentCount = colorBlendAttachments.size();
-        colorBlending.pAttachments = colorBlendAttachments.data();
+        colorBlending.pAttachments = colorBlendAttachments.empty() ? nullptr : colorBlendAttachments.data();
 
         std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
         VkPipelineDynamicStateCreateInfo dynamicStateInfo{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
@@ -420,8 +421,8 @@ namespace ChikaEngine::Render
 
         VkPipelineRenderingCreateInfo renderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
         renderingInfo.colorAttachmentCount = vkColorFormats.size();
-        renderingInfo.pColorAttachmentFormats = vkColorFormats.data();
-        renderingInfo.depthAttachmentFormat = ToVkFormat(desc.depthAttachmentFormat);
+        renderingInfo.pColorAttachmentFormats = vkColorFormats.empty() ? nullptr : vkColorFormats.data();
+        renderingInfo.depthAttachmentFormat = desc.depthAttachmentFormat == RHI_Format::Unknown ? VK_FORMAT_UNDEFINED : ToVkFormat(desc.depthAttachmentFormat);
 
         VkGraphicsPipelineCreateInfo pipelineInfo{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.pNext = &renderingInfo;
@@ -863,9 +864,8 @@ namespace ChikaEngine::Render
         pool_info.poolSizeCount = std::size(pool_sizes);
         pool_info.pPoolSizes = pool_sizes;
 
-        // NOTE: 这里 imgui pool 不是直接被清理掉了吗？？生命周期这块
-
-        VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool), "Create descriptor pool for imgui failed");
+        if (imguiPool == VK_NULL_HANDLE)
+            VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool), "Create descriptor pool for imgui failed");
 
         ImGui_ImplVulkan_InitInfo initInfo = {};
         initInfo.ApiVersion = VK_API_VERSION_1_3;
@@ -889,8 +889,8 @@ namespace ChikaEngine::Render
 
     void VulkanRHIDevice::WaitIdle()
     {
-        // 强制 CPU 等待整个 Vulkan 逻辑设备完全空闲
-        vkDeviceWaitIdle(m_device);
+        if (m_device)
+            vkDeviceWaitIdle(m_device);
     }
 
     void VulkanRHIDevice::CleanupSwapchain()

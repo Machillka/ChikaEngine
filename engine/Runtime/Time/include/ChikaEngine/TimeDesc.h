@@ -12,6 +12,6 @@ namespace ChikaEngine::Time
 
     struct TimeDesc
     {
-        TimeBackendTypes backend;
+        TimeBackendTypes backend = TimeBackendTypes::GLFW;
     };
 } // namespace ChikaEngine::Time

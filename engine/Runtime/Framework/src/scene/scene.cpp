@@ -16,15 +16,47 @@
 
 namespace ChikaEngine::Framework
 {
+    Scene::~Scene()
+    {
+        Shutdown();
+    }
 
     void Scene::Initialize(const SceneCreateInfo& createInfo)
     {
+        Shutdown();
+
+        if (!createInfo.renderInstance)
+        {
+            LOG_ERROR("Scene", "SceneCreateInfo::renderInstance must not be null");
+            return;
+        }
+
         // 初始化 sub sysytem
         _renderSubsystem = std::make_unique<RenderSubsystem>(this, createInfo.renderInstance);
         _physicsSubsystem = std::make_unique<PhysicsSubsystem>(this);
         _animationSubsystem = std::make_unique<AnimationSubsystem>(this, createInfo.renderInstance->GetAssetManager());
+        _physicsStepper.Configure(createInfo.fixedDeltaTime, createInfo.maxPhysicsStepsPerFrame);
 
         _mode = SceneModes::Edit;
+    }
+
+    void Scene::Shutdown()
+    {
+        _gameobjects.clear();
+        _gameobjectMap.clear();
+        _playBackup.clear();
+        _physicsStepper.Reset();
+
+        if (_animationSubsystem)
+            _animationSubsystem->Cleanup();
+        if (_renderSubsystem)
+            _renderSubsystem->Cleanup();
+        if (_physicsSubsystem)
+            _physicsSubsystem->Cleanup();
+
+        _animationSubsystem.reset();
+        _renderSubsystem.reset();
+        _physicsSubsystem.reset();
     }
 
     Core::GameObjectID Scene::CreateGameobject(std::string name)
@@ -60,7 +92,10 @@ namespace ChikaEngine::Framework
 
     void Scene::ChangeSceneMode(SceneModes newMode)
     {
+        if (_mode == newMode)
+            return;
         _mode = newMode;
+        _physicsStepper.Reset();
     }
 
     void Scene::Tick(float deltaTime)
@@ -73,8 +108,12 @@ namespace ChikaEngine::Framework
             // TODO: 设计 Should Tick 方法进行检测
             if (_physicsSubsystem)
             {
-                _physicsSubsystem->Tick(deltaTime);
-                _physicsSubsystem->SyncTransform();
+                _physicsStepper.Consume(deltaTime,
+                                        [this](float fixedDeltaTime)
+                                        {
+                                            _physicsSubsystem->Tick(fixedDeltaTime);
+                                            _physicsSubsystem->SyncTransform();
+                                        });
             }
         }
 
@@ -106,7 +145,7 @@ namespace ChikaEngine::Framework
 
     Physics::PhysicsScene* Scene::GetPhysicsSubsystem()
     {
-        return _physicsSubsystem->GetPhysicsInstace();
+        return _physicsSubsystem ? _physicsSubsystem->GetPhysicsInstace() : nullptr;
     }
 
     void Scene::OnDeserialized()
@@ -148,6 +187,7 @@ namespace ChikaEngine::Framework
         _playBackup = mem.GetRawData();
 
         _mode = SceneModes::Play;
+        _physicsStepper.Reset();
     }
 
     void Scene::StopPlayMode()
@@ -163,5 +203,6 @@ namespace ChikaEngine::Framework
 
         _playBackup.clear();
         _mode = SceneModes::Edit;
+        _physicsStepper.Reset();
     }
 } // namespace ChikaEngine::Framework

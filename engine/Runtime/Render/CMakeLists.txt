@@ -21,8 +21,8 @@ target_link_libraries(${TARGET_NAME}
         ChikaThirdParty
         ChikaCore
         ChikaAsset
+        ChikaRHI
         ChikaResource
-        # ChikaFramework
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include PREFIX "Header Files" FILES ${CORE_PUBLIC_HEADERS})

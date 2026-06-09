@@ -11,18 +11,12 @@ PYBIND11_EMBEDDED_MODULE(chika_engine, m)
 
 namespace ChikaEngine::Scripts
 {
-    py::scoped_interpreter* guard = nullptr;
     namespace fs = std::filesystem;
-    void ScriptsSystem::Init()
+    bool ScriptsSystem::Init()
     {
-        LOG_INFO("Scripting", "Initializing uv environment...");
+        if (guard)
+            return true;
 
-        int ret = std::system("uv sync");
-        if (ret != 0)
-        {
-            LOG_ERROR("Scripting", "uv sync failed!");
-            return;
-        }
         fs::path engineRoot = fs::current_path();
 
         fs::path venvPath = std::filesystem::current_path() / ".venv";
@@ -35,28 +29,44 @@ namespace ChikaEngine::Scripts
         if (!fs::exists(pythonExe))
         {
             LOG_ERROR("Scripts", "Fatal Error: Python executable not found");
-            return;
+            return false;
         }
-        static std::wstring wPythonExe = pythonExe.wstring();
-        Py_SetProgramName(wPythonExe.c_str());
-        Py_IgnoreEnvironmentFlag = 1;
-        // std::wstring pythonHome = venvPath.wstring();
-        // Py_SetPythonHome(pythonHome.c_str());
-        ChikaEngine::Scripts::InitAllPythonBindings();
-        guard = new py::scoped_interpreter{};
+        try
+        {
+            ChikaEngine::Scripts::InitAllPythonBindings();
 
-        // py::module_ sys = py::module_::import("sys");
-        // py::list path = sys.attr("path");
-        // path.append(std::filesystem::current_path().string());
+            PyConfig config;
+            PyConfig_InitPythonConfig(&config);
+            const auto pythonHome = fs::path(CHIKA_PYTHON_HOME).wstring();
+            const PyStatus homeStatus = PyConfig_SetString(&config, &config.home, pythonHome.c_str());
+            if (PyStatus_Exception(homeStatus))
+            {
+                const std::string error = PyStatus_IsError(homeStatus) ? homeStatus.err_msg : "Failed to configure CPython home";
+                PyConfig_Clear(&config);
+                LOG_ERROR("Scripting", "Python configuration failed: {}", error);
+                return false;
+            }
 
-        py::module_ sys = py::module_::import("sys");
-        py::list path = sys.attr("path");
-        path.append((engineRoot / "Assets" / "Scripts").string());
-        LOG_INFO("Scripting", "Python Script Engine initialized successfully.");
-        LOG_INFO("Scripts", (engineRoot / "Assets" / "Scripts").string());
+            guard = new py::scoped_interpreter{ &config };
+
+            py::module_ sys = py::module_::import("sys");
+            py::list path = sys.attr("path");
+            path.append((engineRoot / "Assets" / "Scripts").string());
+            LOG_INFO("Scripting", "Python Script Engine initialized successfully.");
+            return true;
+        }
+        catch (const std::exception& exception)
+        {
+            LOG_ERROR("Scripting", "Python initialization failed: {}", exception.what());
+            delete guard;
+            guard = nullptr;
+            return false;
+        }
     }
     void ScriptsSystem::Shutdown()
     {
+        if (!guard)
+            return;
         delete guard;
         guard = nullptr;
     }

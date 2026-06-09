@@ -14,7 +14,7 @@ namespace ChikaEngine::Framework
         // void Initialize(Scene* scene) override;
         Physics::PhysicsScene* GetPhysicsInstace();
         void Tick(float dt) override;
-        void Cleanup() override {};
+        void Cleanup() override;
 
       public:
         bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, Physics::RaycastHit& outHit);

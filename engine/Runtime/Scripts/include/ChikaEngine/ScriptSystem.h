@@ -23,8 +23,12 @@ namespace ChikaEngine::Scripts
             return instance;
         }
 
-        void Init();
+        bool Init();
         void Shutdown();
+        bool IsInitialized() const
+        {
+            return guard != nullptr;
+        }
 
       private:
         ScriptsSystem() = default;

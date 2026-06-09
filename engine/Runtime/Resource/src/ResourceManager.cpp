@@ -12,6 +12,42 @@
 
 namespace ChikaEngine::Resource
 {
+    namespace
+    {
+        Render::VertexLayout BuildDefaultVertexLayout()
+        {
+            return {
+                .stride = sizeof(Asset::VertexData),
+                .attributes = {
+                    {
+                        0,
+                        Render::RHI_Format::RGB32_Float,
+                        offsetof(Asset::VertexData, position),
+                    },
+                    {
+                        1,
+                        Render::RHI_Format::RGB32_Float,
+                        offsetof(Asset::VertexData, normal),
+                    },
+                    {
+                        2,
+                        Render::RHI_Format::RG32_Float,
+                        offsetof(Asset::VertexData, uv),
+                    },
+                    {
+                        3,
+                        Render::RHI_Format::RGBA32_SInt,
+                        offsetof(Asset::VertexData, boneIndices),
+                    },
+                    {
+                        4,
+                        Render::RHI_Format::RGBA32_Float,
+                        offsetof(Asset::VertexData, boneWeights),
+                    },
+                },
+            };
+        }
+    } // namespace
 
     ResourceManager::ResourceManager(Render::IRHIDevice& rhi, Asset::AssetManager& assetManager) : m_rhi(rhi), m_assetManager(assetManager) {}
 
@@ -200,48 +236,33 @@ namespace ChikaEngine::Resource
             .codeSize = fsSpirv->spirv.size(),
         });
 
-        // build pipeline
-        Render::PipelineDesc pipelineDesc
-        {
+        Render::PipelineDesc pipelineDesc{
             .vertexShader = vs,
             .fragmentShader = fs,
-            .vertexLayout = {
-                .stride = sizeof(Asset::VertexData),
-                .attributes = {
-                                {
-                                    0,
-                                    Render::RHI_Format::RGB32_Float,
-                                    offsetof(Asset::VertexData, position),
-                                },
-                                {
-                                    1,
-                                    Render::RHI_Format::RGB32_Float,
-                                    offsetof(Asset::VertexData, normal),
-                                },
-                                {
-                                    2,
-                                    Render::RHI_Format::RG32_Float,
-                                    offsetof(Asset::VertexData, uv),
-                                },
-                                {
-                                    3,
-                                    Render::RHI_Format::RGBA32_SInt,
-                                    offsetof(Asset::VertexData, boneIndices)
-                                },
-                                {
-                                    4,
-                                    Render::RHI_Format::RGBA32_Float,
-                                    offsetof(Asset::VertexData, boneWeights)
-                            }
-                },
-            },
+            .vertexLayout = BuildDefaultVertexLayout(),
             .depthTest = true,
             .depthWrite = true,
             .alphaBlendEnable = false
         };
         pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::BGRA8_UNorm);
         pipelineDesc.depthAttachmentFormat = Render::RHI_Format::D32_SFloat;
-        Render::PipelineHandle pipeline = m_rhi.CreateGraphicsPipeline(pipelineDesc);
+        Render::PipelineHandle forwardPipeline = m_rhi.CreateGraphicsPipeline(pipelineDesc);
+
+        Asset::ShaderHandle gbufferFsAsset = m_assetManager.LoadShader("Assets/Shaders/gbuffer.frag.spv");
+        const auto* gbufferFsSpirv = m_assetManager.GetShader(gbufferFsAsset);
+        Render::ShaderHandle gbufferFs = m_rhi.CreateShader({
+            .stage = Render::RHI_ShaderStage::Fragment,
+            .code = gbufferFsSpirv->spirv.data(),
+            .codeSize = gbufferFsSpirv->spirv.size(),
+        });
+
+        Render::PipelineDesc gbufferPipelineDesc = pipelineDesc;
+        gbufferPipelineDesc.fragmentShader = gbufferFs;
+        gbufferPipelineDesc.colorAttachmentFormats.clear();
+        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA8_UNorm);
+        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
+        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA8_UNorm);
+        Render::PipelineHandle gbufferPipeline = m_rhi.CreateGraphicsPipeline(gbufferPipelineDesc);
 
         // ubo
         std::vector<const Asset::ShaderParamDesc*> sortedParams;
@@ -345,7 +366,9 @@ namespace ChikaEngine::Resource
         }
 
         MaterialHandle handle = m_materials.Create({
-            .pipeline = pipeline,
+            .pipeline = forwardPipeline,
+            .forwardPipeline = forwardPipeline,
+            .gbufferPipeline = gbufferPipeline,
             .uboBuffer = uboHandle,
             .bindings = bindings,
         });

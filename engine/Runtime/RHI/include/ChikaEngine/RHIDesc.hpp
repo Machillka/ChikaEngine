@@ -109,6 +109,34 @@ namespace ChikaEngine::Render
         DontCare
     };
 
+    enum class PrimitiveTopology : uint32_t
+    {
+        TriangleList,
+        LineList,
+    };
+
+    enum class CullMode : uint32_t
+    {
+        None,
+        Front,
+        Back,
+    };
+
+    enum class FrontFace : uint32_t
+    {
+        CounterClockwise,
+        Clockwise,
+    };
+
+    enum class CompareOp : uint32_t
+    {
+        Never,
+        Less,
+        LessOrEqual,
+        Greater,
+        Always,
+    };
+
     struct BufferDesc
     {
         uint64_t size = 0;
@@ -158,6 +186,10 @@ namespace ChikaEngine::Render
         bool depthTest = true;
         bool depthWrite = true;
         bool alphaBlendEnable = false;
+        PrimitiveTopology topology = PrimitiveTopology::TriangleList;
+        CullMode cullMode = CullMode::None;
+        FrontFace frontFace = FrontFace::CounterClockwise;
+        CompareOp depthCompare = CompareOp::LessOrEqual;
 
         std::vector<RHI_Format> colorAttachmentFormats;
         RHI_Format depthAttachmentFormat = RHI_Format::D32_SFloat;

@@ -45,6 +45,7 @@ namespace ChikaEngine::Render
         virtual void CopyBufferToTexture(BufferHandle src, TextureHandle dst, uint32_t width, uint32_t height) = 0;
 
         // 绘制命令
+        virtual void Draw(uint32_t vertexCount, uint32_t instanceCount) = 0;
         virtual void DrawIndexed(uint32_t indexCount, uint32_t instanceCount) = 0;
 
         // imgui 特化

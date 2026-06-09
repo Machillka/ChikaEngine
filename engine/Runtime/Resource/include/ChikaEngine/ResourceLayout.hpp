@@ -35,6 +35,8 @@ namespace ChikaEngine::Resource
     struct MaterialGPU
     {
         Render::PipelineHandle pipeline;
+        Render::PipelineHandle forwardPipeline;
+        Render::PipelineHandle gbufferPipeline;
         Render::BufferHandle uboBuffer;
         Render::ResourceBindingGroup bindings;
     };

@@ -8,6 +8,16 @@
 
 namespace ChikaEngine::Framework
 {
+    Rigidbody::~Rigidbody()
+    {
+        if (_physicsHandle == 0)
+            return;
+
+        auto scene = GetSceneSave();
+        if (scene && scene->GetPhysicsSubsystem())
+            scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
+    }
+
     Scene* Rigidbody::GetSceneSave()
     {
         auto owner = GetOwner();
@@ -52,7 +62,17 @@ namespace ChikaEngine::Framework
             return;
         }
 
-        _physicsHandle = scene->GetPhysicsSubsystem()->CreateBodyImmediate(createInfo);
+        auto* physics = scene->GetPhysicsSubsystem();
+        if (!physics)
+        {
+            LOG_WARN("Rigidbody Component", "Owner scene does not have an initialized physics subsystem");
+            return;
+        }
+
+        if (_physicsHandle != 0)
+            physics->EnqueueRigidbodyDestroy(_physicsHandle);
+
+        _physicsHandle = physics->CreateBodyImmediate(createInfo);
         if (_physicsHandle)
             LOG_INFO("Rigidbody", "Create Rigidbody handle {} successfully!", _physicsHandle);
     }
@@ -66,27 +86,32 @@ namespace ChikaEngine::Framework
 
     void Rigidbody::OnDirty()
     {
-        CreateRigidbody();
+        _need2RecreateRigidbody = true;
+        if (_isEnabled)
+        {
+            CreateRigidbody();
+            _need2RecreateRigidbody = false;
+        }
     }
 
     // TODO: 跳过 Rigidbody 运算, 位移等移交给 transform
     void Rigidbody::OnEnable()
     {
-        // _isEnabled = true;
-
-        // if (_need2RecreateRigidbody)
-        //     CreateRigidbody();
+        if (_need2RecreateRigidbody)
+        {
+            CreateRigidbody();
+            _need2RecreateRigidbody = false;
+        }
     }
 
     void Rigidbody::OnDisable()
     {
-        _isEnabled = false;
-
         auto scene = GetSceneSave();
-        if (!scene)
+        if (!scene || !scene->GetPhysicsSubsystem())
             return;
         // TODO: 提供直接销毁方法
-        scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
+        if (_physicsHandle != 0)
+            scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
         _physicsHandle = 0;
         _need2RecreateRigidbody = true;
     }
@@ -117,7 +142,7 @@ namespace ChikaEngine::Framework
     void Rigidbody::SetLinearVelocity(Math::Vector3 v)
     {
         auto scene = GetSceneSave();
-        if (!scene)
+        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
             return;
 
         scene->GetPhysicsSubsystem()->SetLinearVelocity(_physicsHandle, v);
@@ -125,7 +150,7 @@ namespace ChikaEngine::Framework
     void Rigidbody::Impulse(Math::Vector3 impulse)
     {
         auto scene = GetSceneSave();
-        if (!scene)
+        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
             return;
         scene->GetPhysicsSubsystem()->ApplyImpulse(_physicsHandle, impulse);
     }

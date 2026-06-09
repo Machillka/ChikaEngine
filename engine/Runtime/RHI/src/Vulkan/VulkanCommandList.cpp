@@ -145,6 +145,11 @@ namespace ChikaEngine::Render
         vkCmdBindIndexBuffer(m_cmd, b, offset, isUint32 ? VK_INDEX_TYPE_UINT32 : VK_INDEX_TYPE_UINT16);
     }
 
+    void VulkanCommandList::Draw(uint32_t vertexCount, uint32_t instanceCount)
+    {
+        vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
+    }
+
     void VulkanCommandList::DrawIndexed(uint32_t indexCount, uint32_t instanceCount)
     {
         vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, 0);

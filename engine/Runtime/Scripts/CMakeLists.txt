@@ -22,5 +22,10 @@ target_link_libraries(${TARGET_NAME}
         ChikaCore
 )
 
+target_compile_definitions(${TARGET_NAME}
+    PRIVATE
+        CHIKA_PYTHON_HOME="${CHIKA_PYTHON_HOME}"
+)
+
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include PREFIX "Header Files" FILES ${CORE_PUBLIC_HEADERS})
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files" FILES ${CORE_SOURCES})

@@ -47,7 +47,13 @@ namespace ChikaEngine::Framework
 
         void SetEnabled(bool enabled)
         {
+            if (_isEnabled == enabled)
+                return;
             _isEnabled = enabled;
+            if (_isEnabled)
+                OnEnable();
+            else
+                OnDisable();
         }
 
         void MarkDirty()
@@ -63,6 +69,6 @@ namespace ChikaEngine::Framework
         MFIELD()
         std::string _reflectedClassName = "Component";
 
-        bool _isDirty;
+        bool _isDirty = false;
     };
 } // namespace ChikaEngine::Framework

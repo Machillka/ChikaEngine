@@ -11,8 +11,8 @@
 #pragma once
 
 #include "ChikaEngine/RenderGraphPass.hpp"
-#include "IRHIDevice.hpp"
-#include "RHIDesc.hpp"
+#include "ChikaEngine/IRHIDevice.hpp"
+#include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/base/SlotMap.h"
 #include "RenderPassBuilder.hpp"
 #include <cstdint>

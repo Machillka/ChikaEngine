@@ -15,6 +15,7 @@ namespace ChikaEngine::Input
         static void Init(std::unique_ptr<IInputBackend> backend);
         static void Init(InputDesc desc, void* window);
         static void Shutdown();
+        static bool IsInitialized();
         static void Update();
         static bool GetKeyDown(KeyCode key);
         static bool GetKeyUp(KeyCode key);
