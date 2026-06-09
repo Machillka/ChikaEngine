@@ -10,6 +10,11 @@
 
 namespace ChikaEngine::Render
 {
+    Renderer::~Renderer()
+    {
+        Shutdown();
+    }
+
     void Renderer::Initialize(const RendererCreateInfo& createInfo)
     {
         m_window = createInfo.windowHandle;
@@ -320,10 +325,7 @@ namespace ChikaEngine::Render
                 builder.WriteColor(m_rgOffscreen, LoadOp::Clear, clearColor);
                 builder.WriteDepth(m_rgDepth, LoadOp::Clear);
             },
-            [this](IRHICommandList* cmd, RenderGraph* graph)
-            {
-                DrawSceneGeometry(cmd, false, false);
-            });
+            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawSceneGeometry(cmd, false, false); });
     }
     void Renderer::AddImGuiPass()
     {
@@ -373,10 +375,7 @@ namespace ChikaEngine::Render
                 builder.WriteColor(m_rgGBufferMaterial, LoadOp::Clear, clearColor);
                 builder.WriteDepth(m_rgDepth, LoadOp::Clear);
             },
-            [this](IRHICommandList* cmd, RenderGraph* graph)
-            {
-                DrawSceneGeometry(cmd, false, true);
-            });
+            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawSceneGeometry(cmd, false, true); });
     }
 
     void Renderer::AddDeferredLightingPass()
@@ -558,14 +557,19 @@ namespace ChikaEngine::Render
 
     void Renderer::Shutdown()
     {
-
         if (m_rhi)
-        {
             m_rhi->WaitIdle();
-        }
 
-        m_renderGraph->Clear();
-        m_rhi->DestroyTexture(m_offscreenColor);
+        if (m_renderGraph)
+            m_renderGraph->Clear();
+
+        m_imguiDrawData = nullptr;
+        m_activeCamera = nullptr;
+        m_defaultCamera.reset();
+        m_resourceMgr.reset();
+        m_renderGraph.reset();
+        m_rhi.reset();
+        m_assetMgr = nullptr;
     }
 
     /*!

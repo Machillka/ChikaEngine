@@ -1,6 +1,8 @@
 #include "ChikaEngine/component/Animator.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/mat4.h"
+#include <algorithm>
+#include <cmath>
 
 namespace ChikaEngine::Framework
 {
@@ -53,15 +55,17 @@ namespace ChikaEngine::Framework
             return;
         }
 
-        CurrentTime += deltatime;
+        CurrentTime += deltatime * PlaybackSpeed;
 
-        // 做最简的循环播放
-        if (CurrentTime > duration)
+        if (IsLoop)
         {
-            if (IsLoop)
-                CurrentTime = std::fmod(CurrentTime, duration);
-            else
-                CurrentTime = duration;
+            CurrentTime = std::fmod(CurrentTime, duration);
+            if (CurrentTime < 0.0f)
+                CurrentTime += duration;
+        }
+        else
+        {
+            CurrentTime = std::clamp(CurrentTime, 0.0f, duration);
         }
     }
 

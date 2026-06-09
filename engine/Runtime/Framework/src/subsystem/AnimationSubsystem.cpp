@@ -38,8 +38,6 @@ namespace ChikaEngine::Framework
 
             const auto& skeleton = meshData->skeleton;
 
-            animator->CurrentTime += deltaTime * animator->PlaybackSpeed;
-
             animator->UpdateTime(deltaTime, animData->duration);
 
             std::vector<Math::Mat4> localTransforms(skeleton.joints.size());

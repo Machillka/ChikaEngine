@@ -43,18 +43,14 @@ add_custom_command(
     VERBATIM
 )
 
-set(ENGINE_SRC
-	${CMAKE_CURRENT_LIST_DIR}/engine.cpp
-)
-set(ENGINE_HDR
-	${CMAKE_CURRENT_LIST_DIR}/engine.h
-)
+file(GLOB_RECURSE ENGINE_SRC CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp")
+file(GLOB_RECURSE ENGINE_HDR CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/include/*.h" "${CMAKE_CURRENT_LIST_DIR}/include/*.hpp")
 
 add_library(ChikaEngine STATIC ${ENGINE_SRC} ${ENGINE_HDR} ${REGISTRY_CPP} ${PYTHON_REGISTRY_CPP})
 
 target_include_directories(ChikaEngine
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>
 )
 
 target_link_libraries(ChikaEngine

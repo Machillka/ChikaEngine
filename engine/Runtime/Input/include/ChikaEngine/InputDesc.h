@@ -9,6 +9,6 @@ namespace ChikaEngine::Input
     };
     struct InputDesc
     {
-        InputBackendTypes backendType;
+        InputBackendTypes backendType = InputBackendTypes::GLFW;
     };
 } // namespace ChikaEngine::Input

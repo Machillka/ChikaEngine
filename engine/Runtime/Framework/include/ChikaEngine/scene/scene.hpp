@@ -1,6 +1,7 @@
 #pragma once
 #include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/Renderer.hpp"
+#include "ChikaEngine/base/FixedStepAccumulator.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/subsystem/AnimationSubsystem.hpp"
@@ -23,12 +24,17 @@ namespace ChikaEngine::Framework
 
     struct SceneCreateInfo
     {
-        Render::Renderer* renderInstance;
+        Render::Renderer* renderInstance = nullptr;
+        float fixedDeltaTime = 1.0f / 60.0f;
+        uint32_t maxPhysicsStepsPerFrame = 4;
     };
 
     class Scene
     {
       public:
+        Scene() = default;
+        ~Scene();
+
         void SaveToStream(IO::IStream& stream) const;
         void LoadFromStream(IO::IStream& stream);
 
@@ -76,6 +82,7 @@ namespace ChikaEngine::Framework
         const std::vector<std::unique_ptr<GameObject>>& GetAllGameobjects() const;
 
         void Initialize(const SceneCreateInfo& createInfo);
+        void Shutdown();
         void ChangeSceneMode(SceneModes newMode);
 
       public:
@@ -98,5 +105,6 @@ namespace ChikaEngine::Framework
         SceneModes _mode = SceneModes::Play;
 
         std::vector<uint8_t> _playBackup;
+        Core::FixedStepAccumulator _physicsStepper;
     };
 } // namespace ChikaEngine::Framework

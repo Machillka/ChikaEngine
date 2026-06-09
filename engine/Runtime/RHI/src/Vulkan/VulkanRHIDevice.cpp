@@ -55,11 +55,6 @@ namespace ChikaEngine::Render
         // vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
         CleanupSwapchain();
 
-        if (imguiPool != VK_NULL_HANDLE)
-        {
-            ImGui_ImplVulkan_Shutdown();
-        }
-
         for (uint32_t i = 0; i < m_imageCount; i++)
         {
             vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
@@ -117,6 +112,12 @@ namespace ChikaEngine::Render
         m_textures.Clear();
         m_shaders.Clear();
         m_pipelines.Clear();
+
+        m_allocator = VK_NULL_HANDLE;
+        m_device = VK_NULL_HANDLE;
+        m_surface = VK_NULL_HANDLE;
+        m_instance = VK_NULL_HANDLE;
+        m_physicalDevice = VK_NULL_HANDLE;
     }
 
     void VulkanRHIDevice::BeginFrame()
@@ -863,9 +864,8 @@ namespace ChikaEngine::Render
         pool_info.poolSizeCount = std::size(pool_sizes);
         pool_info.pPoolSizes = pool_sizes;
 
-        // NOTE: 这里 imgui pool 不是直接被清理掉了吗？？生命周期这块
-
-        VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool), "Create descriptor pool for imgui failed");
+        if (imguiPool == VK_NULL_HANDLE)
+            VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool), "Create descriptor pool for imgui failed");
 
         ImGui_ImplVulkan_InitInfo initInfo = {};
         initInfo.ApiVersion = VK_API_VERSION_1_3;
@@ -889,8 +889,8 @@ namespace ChikaEngine::Render
 
     void VulkanRHIDevice::WaitIdle()
     {
-        // 强制 CPU 等待整个 Vulkan 逻辑设备完全空闲
-        vkDeviceWaitIdle(m_device);
+        if (m_device)
+            vkDeviceWaitIdle(m_device);
     }
 
     void VulkanRHIDevice::CleanupSwapchain()

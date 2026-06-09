@@ -14,8 +14,8 @@
 #include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/ResourceHandle.hpp"
 #include "ChikaEngine/ResourceManager.hpp"
-#include "IRHIDevice.hpp"
-#include "RHIResourceHandle.hpp"
+#include "ChikaEngine/IRHIDevice.hpp"
+#include "ChikaEngine/RHIResourceHandle.hpp"
 #include "RenderGraph.hpp"
 #include "ChikaEngine/rhi/RHIBackendFactory.hpp"
 #include <cstdint>
@@ -72,6 +72,8 @@ namespace ChikaEngine::Render
     class Renderer
     {
       public:
+        ~Renderer();
+
         // TODO[x]: asset manager 应当是依赖注入
         void Initialize(const RendererCreateInfo& createInfo);
         void Shutdown();

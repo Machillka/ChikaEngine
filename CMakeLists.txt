@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.24)
 
 project(ChikaEngine VERSION 0.0.1 LANGUAGES CXX C)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -44,6 +46,8 @@ find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
 
 message(STATUS "[ChikaEngine] Found Python Include: ${Python3_INCLUDE_DIRS}")
 message(STATUS "[ChikaEngine] Found Python Libraries: ${Python3_LIBRARIES}")
+get_filename_component(CHIKA_PYTHON_HOME "${Python3_STDLIB}" DIRECTORY)
+message(STATUS "[ChikaEngine] Python Runtime Home: ${CHIKA_PYTHON_HOME}")
 
 if(CMAKE_HOST_WIN32)
     message(STATUS "[ChikaEngine] Resolving Python Runtime DLL for Windows deployment...")
@@ -72,6 +76,10 @@ endif()
 
 # 加入 engine。构建
 add_subdirectory(engine)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 target_compile_definitions(ChikaEngine PRIVATE
     JPH_USE_SSE4_1
