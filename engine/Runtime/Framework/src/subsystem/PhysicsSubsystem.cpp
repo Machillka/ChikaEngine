@@ -73,8 +73,7 @@ namespace ChikaEngine::Framework
                 continue;
 
             // LOG_INFO("Sync Transform", "ID = {}, originY: {}, phyY: {}", goId, go->transform->position.y, physicsTransform.pos.y);
-            go->transform->position = physicsTransform.pos;
-            go->transform->rotation = physicsTransform.rot;
+            go->transform->SetWorldPositionAndRotation(physicsTransform.pos, physicsTransform.rot);
         }
     }
 } // namespace ChikaEngine::Framework

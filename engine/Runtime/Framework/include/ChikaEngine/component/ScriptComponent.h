@@ -25,11 +25,18 @@ namespace ChikaEngine::Framework
         std::string className = "PlayerController";
 
         void Awake() override;
+        void Start() override;
+        void FixedTick(float fixedDeltaTime) override;
         void Tick(float deltaTime) override;
-        // void FixedUpdate(float fixedDeltaTime) override;
-        // void OnDestroy() override;
+        void LateTick(float deltaTime) override;
+        void OnEnable() override;
+        void OnDisable() override;
+        void OnDestroy() override;
 
       private:
+        void Invoke(const char* functionName);
+        void Invoke(const char* functionName, float value);
+
         pybind11::object _pythonInstance;
         bool _isLoaded = false;
     };

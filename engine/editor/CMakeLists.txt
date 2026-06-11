@@ -1,7 +1,7 @@
 set(TARGET_NAME ChikaEditor)
 
-file(GLOB_RECURSE EDITOR_SRCS "src/*.cpp")
-file(GLOB_RECURSE EDITOR_HDRS "include/*.h")
+file(GLOB_RECURSE EDITOR_SRCS CONFIGURE_DEPENDS "src/*.cpp")
+file(GLOB_RECURSE EDITOR_HDRS CONFIGURE_DEPENDS "include/*.h" "include/*.hpp")
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "Core" FILES ${EDITOR_SRCS} ${EDITOR_HDRS})
 

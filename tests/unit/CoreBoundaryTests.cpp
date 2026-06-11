@@ -2,6 +2,9 @@
 #include "ChikaEngine/component/Animator.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
+#include "ChikaEngine/event/EventBus.hpp"
+#include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/math/vector3.h"
 #include <cmath>
 #include <iostream>
 
@@ -23,21 +26,75 @@ namespace
         return std::abs(lhs - rhs) <= epsilon;
     }
 
+    struct LifecycleStats
+    {
+        int awake = 0;
+        int start = 0;
+        int fixedTick = 0;
+        int tick = 0;
+        int lateTick = 0;
+        int enable = 0;
+        int disable = 0;
+        int destroy = 0;
+    };
+
     class LifecycleComponent final : public ChikaEngine::Framework::Component
     {
       public:
+        explicit LifecycleComponent(LifecycleStats* stats = nullptr) : stats(stats) {}
+
+        void Awake() override
+        {
+            ++stats->awake;
+        }
+        void Start() override
+        {
+            ++stats->start;
+        }
+        void FixedTick(float) override
+        {
+            ++stats->fixedTick;
+        }
+        void Tick(float) override
+        {
+            ++stats->tick;
+        }
+        void LateTick(float) override
+        {
+            ++stats->lateTick;
+        }
         void OnEnable() override
         {
-            ++enableCount;
+            ++stats->enable;
         }
-
         void OnDisable() override
         {
-            ++disableCount;
+            ++stats->disable;
+        }
+        void OnDestroy() override
+        {
+            ++stats->destroy;
         }
 
-        int enableCount = 0;
-        int disableCount = 0;
+        LifecycleStats* stats = nullptr;
+    };
+
+    class SelfRemovingComponent final : public ChikaEngine::Framework::Component
+    {
+      public:
+        explicit SelfRemovingComponent(LifecycleStats* stats) : stats(stats) {}
+
+        void Tick(float) override
+        {
+            ++stats->tick;
+            GetOwner()->RemoveComponent(this);
+        }
+        void OnDestroy() override
+        {
+            ++stats->destroy;
+        }
+
+        LifecycleStats* stats = nullptr;
     };
 
     void TestFixedStepAccumulator()
@@ -85,15 +142,79 @@ namespace
         Check(NearlyEqual(rigidbody.GetFriction(), 0.5f), "rigidbody friction default");
     }
 
-    void TestComponentEnableLifecycle()
+    void TestCompleteComponentLifecycle()
     {
-        LifecycleComponent component;
-        component.SetEnabled(false);
-        component.SetEnabled(false);
-        component.SetEnabled(true);
+        LifecycleStats stats;
+        ChikaEngine::Framework::GameObject object(1, "Lifecycle");
+        auto* component = object.AddComponent<LifecycleComponent>(&stats);
 
-        Check(component.disableCount == 1, "component disables once per state transition");
-        Check(component.enableCount == 1, "component enables once per state transition");
+        Check(stats.awake == 1, "component awakes once when attached");
+        Check(stats.enable == 1, "component enables when attached to active object");
+
+        object.BeginPlay();
+        object.FixedTick(0.02f);
+        object.Tick(0.02f);
+        object.LateTick(0.02f);
+        Check(stats.start == 1, "component starts once when entering play");
+        Check(stats.fixedTick == 1 && stats.tick == 1 && stats.lateTick == 1, "component receives complete play update phases");
+
+        component->SetEnabled(false);
+        component->SetEnabled(false);
+        component->SetEnabled(true);
+        Check(stats.disable == 1, "component disables once per state transition");
+        Check(stats.enable == 2, "component enables once per state transition");
+
+        object.EndPlay();
+        object.BeginPlay();
+        Check(stats.start == 2, "component starts once for each play session");
+
+        object.RemoveComponent(component);
+        Check(stats.disable == 2, "component disables before removal");
+        Check(stats.destroy == 1, "component destroys exactly once when removed");
+
+        LifecycleStats delayedStats;
+        ChikaEngine::Framework::GameObject delayedObject(3, "DelayedStart");
+        auto* delayedComponent = delayedObject.AddComponent<LifecycleComponent>(&delayedStats);
+        delayedComponent->SetEnabled(false);
+        delayedObject.BeginPlay();
+        Check(delayedStats.start == 0, "disabled component does not start when entering play");
+        delayedComponent->SetEnabled(true);
+        Check(delayedStats.start == 1, "component starts when first enabled during play");
+    }
+
+    void TestDeferredComponentRemoval()
+    {
+        LifecycleStats stats;
+        ChikaEngine::Framework::GameObject object(2, "SelfRemoving");
+        object.AddComponent<SelfRemovingComponent>(&stats);
+        object.BeginPlay();
+        object.Tick(0.016f);
+
+        Check(stats.tick == 1, "self-removing component ticks once");
+        Check(stats.destroy == 1, "self-removing component is destroyed after iteration");
+        Check(object.GetComponent<SelfRemovingComponent>() == nullptr, "self-removing component no longer belongs to object");
+    }
+
+    void TestEventBus()
+    {
+        struct TestEvent
+        {
+            int value = 0;
+        };
+
+        ChikaEngine::Framework::EventBus events;
+        int received = 0;
+        const auto subscription = events.Subscribe<TestEvent>([&](const TestEvent& event) { received += event.value; });
+        events.Publish(TestEvent{ .value = 3 });
+        events.Unsubscribe(subscription);
+        events.Publish(TestEvent{ .value = 5 });
+        Check(received == 3, "event bus publishes typed events and unsubscribes");
+    }
+
+    void TestVector3ComponentMultiply()
+    {
+        const ChikaEngine::Math::Vector3 result = ChikaEngine::Math::Vector3(2.0f, 3.0f, 4.0f) * ChikaEngine::Math::Vector3(5.0f, 6.0f, 7.0f);
+        Check(result == ChikaEngine::Math::Vector3(10.0f, 18.0f, 28.0f), "vector3 component multiply");
     }
 } // namespace
 
@@ -102,7 +223,10 @@ int main()
     TestFixedStepAccumulator();
     TestAnimatorTime();
     TestRigidbodyDefaults();
-    TestComponentEnableLifecycle();
+    TestCompleteComponentLifecycle();
+    TestDeferredComponentRemoval();
+    TestEventBus();
+    TestVector3ComponentMultiply();
 
     if (g_failures != 0)
         std::cerr << g_failures << " core boundary test(s) failed\n";

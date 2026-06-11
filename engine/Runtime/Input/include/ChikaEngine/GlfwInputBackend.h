@@ -30,7 +30,7 @@ namespace ChikaEngine::Input
         GLFWwindow* _window = nullptr;
 
         static constexpr int MaxKeyCounts = 256;
-        static constexpr int MaxMouseButtonCounts = 8;
+        static constexpr int MaxMouseButtonCounts = GLFW_MOUSE_BUTTON_LAST + 1;
 
         // 缓存状态
         std::array<bool, MaxKeyCounts> _currentKeys{};
@@ -48,6 +48,6 @@ namespace ChikaEngine::Input
         int ToIndex(KeyCode key) const;
         int ToIndex(MouseButton button) const;
         int ToGlfwKey(KeyCode key) const;
-        int ToGlfwMouse(MouseButton button) const;
+        bool IsValidMouseButtonIndex(int index) const;
     };
 } // namespace ChikaEngine::Input

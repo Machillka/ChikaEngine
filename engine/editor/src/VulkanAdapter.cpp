@@ -41,6 +41,9 @@ namespace ChikaEngine::Editor
     {
         if (_vulkanBackendInitialized)
         {
+            if (_renderer && _renderer->GetRHIHandle())
+                _renderer->GetRHIHandle()->WaitIdle();
+
             ImGui_ImplVulkan_Shutdown();
             _vulkanBackendInitialized = false;
         }

@@ -5,7 +5,7 @@ namespace ChikaEngine::IO
     FileStream::FileStream(const std::string& path, Mode mode)
     {
         _isReadingMode = (mode == Mode::Read);
-        auto flags = std::ios::binary | (_isReadingMode ? std::ios::in : std::ios::out);
+        auto flags = std::ios::binary | (_isReadingMode ? std::ios::in : std::ios::out | std::ios::trunc);
         _stream.open(path, flags);
         if (!_stream.is_open())
             throw std::runtime_error("Open file failed: " + path);

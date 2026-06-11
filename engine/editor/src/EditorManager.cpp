@@ -3,10 +3,13 @@
 
 #include "InspectorPanel.hpp"
 #include "LogPanel.hpp"
+#include "SceneHierarchyPanel.hpp"
 #include "backends/imgui_impl_glfw.h"
 
 #include "EditorManager.hpp"
 #include "ViewportPanel.hpp"
+#include "ChikaEngine/scene/SceneManager.hpp"
+#include "ChikaEngine/scene/scene.hpp"
 #include "imgui_impl_glfw.h"
 
 namespace ChikaEngine::Editor
@@ -15,6 +18,7 @@ namespace ChikaEngine::Editor
     {
         _renderer = createInfo.renderer;
         _windowHandle = static_cast<GLFWwindow*>(createInfo.window);
+        _context.sceneManager = createInfo.sceneManager;
         _context.activeScene = createInfo.scene;
         _context.renderer = _renderer;
 
@@ -22,6 +26,7 @@ namespace ChikaEngine::Editor
 
         AddPanel<ViewportPanel>();
         AddPanel<InspectorPanel>();
+        AddPanel<SceneHierarchyPanel>();
         AddPanel<LogPanel>();
     }
 
@@ -33,6 +38,11 @@ namespace ChikaEngine::Editor
 
     void EditorManager::Tick(float deltaTime)
     {
+        if (_context.sceneManager)
+            _context.activeScene = _context.sceneManager->GetActiveScene();
+        if (_context.activeScene && _context.selectedGameObject != Core::InvalidGameObjectID && !_context.activeScene->GetGameObject(_context.selectedGameObject))
+            _context.selectedGameObject = Core::InvalidGameObjectID;
+
         for (auto& panel : _panels)
         {
             if (panel->IsActive())
@@ -65,6 +75,7 @@ namespace ChikaEngine::Editor
 
         ImGui::Begin("ChikaEngine DockSpace", nullptr, window_flags);
         ImGui::PopStyleVar(3);
+        DrawPlayModeToolbar();
 
         ImGuiID dockspace_id = ImGui::GetID("EditorDockSpace");
         ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
@@ -114,6 +125,49 @@ namespace ChikaEngine::Editor
             }
         }
         EndDockspace();
+    }
+
+    void EditorManager::DrawPlayModeToolbar()
+    {
+        auto* scene = _context.activeScene;
+        if (!scene || !ImGui::BeginMenuBar())
+            return;
+
+        switch (scene->GetMode())
+        {
+        case Framework::SceneModes::Edit:
+            if (ImGui::Button("Play"))
+                scene->StartPlayMode();
+            ImGui::SameLine();
+            ImGui::TextDisabled("Edit Mode");
+            break;
+        case Framework::SceneModes::Play:
+            if (ImGui::Button("Pause"))
+                scene->PausePlayMode();
+            ImGui::SameLine();
+            if (ImGui::Button("Stop"))
+                scene->StopPlayMode();
+            ImGui::SameLine();
+            ImGui::TextDisabled("Play Mode - runtime changes are discarded on Stop");
+            break;
+        case Framework::SceneModes::Paused:
+            if (ImGui::Button("Resume"))
+                scene->ResumePlayMode();
+            ImGui::SameLine();
+            if (ImGui::Button("Stop"))
+                scene->StopPlayMode();
+            ImGui::SameLine();
+            ImGui::TextDisabled("Paused");
+            break;
+        case Framework::SceneModes::EnteringPlay:
+            ImGui::TextDisabled("Entering Play Mode...");
+            break;
+        case Framework::SceneModes::ExitingPlay:
+            ImGui::TextDisabled("Restoring Edit Mode...");
+            break;
+        }
+
+        ImGui::EndMenuBar();
     }
 
 } // namespace ChikaEngine::Editor

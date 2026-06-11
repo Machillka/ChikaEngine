@@ -6,8 +6,8 @@
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include <memory>
-#include <mutex>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace ChikaEngine::Framework
@@ -24,6 +24,11 @@ namespace ChikaEngine::Framework
         GameObject() = default;
         GameObject(Core::GameObjectID id, std::string name = "GameObject", Scene* ownerScene = nullptr);
         ~GameObject();
+
+        GameObject(const GameObject&) = delete;
+        GameObject& operator=(const GameObject&) = delete;
+        GameObject(GameObject&&) = delete;
+        GameObject& operator=(GameObject&&) = delete;
 
         // 基本信息 —— ID(全局唯一) 和 名字 (随意)
         MFUNCTION()
@@ -51,29 +56,25 @@ namespace ChikaEngine::Framework
         // 提供组件相关方法
         template <typename T, typename... Args> T* AddComponent(Args && ... args)
         {
+            static_assert(std::is_base_of_v<Component, T>, "T must derive from Component");
             auto component = std::make_unique<T>(std::forward<Args>(args)...);
             component->SetOwner(this);
             component->SetReflectedClassName(T::GetClassName());
-            component->Awake();
             T* ptr = component.get();
-            // 移交所有权
-            {
-                std::lock_guard lock(_compMutex);
-                _components.emplace_back(std::move(component));
-            }
-
-            if (_active && ptr->IsEnabled())
-            {
-                ptr->OnEnable();
-                LOG_INFO("GameObject", "OnEnable Function Called");
-            }
-
+            _components.emplace_back(std::move(component));
+            InitializeComponent(*ptr);
             return ptr;
         }
 
-        template <typename T> T* GetComponent()
+        bool RemoveComponent(Component * component);
+
+        template <typename T> bool RemoveComponent()
         {
-            // std::lock_guard lock(_compMutex);
+            return RemoveComponent(GetComponent<T>());
+        }
+
+        template <typename T> T* GetComponent() const
+        {
             for (auto& comp : _components)
             {
                 if (auto p = dynamic_cast<T*>(comp.get()))
@@ -93,6 +94,8 @@ namespace ChikaEngine::Framework
             ar("ID", _id);
             ar("Name", _name);
             ar("Active", _active);
+            Core::GameObjectID parentId = transform ? transform->GetParentId() : Core::InvalidGameObjectID;
+            ar("Parent", parentId);
 
             size_t compCount = _components.size();
             ar.EnterArray("Components", compCount);
@@ -135,6 +138,13 @@ namespace ChikaEngine::Framework
                 }
             }
             ar.LeaveArray();
+
+            if constexpr (Archive::IsLoading)
+            {
+                transform = GetComponent<Transform>();
+                if (transform)
+                    transform->SetSerializedParentId(parentId);
+            }
         }
 
         // 用于反序列化后恢复内部指针状态
@@ -146,8 +156,25 @@ namespace ChikaEngine::Framework
             return _active;
         }
 
-        void Awake();
+        bool IsActiveInHierarchy() const;
+        bool IsPlaying() const
+        {
+            return _isPlaying;
+        }
+        bool IsPendingDestroy() const
+        {
+            return _pendingDestroy;
+        }
+
+        void BeginPlay();
+        void EndPlay();
+        void FixedTick(float fixedDeltaTime);
         void Tick(float deltaTime);
+        void LateTick(float deltaTime);
+        void FlushPendingComponentRemovals();
+        void PrepareDestroy();
+        void RefreshComponentActivation(Component & component);
+        void RefreshActiveInHierarchy();
 
         void SetScene(Scene * scene)
         {
@@ -161,14 +188,33 @@ namespace ChikaEngine::Framework
 
       protected:
         MFIELD()
-        Core::GameObjectID _id;
+        Core::GameObjectID _id = Core::InvalidGameObjectID;
 
         MFIELD()
         std::string _name;
 
         std::vector<std::unique_ptr<Component>> _components;
-        mutable std::mutex _compMutex;
         Scene* _scene = nullptr;
         bool _active = true;
+        bool _isPlaying = false;
+        bool _pendingDestroy = false;
+
+      private:
+        friend class Scene;
+        friend class Prefab;
+
+        void InitializeComponent(Component & component);
+        void DestroyComponent(Component & component);
+        void MarkPendingDestroy()
+        {
+            _pendingDestroy = true;
+        }
+        void SetID(Core::GameObjectID id)
+        {
+            _id = id;
+        }
+
+        std::vector<Component*> _pendingComponentRemovals;
+        bool _isIteratingComponents = false;
     };
 } // namespace ChikaEngine::Framework

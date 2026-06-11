@@ -41,6 +41,7 @@ namespace ChikaEngine::Framework
         void OnDirty() override;
         void OnEnable() override;
         void OnDisable() override;
+        void OnDestroy() override;
 
       private:
         void CreateRigidbody();
