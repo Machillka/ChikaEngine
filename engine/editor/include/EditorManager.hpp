@@ -13,7 +13,8 @@ struct GLFWwindow;
 namespace ChikaEngine::Framework
 {
     class Scene;
-}
+    class SceneManager;
+} // namespace ChikaEngine::Framework
 
 namespace ChikaEngine::Editor
 {
@@ -22,6 +23,7 @@ namespace ChikaEngine::Editor
     {
         Render::Renderer* renderer;
         void* window; // TODO: 重构窗口类
+        Framework::SceneManager* sceneManager;
         Framework::Scene* scene;
     };
 
@@ -47,6 +49,7 @@ namespace ChikaEngine::Editor
       private:
         void BeginDockspace();
         void EndDockspace();
+        void DrawPlayModeToolbar();
         void ApplyDefaultLayout();
 
       private:

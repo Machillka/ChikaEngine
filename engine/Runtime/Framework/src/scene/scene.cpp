@@ -3,6 +3,7 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/scene/SceneEvents.hpp"
 
 #include "ChikaEngine/subsystem/AnimationSubsystem.hpp"
 #include "ChikaEngine/subsystem/PhysicsSubsystem.h"
@@ -11,6 +12,7 @@
 #include "ChikaEngine/serialization/JsonLoadArchive.h"
 #include "ChikaEngine/io/MemoryStream.h"
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -25,16 +27,12 @@ namespace ChikaEngine::Framework
     {
         Shutdown();
 
-        if (!createInfo.renderInstance)
-        {
-            LOG_ERROR("Scene", "SceneCreateInfo::renderInstance must not be null");
-            return;
-        }
-
-        // 初始化 sub sysytem
-        _renderSubsystem = std::make_unique<RenderSubsystem>(this, createInfo.renderInstance);
         _physicsSubsystem = std::make_unique<PhysicsSubsystem>(this);
-        _animationSubsystem = std::make_unique<AnimationSubsystem>(this, createInfo.renderInstance->GetAssetManager());
+        if (createInfo.renderInstance)
+        {
+            _renderSubsystem = std::make_unique<RenderSubsystem>(this, createInfo.renderInstance);
+            _animationSubsystem = std::make_unique<AnimationSubsystem>(this, createInfo.renderInstance->GetAssetManager());
+        }
         _physicsStepper.Configure(createInfo.fixedDeltaTime, createInfo.maxPhysicsStepsPerFrame);
 
         _mode = SceneModes::Edit;
@@ -42,8 +40,13 @@ namespace ChikaEngine::Framework
 
     void Scene::Shutdown()
     {
-        _gameobjects.clear();
-        _gameobjectMap.clear();
+        if (_mode == SceneModes::Play || _mode == SceneModes::Paused)
+        {
+            for (auto& gameObject : _gameobjects)
+                gameObject->EndPlay();
+        }
+
+        ClearGameObjects();
         _playBackup.clear();
         _physicsStepper.Reset();
 
@@ -57,19 +60,60 @@ namespace ChikaEngine::Framework
         _animationSubsystem.reset();
         _renderSubsystem.reset();
         _physicsSubsystem.reset();
+        _requestedMode.reset();
+        _mode = SceneModes::Edit;
+        _eventBus.Clear();
     }
 
     Core::GameObjectID Scene::CreateGameobject(std::string name)
     {
+        if (_isClearing)
+            return Core::InvalidGameObjectID;
+
         Core::GameObjectID id = Core::UIDGenerator::Instance().Generate();
 
         auto go = std::make_unique<GameObject>(id, name, this);
 
-        _gameobjectMap[id] = go.get();
+        auto* created = go.get();
+        _gameobjectMap[id] = created;
 
         _gameobjects.emplace_back(std::move(go));
 
+        _eventBus.Publish(GameObjectCreatedEvent{ .scene = this, .gameObjectId = id });
+        if (_mode == SceneModes::Play)
+            created->BeginPlay();
         return id;
+    }
+
+    bool Scene::DestroyGameObject(Core::GameObjectID id)
+    {
+        auto* object = GetGameObject(id);
+        if (!object)
+            return false;
+
+        CollectDestroyHierarchy(*object);
+        if (!_isTicking)
+            FlushPendingChanges();
+        return true;
+    }
+
+    void Scene::CollectDestroyHierarchy(GameObject& object)
+    {
+        if (_pendingDestroy.contains(object.GetID()))
+            return;
+
+        _pendingDestroy.insert(object.GetID());
+        object.MarkPendingDestroy();
+
+        if (!object.transform)
+            return;
+
+        const auto children = object.transform->GetChildren();
+        for (auto* child : children)
+        {
+            if (child && child->GetOwner())
+                CollectDestroyHierarchy(*child->GetOwner());
+        }
     }
 
     GameObject* Scene::GetGameObject(std::string name)
@@ -94,30 +138,67 @@ namespace ChikaEngine::Framework
     {
         if (_mode == newMode)
             return;
-        _mode = newMode;
-        _physicsStepper.Reset();
+
+        if (_isTicking)
+        {
+            _requestedMode = newMode;
+            return;
+        }
+
+        switch (newMode)
+        {
+        case SceneModes::Play:
+            if (_mode == SceneModes::Paused)
+                ResumePlayMode();
+            else
+                StartPlayMode();
+            break;
+        case SceneModes::Paused:
+            PausePlayMode();
+            break;
+        case SceneModes::Edit:
+            StopPlayMode();
+            break;
+        case SceneModes::EnteringPlay:
+        case SceneModes::ExitingPlay:
+            break;
+        }
     }
 
     void Scene::Tick(float deltaTime)
     {
+        FlushPendingChanges();
+
         if (_mode == SceneModes::Play)
         {
-            for (auto& go : _gameobjects)
-                go->Tick(deltaTime);
+            _isTicking = true;
+            const auto gameObjects = SnapshotGameObjects();
 
-            // TODO: 设计 Should Tick 方法进行检测
-            if (_physicsSubsystem)
-            {
-                _physicsStepper.Consume(deltaTime,
-                                        [this](float fixedDeltaTime)
+            _physicsStepper.Consume(deltaTime,
+                                    [this, &gameObjects](float fixedDeltaTime)
+                                    {
+                                        for (auto* gameObject : gameObjects)
+                                            gameObject->FixedTick(fixedDeltaTime);
+                                        if (_physicsSubsystem)
                                         {
                                             _physicsSubsystem->Tick(fixedDeltaTime);
                                             _physicsSubsystem->SyncTransform();
-                                        });
-            }
+                                        }
+                                    });
+
+            for (auto* gameObject : gameObjects)
+                gameObject->Tick(deltaTime);
+
+            if (_animationSubsystem)
+                _animationSubsystem->Tick(deltaTime);
+
+            for (auto* gameObject : gameObjects)
+                gameObject->LateTick(deltaTime);
+
+            _isTicking = false;
         }
 
-        if (_mode == SceneModes::Edit)
+        if (_mode == SceneModes::Edit || _mode == SceneModes::Paused)
         {
             for (auto& go : _gameobjects)
             {
@@ -126,11 +207,17 @@ namespace ChikaEngine::Framework
             }
         }
 
-        if (_animationSubsystem)
-            _animationSubsystem->Tick(deltaTime);
-
         if (_renderSubsystem)
             _renderSubsystem->Tick(deltaTime);
+
+        FlushPendingChanges();
+
+        if (_requestedMode)
+        {
+            const auto requested = *_requestedMode;
+            _requestedMode.reset();
+            ChangeSceneMode(requested);
+        }
     }
 
     RenderSubsystem* Scene::GetRenderSubsystem()
@@ -157,6 +244,21 @@ namespace ChikaEngine::Framework
             _gameobjectMap[go->GetID()] = go.get();
             go->OnDeserialized();
         }
+
+        for (auto& go : _gameobjects)
+        {
+            if (go->transform)
+                go->transform->ResetHierarchyLinks();
+        }
+
+        for (auto& go : _gameobjects)
+        {
+            if (go->transform)
+                go->transform->ResolveHierarchy(*this);
+        }
+
+        for (auto& go : _gameobjects)
+            go->RefreshActiveInHierarchy();
     }
 
     void Scene::SaveToStream(IO::IStream& stream) const
@@ -175,34 +277,125 @@ namespace ChikaEngine::Framework
         OnDeserialized();
     }
 
-    void Scene::StartPlayMode()
+    void Scene::SetMode(SceneModes mode)
     {
-        if (_mode == SceneModes::Play)
+        if (_mode == mode)
             return;
+
+        const auto previous = _mode;
+        _mode = mode;
+        _physicsStepper.Reset();
+        _eventBus.Publish(SceneModeChangedEvent{ .scene = this, .previousMode = previous, .currentMode = mode });
+    }
+
+    bool Scene::StartPlayMode()
+    {
+        if (_isTicking)
+        {
+            _requestedMode = SceneModes::Play;
+            return true;
+        }
+        if (_mode != SceneModes::Edit)
+            return false;
 
         IO::MemoryStream mem;
         SaveToStream(mem);
-
-        // 保存 snapshot
         _playBackup = mem.GetRawData();
 
-        _mode = SceneModes::Play;
-        _physicsStepper.Reset();
+        SetMode(SceneModes::EnteringPlay);
+        _isTicking = true;
+        for (auto* gameObject : SnapshotGameObjects())
+            gameObject->BeginPlay();
+        _isTicking = false;
+        FlushPendingChanges();
+        SetMode(SceneModes::Play);
+        return true;
     }
 
-    void Scene::StopPlayMode()
+    bool Scene::PausePlayMode()
     {
-        if (_mode == SceneModes::Edit)
-            return;
+        if (_mode != SceneModes::Play)
+            return false;
+        SetMode(SceneModes::Paused);
+        return true;
+    }
+
+    bool Scene::ResumePlayMode()
+    {
+        if (_mode != SceneModes::Paused)
+            return false;
+        SetMode(SceneModes::Play);
+        return true;
+    }
+
+    bool Scene::StopPlayMode()
+    {
+        if (_isTicking)
+        {
+            _requestedMode = SceneModes::Edit;
+            return true;
+        }
+        if (_mode != SceneModes::Play && _mode != SceneModes::Paused)
+            return false;
 
         if (_playBackup.empty())
-            return;
+            return false;
+
+        SetMode(SceneModes::ExitingPlay);
+        _isTicking = true;
+        for (auto* gameObject : SnapshotGameObjects())
+            gameObject->EndPlay();
+        _isTicking = false;
+        FlushPendingChanges();
 
         IO::MemoryStream mem(_playBackup.data(), _playBackup.size());
         LoadFromStream(mem);
 
         _playBackup.clear();
-        _mode = SceneModes::Edit;
-        _physicsStepper.Reset();
+        SetMode(SceneModes::Edit);
+        return true;
+    }
+
+    void Scene::FlushPendingChanges()
+    {
+        for (auto& gameObject : _gameobjects)
+            gameObject->FlushPendingComponentRemovals();
+
+        if (_isTicking || _pendingDestroy.empty())
+            return;
+
+        for (auto& gameObject : _gameobjects)
+        {
+            if (!_pendingDestroy.contains(gameObject->GetID()))
+                continue;
+
+            const auto id = gameObject->GetID();
+            gameObject->PrepareDestroy();
+            _gameobjectMap.erase(id);
+            _eventBus.Publish(GameObjectDestroyedEvent{ .scene = this, .gameObjectId = id });
+        }
+
+        std::erase_if(_gameobjects, [this](const auto& gameObject) { return _pendingDestroy.contains(gameObject->GetID()); });
+        _pendingDestroy.clear();
+    }
+
+    void Scene::ClearGameObjects()
+    {
+        _isClearing = true;
+        for (auto* gameObject : SnapshotGameObjects())
+            gameObject->PrepareDestroy();
+        _gameobjects.clear();
+        _gameobjectMap.clear();
+        _pendingDestroy.clear();
+        _isClearing = false;
+    }
+
+    std::vector<GameObject*> Scene::SnapshotGameObjects() const
+    {
+        std::vector<GameObject*> snapshot;
+        snapshot.reserve(_gameobjects.size());
+        for (const auto& gameObject : _gameobjects)
+            snapshot.push_back(gameObject.get());
+        return snapshot;
     }
 } // namespace ChikaEngine::Framework

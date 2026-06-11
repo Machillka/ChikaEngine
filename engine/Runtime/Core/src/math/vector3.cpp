@@ -63,6 +63,11 @@ namespace ChikaEngine::Math
         return Vector3(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z);
     }
 
+    Vector3 operator*(const Vector3& lhs, const Vector3& rhs)
+    {
+        return Vector3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z);
+    }
+
     Vector3 operator*(const Vector3& vec, float scalar)
     {
         return Vector3(vec.x * scalar, vec.y * scalar, vec.z * scalar);

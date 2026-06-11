@@ -25,12 +25,9 @@ namespace ChikaEngine::Input
         }
         for (int i = 0; i < MaxMouseButtonCounts; ++i)
         {
-            _currentMouse[i] = (glfwGetMouseButton(_window, ToGlfwMouse(static_cast<MouseButton>(i))) == GLFW_PRESS);
+            _currentMouse[i] = glfwGetMouseButton(_window, i) == GLFW_PRESS;
         }
 
-        _currentMouse[0] = glfwGetMouseButton(_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-        _currentMouse[1] = glfwGetMouseButton(_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
-        _currentMouse[2] = glfwGetMouseButton(_window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;
         glfwGetCursorPos(_window, &_mouseX, &_mouseY);
     }
 
@@ -56,28 +53,33 @@ namespace ChikaEngine::Input
     bool GlfwInputBackend::GetMouseButtonDown(MouseButton button) const
     {
         int idx = ToIndex(button);
+        if (!IsValidMouseButtonIndex(idx))
+            return false;
         return _currentMouse[idx] && !_prevMouse[idx];
     }
 
     bool GlfwInputBackend::GetMouseButtonUp(MouseButton button) const
     {
         int idx = ToIndex(button);
+        if (!IsValidMouseButtonIndex(idx))
+            return false;
         return !_currentMouse[idx] && _prevMouse[idx];
     }
 
     bool GlfwInputBackend::GetMouseButton(MouseButton button) const
     {
-        return _currentMouse[ToIndex(button)];
+        const int idx = ToIndex(button);
+        return IsValidMouseButtonIndex(idx) && _currentMouse[idx];
     }
 
     std::pair<double, double> GlfwInputBackend::GetMousePosition() const
     {
-        return {_mouseX, _mouseY};
+        return { _mouseX, _mouseY };
     }
 
     std::pair<double, double> GlfwInputBackend::GetMouseDelta() const
     {
-        return {_mouseX - _prevMouseX, _mouseY - _prevMouseY};
+        return { _mouseX - _prevMouseX, _mouseY - _prevMouseY };
     }
 
     int GlfwInputBackend::ToIndex(KeyCode key) const
@@ -90,18 +92,8 @@ namespace ChikaEngine::Input
         return static_cast<int>(button);
     }
 
-    int GlfwInputBackend::ToGlfwMouse(MouseButton button) const
+    bool GlfwInputBackend::IsValidMouseButtonIndex(int index) const
     {
-        switch (button)
-        {
-        case MouseButton::Left:
-            return GLFW_MOUSE_BUTTON_LEFT;
-        case MouseButton::Right:
-            return GLFW_MOUSE_BUTTON_RIGHT;
-        case MouseButton::Middle:
-            return GLFW_MOUSE_BUTTON_MIDDLE;
-        default:
-            return -1;
-        }
+        return index >= 0 && index < MaxMouseButtonCounts;
     }
 } // namespace ChikaEngine::Input

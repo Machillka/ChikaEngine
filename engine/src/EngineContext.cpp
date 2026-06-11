@@ -10,12 +10,14 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
-#include "ChikaEngine/scene/scene.hpp"
+#include "ChikaEngine/scene/SceneManager.hpp"
 #include <exception>
 #include <memory>
 
 namespace ChikaEngine::Engine
 {
+    EngineContext::EngineContext() = default;
+
     EngineContext::~EngineContext()
     {
         Shutdown();
@@ -83,12 +85,17 @@ namespace ChikaEngine::Engine
                         m_renderer->OnWindowResize(width, height);
                 });
 
-            m_scene = std::make_unique<Framework::Scene>();
-            m_scene->Initialize({
-                .renderInstance = m_renderer.get(),
-                .fixedDeltaTime = createInfo.fixedDeltaTime,
-                .maxPhysicsStepsPerFrame = createInfo.maxPhysicsStepsPerFrame,
-            });
+            m_sceneManager = std::make_unique<Framework::SceneManager>();
+            if (!m_sceneManager->Initialize({
+                    .renderInstance = m_renderer.get(),
+                    .fixedDeltaTime = createInfo.fixedDeltaTime,
+                    .maxPhysicsStepsPerFrame = createInfo.maxPhysicsStepsPerFrame,
+                }))
+            {
+                LOG_ERROR("EngineContext", "Failed to initialize scene manager");
+                Shutdown();
+                return false;
+            }
 
             m_initialized = true;
             LOG_INFO("EngineContext", "Engine context initialized");
@@ -103,10 +110,10 @@ namespace ChikaEngine::Engine
 
     void EngineContext::Shutdown()
     {
-        if (m_scene)
+        if (m_sceneManager)
         {
-            m_scene->Shutdown();
-            m_scene.reset();
+            m_sceneManager->Shutdown();
+            m_sceneManager.reset();
         }
 
         if (m_renderer)
@@ -165,7 +172,7 @@ namespace ChikaEngine::Engine
             return;
 
         m_renderer->BeginFrame();
-        m_scene->Tick(deltaTime);
+        m_sceneManager->Tick(deltaTime);
         m_renderer->Tick(deltaTime);
         m_renderer->EndFrame();
     }
@@ -173,5 +180,10 @@ namespace ChikaEngine::Engine
     bool EngineContext::ShouldClose() const
     {
         return !m_window || m_window->ShouldClose();
+    }
+
+    Framework::Scene* EngineContext::GetScene() const
+    {
+        return m_sceneManager ? m_sceneManager->GetActiveScene() : nullptr;
     }
 } // namespace ChikaEngine::Engine

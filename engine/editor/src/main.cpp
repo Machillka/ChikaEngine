@@ -36,6 +36,7 @@ namespace ChikaEngine::Editor
             m_editor->Initialize({
                 .renderer = context.GetRenderer(),
                 .window = context.GetWindow()->GetNativeHandle(),
+                .sceneManager = context.GetSceneManager(),
                 .scene = scene,
             });
 

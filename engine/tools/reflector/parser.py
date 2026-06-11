@@ -1,12 +1,11 @@
-import sys
-import os
 import argparse
-from clang.cindex import Index
-from clang.cindex import CursorKind, TypeKind
-from clang.cindex import CompilationDatabase
-from jinja2 import Template
-from gen_id import get_unique_id
+import os
 import re
+import sys
+
+from clang.cindex import CompilationDatabase, CursorKind, Index
+from gen_id import get_unique_id
+from jinja2 import Template
 
 
 class ReflectionContext:
@@ -33,7 +32,6 @@ class ReflectionContext:
         includes = []
 
         if os.path.exists(path):
-            print("Mother fucker")
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read().strip()
                 # CMake 的列表通常以分号分隔
@@ -139,8 +137,8 @@ def get_relative_header_path(absolute_path, engine_root):
     """
     把绝对路径转化成"相对路径"保证头文件引用正确
     e.g
-    将 /.../ChikaEngine/engine/framework/temp/fuck.h
-    转换为 ChikaEngine/temp/fuck.h
+    将 /.../ChikaEngine/engine/framework/temp/temp.h
+    转换为 ChikaEngine/temp/temp.h
     """
     abs_path = os.path.abspath(absolute_path).replace("\\", "/")
 

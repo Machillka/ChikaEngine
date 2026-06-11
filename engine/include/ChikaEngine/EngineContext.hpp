@@ -13,7 +13,8 @@ namespace ChikaEngine::Asset
 namespace ChikaEngine::Framework
 {
     class Scene;
-}
+    class SceneManager;
+} // namespace ChikaEngine::Framework
 
 namespace ChikaEngine::Platform
 {
@@ -38,7 +39,7 @@ namespace ChikaEngine::Engine
     class EngineContext
     {
       public:
-        EngineContext() = default;
+        EngineContext();
         ~EngineContext();
 
         EngineContext(const EngineContext&) = delete;
@@ -71,9 +72,11 @@ namespace ChikaEngine::Engine
             return m_renderer.get();
         }
 
-        Framework::Scene* GetScene() const
+        Framework::Scene* GetScene() const;
+
+        Framework::SceneManager* GetSceneManager() const
         {
-            return m_scene.get();
+            return m_sceneManager.get();
         }
 
       private:
@@ -81,7 +84,7 @@ namespace ChikaEngine::Engine
         std::unique_ptr<Platform::IWindow> m_window;
         std::unique_ptr<Asset::AssetManager> m_assetManager;
         std::unique_ptr<Render::Renderer> m_renderer;
-        std::unique_ptr<Framework::Scene> m_scene;
+        std::unique_ptr<Framework::SceneManager> m_sceneManager;
         bool m_initialized = false;
         bool m_inputInitialized = false;
         bool m_timeInitialized = false;

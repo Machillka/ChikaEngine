@@ -3,25 +3,22 @@
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/base/FixedStepAccumulator.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/event/EventBus.hpp"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/scene/SceneEvents.hpp"
 #include "ChikaEngine/subsystem/AnimationSubsystem.hpp"
 #include "ChikaEngine/subsystem/PhysicsSubsystem.h"
 #include "ChikaEngine/subsystem/RenderSubsystem.h"
 #include "ChikaEngine/io/IStream.h"
 #include <cstddef>
-#include <vector>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 namespace ChikaEngine::Framework
 {
-    enum class SceneModes
-    {
-        Play,
-        Edit,
-    };
-
     struct SceneCreateInfo
     {
         Render::Renderer* renderInstance = nullptr;
@@ -31,6 +28,8 @@ namespace ChikaEngine::Framework
 
     class Scene
     {
+        friend class Prefab;
+
       public:
         Scene() = default;
         ~Scene();
@@ -55,8 +54,7 @@ namespace ChikaEngine::Framework
             }
             else if constexpr (Archive::IsLoading)
             {
-                _gameobjects.clear();
-                _gameobjectMap.clear();
+                ClearGameObjects();
 
                 for (size_t i = 0; i < goCount; ++i)
                 {
@@ -74,6 +72,7 @@ namespace ChikaEngine::Framework
             ar.LeaveArray();
         }
         Core::GameObjectID CreateGameobject(std::string name);
+        bool DestroyGameObject(Core::GameObjectID id);
         GameObject* GetGameObject(std::string name);
         GameObject* GetGameObject(Core::GameObjectID);
 
@@ -84,6 +83,30 @@ namespace ChikaEngine::Framework
         void Initialize(const SceneCreateInfo& createInfo);
         void Shutdown();
         void ChangeSceneMode(SceneModes newMode);
+        SceneModes GetMode() const
+        {
+            return _mode;
+        }
+        bool IsEditing() const
+        {
+            return _mode == SceneModes::Edit;
+        }
+        bool IsPlaying() const
+        {
+            return _mode == SceneModes::Play;
+        }
+        bool IsPaused() const
+        {
+            return _mode == SceneModes::Paused;
+        }
+        EventBus& GetEventBus()
+        {
+            return _eventBus;
+        }
+        const EventBus& GetEventBus() const
+        {
+            return _eventBus;
+        }
 
       public:
         void Tick(float deltaTime);
@@ -91,10 +114,18 @@ namespace ChikaEngine::Framework
         // 用于反序列化的时候恢复指针等
         void OnDeserialized();
 
-        void StartPlayMode();
-        void StopPlayMode();
+        bool StartPlayMode();
+        bool PausePlayMode();
+        bool ResumePlayMode();
+        bool StopPlayMode();
+        void FlushPendingChanges();
 
       private:
+        void SetMode(SceneModes mode);
+        void ClearGameObjects();
+        void CollectDestroyHierarchy(GameObject& object);
+        std::vector<GameObject*> SnapshotGameObjects() const;
+
         std::unique_ptr<RenderSubsystem> _renderSubsystem = nullptr;
         std::unique_ptr<PhysicsSubsystem> _physicsSubsystem = nullptr;
         std::unique_ptr<AnimationSubsystem> _animationSubsystem = nullptr;
@@ -102,9 +133,14 @@ namespace ChikaEngine::Framework
       private:
         std::vector<std::unique_ptr<GameObject>> _gameobjects;              // 连续存储 GO
         std::unordered_map<Core::GameObjectID, GameObject*> _gameobjectMap; // 做查询使用
-        SceneModes _mode = SceneModes::Play;
+        std::unordered_set<Core::GameObjectID> _pendingDestroy;
+        SceneModes _mode = SceneModes::Edit;
+        std::optional<SceneModes> _requestedMode;
+        bool _isTicking = false;
+        bool _isClearing = false;
 
         std::vector<uint8_t> _playBackup;
         Core::FixedStepAccumulator _physicsStepper;
+        EventBus _eventBus;
     };
 } // namespace ChikaEngine::Framework

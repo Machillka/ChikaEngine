@@ -17,13 +17,15 @@
 namespace ChikaEngine::Framework
 {
     class Scene;
-}
+    class SceneManager;
+} // namespace ChikaEngine::Framework
 
 namespace ChikaEngine::Editor
 {
     struct EditorContext
     {
         Render::Renderer* renderer = nullptr;
+        Framework::SceneManager* sceneManager = nullptr;
         Framework::Scene* activeScene = nullptr;
 
         Core::GameObjectID selectedGameObject = Core::InvalidGameObjectID;

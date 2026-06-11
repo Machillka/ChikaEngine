@@ -1,5 +1,9 @@
 #include "InspectorPanel.hpp"
 #include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/MeshRenderer.h"
+#include "ChikaEngine/component/Rigidbody.hpp"
+#include "ChikaEngine/component/ScriptComponent.h"
 #include "ChikaEngine/scene/scene.hpp"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
@@ -7,12 +11,12 @@
 
 namespace ChikaEngine::Editor
 {
-    void DrawReflectedObject(void* instance, const Reflection::ClassInfo* classInfo);
+    bool DrawReflectedObject(void* instance, const Reflection::ClassInfo* classInfo);
 
-    void DrawProperty(const Reflection::PropertyInfo& prop, void* instance)
+    bool DrawProperty(const Reflection::PropertyInfo& prop, void* instance)
     {
         if (!prop.Get || !prop.Set)
-            return; // 只读/未导出则跳过
+            return false;
 
         if (prop.IsPointer)
         {
@@ -38,7 +42,7 @@ namespace ChikaEngine::Editor
                     ImGui::TextDisabled("Unregistered Pointer: %s", prop.Name.c_str());
                 }
             }
-            return;
+            return false;
         }
 
         switch (prop.Type)
@@ -48,7 +52,10 @@ namespace ChikaEngine::Editor
             int val;
             prop.Get(instance, &val);
             if (ImGui::DragInt(prop.Name.c_str(), &val))
+            {
                 prop.Set(instance, &val);
+                return true;
+            }
             break;
         }
         case Reflection::ReflectType::Float:
@@ -56,7 +63,10 @@ namespace ChikaEngine::Editor
             float val;
             prop.Get(instance, &val);
             if (ImGui::DragFloat(prop.Name.c_str(), &val, 0.1f))
+            {
                 prop.Set(instance, &val);
+                return true;
+            }
             break;
         }
         case Reflection::ReflectType::Bool:
@@ -64,7 +74,10 @@ namespace ChikaEngine::Editor
             bool val;
             prop.Get(instance, &val);
             if (ImGui::Checkbox(prop.Name.c_str(), &val))
+            {
                 prop.Set(instance, &val);
+                return true;
+            }
             break;
         }
         case Reflection::ReflectType::String:
@@ -72,11 +85,12 @@ namespace ChikaEngine::Editor
             std::string val;
             prop.Get(instance, &val);
             char buffer[256];
-            strncpy(buffer, val.c_str(), sizeof(buffer));
+            strncpy_s(buffer, val.c_str(), sizeof(buffer) - 1);
             if (ImGui::InputText(prop.Name.c_str(), buffer, sizeof(buffer)))
             {
                 val = buffer;
                 prop.Set(instance, &val);
+                return true;
             }
             break;
         }
@@ -87,14 +101,20 @@ namespace ChikaEngine::Editor
                 Math::Vector3 val;
                 prop.Get(instance, &val);
                 if (ImGui::DragFloat3(prop.Name.c_str(), &val.x, 0.1f))
+                {
                     prop.Set(instance, &val);
+                    return true;
+                }
             }
             else if (prop.TypeName.find("Vector4") != std::string::npos)
             {
                 Math::Vector4 val;
                 prop.Get(instance, &val);
                 if (ImGui::DragFloat4(prop.Name.c_str(), &val.x, 0.1f))
+                {
                     prop.Set(instance, &val);
+                    return true;
+                }
             }
             else
             {
@@ -106,16 +126,19 @@ namespace ChikaEngine::Editor
             ImGui::TextDisabled("Unsupported Type: %s", prop.Name.c_str());
             break;
         }
+        return false;
     }
 
-    void DrawReflectedObject(void* instance, const Reflection::ClassInfo* classInfo)
+    bool DrawReflectedObject(void* instance, const Reflection::ClassInfo* classInfo)
     {
         if (!classInfo || !instance)
-            return;
+            return false;
+        bool changed = false;
         for (const auto& prop : classInfo->Properties)
         {
-            DrawProperty(prop, instance);
+            changed = DrawProperty(prop, instance) || changed;
         }
+        return changed;
     }
 
     void InspectorPanel::OnImGuiRender()
@@ -124,29 +147,38 @@ namespace ChikaEngine::Editor
 
         if (_context->selectedGameObject != 0 && _context->activeScene)
         {
-            auto* go = _context->activeScene->GetGameObject(_context->selectedGameObject);
+            auto* scene = _context->activeScene;
+            auto* go = scene->GetGameObject(_context->selectedGameObject);
             if (go)
             {
                 // 1. GameObject 基础属性
                 char nameBuf[256];
-                strncpy(nameBuf, go->GetName().c_str(), sizeof(nameBuf));
+                strncpy_s(nameBuf, go->GetName().c_str(), sizeof(nameBuf) - 1);
                 if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf)))
+                {
                     go->SetName(nameBuf);
+                    _context->isDirty = scene->IsEditing();
+                }
 
                 ImGui::TextDisabled("UID: %llu", go->GetID());
 
                 bool active = go->IsActive();
                 if (ImGui::Checkbox("Active", &active))
+                {
                     go->SetActive(active);
+                    _context->isDirty = scene->IsEditing();
+                }
                 ImGui::Separator();
 
                 const auto* goClassInfo = Reflection::TypeRegister::Instance().GetClassByName("GameObject");
                 if (goClassInfo)
                 {
-                    DrawReflectedObject(go, goClassInfo);
+                    if (DrawReflectedObject(go, goClassInfo))
+                        _context->isDirty = scene->IsEditing();
                 }
 
                 const auto& components = go->GetAllComponents();
+                Framework::Component* componentToRemove = nullptr;
                 for (const auto& comp : components)
                 {
                     std::string compTypeName = comp->GetReflectedClassName();
@@ -158,10 +190,21 @@ namespace ChikaEngine::Editor
                         if (ImGui::CollapsingHeader(shortName.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::PushID(comp.get());
-                            DrawReflectedObject(comp.get(), compClassInfo);
+                            if (DrawReflectedObject(comp.get(), compClassInfo))
+                            {
+                                comp->MarkDirty();
+                                _context->isDirty = scene->IsEditing();
+                            }
+                            if (comp.get() != go->transform && ImGui::Button("Remove Component"))
+                                componentToRemove = comp.get();
                             ImGui::PopID();
                         }
                     }
+                }
+                if (componentToRemove)
+                {
+                    go->RemoveComponent(componentToRemove);
+                    _context->isDirty = scene->IsEditing();
                 }
 
                 ImGui::Spacing();
@@ -169,9 +212,34 @@ namespace ChikaEngine::Editor
                     ImGui::OpenPopup("AddComponentPopup");
                 if (ImGui::BeginPopup("AddComponentPopup"))
                 {
-                    // TODO: 实现查找可反射类型允许添加
-                    ImGui::TextDisabled("Component List...");
+                    if (ImGui::MenuItem("MeshRenderer"))
+                    {
+                        go->AddComponent<Framework::MeshRenderer>();
+                        _context->isDirty = scene->IsEditing();
+                    }
+                    if (ImGui::MenuItem("Animator"))
+                    {
+                        go->AddComponent<Framework::Animator>();
+                        _context->isDirty = scene->IsEditing();
+                    }
+                    if (ImGui::MenuItem("Rigidbody"))
+                    {
+                        go->AddComponent<Framework::Rigidbody>();
+                        _context->isDirty = scene->IsEditing();
+                    }
+                    if (ImGui::MenuItem("ScriptComponent"))
+                    {
+                        go->AddComponent<Framework::ScriptComponent>();
+                        _context->isDirty = scene->IsEditing();
+                    }
                     ImGui::EndPopup();
+                }
+
+                if (ImGui::Button("Destroy GameObject", ImVec2(-1, 0)))
+                {
+                    scene->DestroyGameObject(go->GetID());
+                    _context->selectedGameObject = Core::InvalidGameObjectID;
+                    _context->isDirty = scene->IsEditing();
                 }
             }
         }

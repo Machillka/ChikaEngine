@@ -11,7 +11,7 @@ namespace ChikaEngine::Framework
 
         for (const auto& go : gos)
         {
-            if (!go->IsActive())
+            if (!go->IsActive() || go->IsPendingDestroy())
                 continue;
 
             auto* animator = go->GetComponent<Animator>();

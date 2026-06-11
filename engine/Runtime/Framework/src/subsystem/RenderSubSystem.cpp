@@ -63,7 +63,7 @@ namespace ChikaEngine::Framework
         // LOG_INFO("Render Subsystem", "numbers = {}", gos.size());
         for (const auto& go : gos)
         {
-            if (!go->IsActive())
+            if (!go->IsActive() || go->IsPendingDestroy())
                 continue;
 
             auto meshComp = go->GetComponent<MeshRenderer>();

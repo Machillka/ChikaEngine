@@ -98,7 +98,6 @@ namespace ChikaEngine::Physics
         _updatedTransforms.clear();
         for (auto const& p : snapshot)
         {
-            // LOG_DEBUG("Fuck", "updating physics");
             PhysicsTransform ts;
             if (_backend->TrySyncTransform(p.first, ts))
             {

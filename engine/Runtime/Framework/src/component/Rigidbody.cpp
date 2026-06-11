@@ -10,12 +10,7 @@ namespace ChikaEngine::Framework
 {
     Rigidbody::~Rigidbody()
     {
-        if (_physicsHandle == 0)
-            return;
-
-        auto scene = GetSceneSave();
-        if (scene && scene->GetPhysicsSubsystem())
-            scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
+        OnDestroy();
     }
 
     Scene* Rigidbody::GetSceneSave()
@@ -43,8 +38,8 @@ namespace ChikaEngine::Framework
 
         createInfo.ownerId = owner->GetID();
         LOG_INFO("Rigidbody", "Gameobject ID = {}", owner->GetID());
-        createInfo.position = owner->transform->position;
-        createInfo.rotation = owner->transform->rotation;
+        createInfo.position = owner->transform->GetWorldPosition();
+        createInfo.rotation = owner->transform->GetWorldRotation();
         createInfo.shapeDesc = Physics::ColliderShapeDesc{
             .type = Physics::RigidbodyShapes::Box,
             .center = _colliderCenter,
@@ -87,7 +82,7 @@ namespace ChikaEngine::Framework
     void Rigidbody::OnDirty()
     {
         _need2RecreateRigidbody = true;
-        if (_isEnabled)
+        if (IsActiveAndEnabled())
         {
             CreateRigidbody();
             _need2RecreateRigidbody = false;
@@ -106,14 +101,18 @@ namespace ChikaEngine::Framework
 
     void Rigidbody::OnDisable()
     {
-        auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem())
-            return;
-        // TODO: 提供直接销毁方法
-        if (_physicsHandle != 0)
-            scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
-        _physicsHandle = 0;
+        OnDestroy();
         _need2RecreateRigidbody = true;
+    }
+
+    void Rigidbody::OnDestroy()
+    {
+        auto scene = GetSceneSave();
+        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
+            return;
+
+        scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
+        _physicsHandle = 0;
     }
 
     void Rigidbody::OnGizmo() const
@@ -123,17 +122,18 @@ namespace ChikaEngine::Framework
             return;
 
         // 1. 计算 Collider 的世界中心点 (Transform 位置 + 旋转后的 Offset)
-        Math::Vector3 worldCenter = owner->transform->position + owner->transform->rotation.Rotate(_colliderCenter);
+        Math::Vector3 worldCenter = owner->transform->GetWorldPosition() + owner->transform->GetWorldRotation().Rotate(_colliderCenter);
 
         // 2. 获取当前的旋转
-        Math::Quaternion worldRot = owner->transform->rotation;
+        Math::Quaternion worldRot = owner->transform->GetWorldRotation();
 
         // 3. 计算实际的 HalfExtents (基础大小 0.5 * Transform缩放)
         // 假设当前默认是 Box，后续可以根据实际形状区分 DrawWireSphere 等
         Math::Vector3 halfExtents(0.5f, 0.5f, 0.5f);
-        halfExtents.x *= owner->transform->scale.x;
-        halfExtents.y *= owner->transform->scale.y;
-        halfExtents.z *= owner->transform->scale.z;
+        const auto worldScale = owner->transform->GetWorldScale();
+        halfExtents.x *= worldScale.x;
+        halfExtents.y *= worldScale.y;
+        halfExtents.z *= worldScale.z;
 
         // 4. 调用全局 Gizmo 绘制亮绿色线框
         Debug::Gizmo::DrawWireBox(worldCenter, halfExtents, worldRot, { 0.2f, 1.0f, 0.2f, 1.0f });
