@@ -7,6 +7,7 @@
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include "VulkanResource.hpp"
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -37,6 +38,8 @@ namespace ChikaEngine::Render
         IRHICommandList* AllocateCommandList() override;
         void DestroyBuffer(BufferHandle handle) override;
         void DestroyTexture(TextureHandle handle) override;
+        void DestroyShader(ShaderHandle handle) override;
+        void DestroyPipeline(PipelineHandle handle) override;
 
         void* GetImGuiTextureHandle(TextureHandle handle) override;
         TextureHandle GetActiveSwapchainTexture() override;
@@ -83,6 +86,8 @@ namespace ChikaEngine::Render
         void PickPhysicalDevice();
         void CreateCommandPools();
         void CreateLogicalDevice();
+        void CreatePipelineCache();
+        void SavePipelineCache();
         void CreateAllocator();
         void CreateGlobalLayouts();
         void CreateSwapchain();
@@ -106,6 +111,8 @@ namespace ChikaEngine::Render
         VkDevice m_device = VK_NULL_HANDLE;
         VkQueue m_graphicsQueue = VK_NULL_HANDLE;
         uint32_t m_graphicsQueueFamily = 0;
+        VkPipelineCache m_pipelineCache = VK_NULL_HANDLE;
+        std::filesystem::path m_pipelineCachePath;
 
         VmaAllocator m_allocator = VK_NULL_HANDLE;
 
@@ -161,5 +168,7 @@ namespace ChikaEngine::Render
         std::mutex m_deletionMutex;
         std::vector<PendingDeletion> m_bufferDeletionQueue;
         std::vector<PendingDeletion> m_textureDeletionQueue;
+        std::vector<PendingDeletion> m_shaderDeletionQueue;
+        std::vector<PendingDeletion> m_pipelineDeletionQueue;
     };
 } // namespace ChikaEngine::Render

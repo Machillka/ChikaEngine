@@ -67,6 +67,12 @@ namespace ChikaEngine::Engine
             }
 
             m_assetManager = std::make_unique<Asset::AssetManager>();
+            if (!m_assetManager->Initialize("Assets"))
+            {
+                LOG_ERROR("EngineContext", "Failed to initialize asset manager");
+                Shutdown();
+                return false;
+            }
             m_renderer = std::make_unique<Render::Renderer>();
 
             Render::RendererCreateInfo rendererInfo{
@@ -162,6 +168,8 @@ namespace ChikaEngine::Engine
             Time::TimeSystem::Update();
         if (m_inputInitialized)
             Input::InputSystem::Update();
+        if (m_assetManager)
+            m_assetManager->TickHotReload();
 
         return m_timeInitialized ? Time::TimeSystem::GetDeltaTime() : 0.0f;
     }

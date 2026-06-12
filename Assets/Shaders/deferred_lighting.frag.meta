@@ -1,0 +1,7 @@
+{
+  "guid": "c5999505f37a8144abf7ade7bc39826c",
+  "imported": "Shaders/deferred_lighting.frag.spv",
+  "importer": "shader",
+  "type": "shader_source",
+  "version": 1
+}

@@ -4,6 +4,7 @@
 #include "RHIDesc.hpp"
 #include "RHIResourceHandle.hpp"
 #include <cstdint>
+#include <filesystem>
 namespace ChikaEngine::Render
 {
 
@@ -13,6 +14,7 @@ namespace ChikaEngine::Render
         uint32_t width = 1280;
         uint32_t height = 720;
         bool enableValidation = true;
+        std::filesystem::path pipelineCachePath = ".chika/cache/vulkan_pipeline_cache.bin";
     };
 
     class IRHIDevice
@@ -42,6 +44,8 @@ namespace ChikaEngine::Render
 
         virtual void DestroyBuffer(BufferHandle handle) = 0;
         virtual void DestroyTexture(TextureHandle handle) = 0;
+        virtual void DestroyShader(ShaderHandle handle) = 0;
+        virtual void DestroyPipeline(PipelineHandle handle) = 0;
 
         virtual TextureHandle GetActiveSwapchainTexture() = 0;
 

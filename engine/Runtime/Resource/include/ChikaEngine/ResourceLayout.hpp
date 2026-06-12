@@ -37,6 +37,9 @@ namespace ChikaEngine::Resource
         Render::PipelineHandle pipeline;
         Render::PipelineHandle forwardPipeline;
         Render::PipelineHandle gbufferPipeline;
+        Render::ShaderHandle vertexShader;
+        Render::ShaderHandle fragmentShader;
+        Render::ShaderHandle gbufferFragmentShader;
         Render::BufferHandle uboBuffer;
         Render::ResourceBindingGroup bindings;
     };

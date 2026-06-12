@@ -49,9 +49,16 @@ namespace ChikaEngine::Resource
         }
     } // namespace
 
-    ResourceManager::ResourceManager(Render::IRHIDevice& rhi, Asset::AssetManager& assetManager) : m_rhi(rhi), m_assetManager(assetManager) {}
+    ResourceManager::ResourceManager(Render::IRHIDevice& rhi, Asset::AssetManager& assetManager) : m_rhi(rhi), m_assetManager(assetManager)
+    {
+        m_assetReloadSubscription = m_assetManager.SubscribeReload([this](const Asset::AssetReloadEvent&) { UnloadAll(); });
+    }
 
-    ResourceManager::~ResourceManager() {}
+    ResourceManager::~ResourceManager()
+    {
+        m_assetManager.UnsubscribeReload(m_assetReloadSubscription);
+        UnloadAll();
+    }
 
     MeshHandle ResourceManager::UploadMesh(Asset::MeshHandle assetHandle)
     {
@@ -236,14 +243,7 @@ namespace ChikaEngine::Resource
             .codeSize = fsSpirv->spirv.size(),
         });
 
-        Render::PipelineDesc pipelineDesc{
-            .vertexShader = vs,
-            .fragmentShader = fs,
-            .vertexLayout = BuildDefaultVertexLayout(),
-            .depthTest = true,
-            .depthWrite = true,
-            .alphaBlendEnable = false
-        };
+        Render::PipelineDesc pipelineDesc{ .vertexShader = vs, .fragmentShader = fs, .vertexLayout = BuildDefaultVertexLayout(), .depthTest = true, .depthWrite = true, .alphaBlendEnable = false };
         pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::BGRA8_UNorm);
         pipelineDesc.depthAttachmentFormat = Render::RHI_Format::D32_SFloat;
         Render::PipelineHandle forwardPipeline = m_rhi.CreateGraphicsPipeline(pipelineDesc);
@@ -369,6 +369,9 @@ namespace ChikaEngine::Resource
             .pipeline = forwardPipeline,
             .forwardPipeline = forwardPipeline,
             .gbufferPipeline = gbufferPipeline,
+            .vertexShader = vs,
+            .fragmentShader = fs,
+            .gbufferFragmentShader = gbufferFs,
             .uboBuffer = uboHandle,
             .bindings = bindings,
         });
@@ -390,6 +393,62 @@ namespace ChikaEngine::Resource
     const MaterialGPU& ResourceManager::GetMaterial(MaterialHandle handle) const
     {
         return *m_materials.Get(handle);
+    }
+
+    bool ResourceManager::Unload(MeshHandle handle)
+    {
+        MeshGPU* mesh = m_meshes.Get(handle);
+        if (!mesh)
+            return false;
+        m_rhi.DestroyBuffer(mesh->vertexBuffer);
+        m_rhi.DestroyBuffer(mesh->indexBuffer);
+        RemoveCachedHandle(handle, m_meshCache);
+        m_meshes.Destroy(handle);
+        return true;
+    }
+
+    bool ResourceManager::Unload(TextureHandle handle)
+    {
+        TextureGPU* texture = m_textures.Get(handle);
+        if (!texture)
+            return false;
+        m_rhi.DestroyTexture(texture->texture);
+        RemoveCachedHandle(handle, m_textureCache);
+        m_textures.Destroy(handle);
+        return true;
+    }
+
+    bool ResourceManager::Unload(MaterialHandle handle)
+    {
+        MaterialGPU* material = m_materials.Get(handle);
+        if (!material)
+            return false;
+        m_rhi.DestroyPipeline(material->forwardPipeline);
+        if (material->gbufferPipeline != material->forwardPipeline)
+            m_rhi.DestroyPipeline(material->gbufferPipeline);
+        m_rhi.DestroyShader(material->vertexShader);
+        m_rhi.DestroyShader(material->fragmentShader);
+        m_rhi.DestroyShader(material->gbufferFragmentShader);
+        m_rhi.DestroyBuffer(material->uboBuffer);
+        RemoveCachedHandle(handle, m_materialCache);
+        m_materials.Destroy(handle);
+        return true;
+    }
+
+    void ResourceManager::UnloadAll()
+    {
+        std::vector<MeshHandle> meshes;
+        std::vector<TextureHandle> textures;
+        std::vector<MaterialHandle> materials;
+        m_meshes.ForEach([&](MeshHandle handle, MeshGPU&) { meshes.push_back(handle); });
+        m_textures.ForEach([&](TextureHandle handle, TextureGPU&) { textures.push_back(handle); });
+        m_materials.ForEach([&](MaterialHandle handle, MaterialGPU&) { materials.push_back(handle); });
+        for (const auto handle : meshes)
+            Unload(handle);
+        for (const auto handle : textures)
+            Unload(handle);
+        for (const auto handle : materials)
+            Unload(handle);
     }
 
     std::vector<BufferUploadRequest> ResourceManager::GetBufferUploadJobs()
