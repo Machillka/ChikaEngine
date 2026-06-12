@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <vector>
 namespace ChikaEngine::Core
 {
@@ -38,15 +39,15 @@ namespace ChikaEngine::Core
 
         void Destroy(Handle h)
         {
-            m_aliveCount--;
-
             uint32_t index = h.GetIndex();
             if (index >= m_entries.size())
                 return;
 
             Entry& e = m_entries[index];
-            if (!e.alive)
+            if (!e.alive || e.generation != h.GetGen())
                 return;
+
+            m_aliveCount--;
 
             // 标记死亡
             e.alive = false;
@@ -82,6 +83,7 @@ namespace ChikaEngine::Core
         {
             m_entries.clear();
             m_freeList.clear();
+            m_aliveCount = 0;
         }
 
         template <typename Func> void ForEach(Func&& func)
@@ -110,7 +112,8 @@ namespace ChikaEngine::Core
             bool alive = false;
         };
 
-        std::vector<Entry> m_entries;
+        // Deque keeps existing asset pointers stable while new asynchronous loads append slots.
+        std::deque<Entry> m_entries;
         std::vector<uint32_t> m_freeList;
 
         uint32_t m_aliveCount = 0;

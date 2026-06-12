@@ -33,6 +33,11 @@ namespace ChikaEngine::Resource
         const TextureGPU& GetTexture(TextureHandle handle) const;
         const MaterialGPU& GetMaterial(MaterialHandle handle) const;
 
+        bool Unload(MeshHandle handle);
+        bool Unload(TextureHandle handle);
+        bool Unload(MaterialHandle handle);
+        void UnloadAll();
+
       public:
         std::vector<BufferUploadRequest> GetBufferUploadJobs();
         std::vector<TextureUploadRequest> GetTextureUploadJobs();
@@ -43,6 +48,17 @@ namespace ChikaEngine::Resource
         MaterialHandle _UploadMaterial(Asset::MaterialHandle assetHandle);
 
         void SubmitImmediate(const std::function<void(Render::IRHICommandList*)>& recordFunc);
+
+        template <typename AssetHandle, typename ResourceHandle> static void RemoveCachedHandle(ResourceHandle handle, std::unordered_map<AssetHandle, ResourceHandle>& cache)
+        {
+            for (auto it = cache.begin(); it != cache.end();)
+            {
+                if (it->second == handle)
+                    it = cache.erase(it);
+                else
+                    ++it;
+            }
+        }
 
       private:
         Render::IRHIDevice& m_rhi;
@@ -61,5 +77,6 @@ namespace ChikaEngine::Resource
         // 延迟提交
         std::vector<BufferUploadRequest> m_pendingBufferUploads;
         std::vector<TextureUploadRequest> m_pendingTextureUploads;
+        size_t m_assetReloadSubscription = 0;
     };
 } // namespace ChikaEngine::Resource

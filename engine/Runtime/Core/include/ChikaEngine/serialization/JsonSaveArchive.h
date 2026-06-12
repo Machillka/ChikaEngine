@@ -20,12 +20,12 @@ namespace ChikaEngine::Serialization
         {
             _stack.push(&_root);
         }
+
         // 析构的时候执行写入 不需要手动执行
         ~JsonSaveArchive()
         {
             std::string s = _root.dump(4);
             _stream.Write(s.data(), s.size());
-            LOG_DEBUG("Fuck", "执行析构函数");
         }
 
         // 接受键值对 ar(make_nvp(name, value))

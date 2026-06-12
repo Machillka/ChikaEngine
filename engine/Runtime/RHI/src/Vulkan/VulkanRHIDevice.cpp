@@ -9,6 +9,8 @@
 #include <array>
 #include <backends/imgui_impl_vulkan.h>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <stdexcept>
 #include <GLFW/glfw3.h>
 #include <vector>
@@ -31,11 +33,13 @@ namespace ChikaEngine::Render
         m_windowHandle = params.nativeWindowHandle;
         m_height = params.height;
         m_width = params.width;
+        m_pipelineCachePath = params.pipelineCachePath;
 
         CreateInstance();
         CreateSurface();
         PickPhysicalDevice();
         CreateLogicalDevice();
+        CreatePipelineCache();
         CreateAllocator();
         CreateGlobalLayouts();
         CreateCommandPools();
@@ -47,6 +51,7 @@ namespace ChikaEngine::Render
         if (!m_device)
             return;
         vkDeviceWaitIdle(m_device);
+        SavePipelineCache();
 
         // for (auto imageView : m_swapchainImageViews)
         // {
@@ -102,6 +107,8 @@ namespace ChikaEngine::Render
                 if (pso.layout)
                     vkDestroyPipelineLayout(m_device, pso.layout, nullptr);
             });
+        if (m_pipelineCache)
+            vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
         vmaDestroyAllocator(m_allocator);
 
         vkDestroyDevice(m_device, nullptr);
@@ -118,6 +125,7 @@ namespace ChikaEngine::Render
         m_surface = VK_NULL_HANDLE;
         m_instance = VK_NULL_HANDLE;
         m_physicalDevice = VK_NULL_HANDLE;
+        m_pipelineCache = VK_NULL_HANDLE;
     }
 
     void VulkanRHIDevice::BeginFrame()
@@ -439,7 +447,7 @@ namespace ChikaEngine::Render
         pipelineInfo.layout = pso.layout;
         pipelineInfo.renderPass = VK_NULL_HANDLE;
 
-        VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pso.pipeline), "Failed to create Graphics Pipeline");
+        VK_CHECK(vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineInfo, nullptr, &pso.pipeline), "Failed to create Graphics Pipeline");
 
         return m_pipelines.Create(pso);
     }
@@ -763,6 +771,18 @@ namespace ChikaEngine::Render
         m_textureDeletionQueue.push_back({ m_absoluteFrame, handle.raw_value });
     }
 
+    void VulkanRHIDevice::DestroyShader(ShaderHandle handle)
+    {
+        std::lock_guard<std::mutex> lock(m_deletionMutex);
+        m_shaderDeletionQueue.push_back({ m_absoluteFrame, handle.raw_value });
+    }
+
+    void VulkanRHIDevice::DestroyPipeline(PipelineHandle handle)
+    {
+        std::lock_guard<std::mutex> lock(m_deletionMutex);
+        m_pipelineDeletionQueue.push_back({ m_absoluteFrame, handle.raw_value });
+    }
+
     void VulkanRHIDevice::FlushDeletionQueue()
     {
         {
@@ -797,6 +817,8 @@ namespace ChikaEngine::Render
                     VulkanTexture* tex = m_textures.Get(h);
                     if (tex)
                     {
+                        if (tex->handle)
+                            ImGui_ImplVulkan_RemoveTexture(static_cast<VkDescriptorSet>(tex->handle));
                         if (tex->view)
                             vkDestroyImageView(m_device, tex->view, nullptr);
                         if (tex->allocation)
@@ -805,10 +827,56 @@ namespace ChikaEngine::Render
                         tex->view = VK_NULL_HANDLE;
                         tex->image = VK_NULL_HANDLE;
                         tex->allocation = nullptr;
+                        tex->handle = nullptr;
 
                         m_textures.Destroy(h);
                     }
                     it = m_textureDeletionQueue.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+        {
+            auto it = m_shaderDeletionQueue.begin();
+            while (it != m_shaderDeletionQueue.end())
+            {
+                if (m_absoluteFrame > it->frameIndex + MAX_FRAMES_IN_FLIGHT)
+                {
+                    ShaderHandle handle{ it->handleRaw };
+                    VulkanShader* shader = m_shaders.Get(handle);
+                    if (shader && shader->module)
+                        vkDestroyShaderModule(m_device, shader->module, nullptr);
+                    m_shaders.Destroy(handle);
+                    it = m_shaderDeletionQueue.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+        {
+            auto it = m_pipelineDeletionQueue.begin();
+            while (it != m_pipelineDeletionQueue.end())
+            {
+                if (m_absoluteFrame > it->frameIndex + MAX_FRAMES_IN_FLIGHT)
+                {
+                    PipelineHandle handle{ it->handleRaw };
+                    VulkanPipeline* pipeline = m_pipelines.Get(handle);
+                    if (pipeline)
+                    {
+                        if (pipeline->pipeline)
+                            vkDestroyPipeline(m_device, pipeline->pipeline, nullptr);
+                        if (pipeline->layout)
+                            vkDestroyPipelineLayout(m_device, pipeline->layout, nullptr);
+                    }
+                    m_pipelines.Destroy(handle);
+                    it = m_pipelineDeletionQueue.erase(it);
                 }
                 else
                 {
@@ -891,6 +959,52 @@ namespace ChikaEngine::Render
     {
         if (m_device)
             vkDeviceWaitIdle(m_device);
+    }
+
+    void VulkanRHIDevice::CreatePipelineCache()
+    {
+        std::vector<uint8_t> initialData;
+        if (!m_pipelineCachePath.empty())
+        {
+            std::ifstream file(m_pipelineCachePath, std::ios::binary);
+            if (file)
+                initialData.assign(std::istreambuf_iterator<char>(file), {});
+        }
+
+        VkPipelineCacheCreateInfo createInfo{ VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
+        createInfo.initialDataSize = initialData.size();
+        createInfo.pInitialData = initialData.empty() ? nullptr : initialData.data();
+        VkResult result = vkCreatePipelineCache(m_device, &createInfo, nullptr, &m_pipelineCache);
+        if (result != VK_SUCCESS && !initialData.empty())
+        {
+            LOG_WARN("Vulkan", "Ignoring incompatible pipeline cache {}", m_pipelineCachePath.string());
+            createInfo.initialDataSize = 0;
+            createInfo.pInitialData = nullptr;
+            VK_CHECK(vkCreatePipelineCache(m_device, &createInfo, nullptr, &m_pipelineCache), "Failed to create empty pipeline cache");
+        }
+        else
+        {
+            VK_CHECK(result, "Failed to create pipeline cache");
+        }
+    }
+
+    void VulkanRHIDevice::SavePipelineCache()
+    {
+        if (!m_pipelineCache || m_pipelineCachePath.empty())
+            return;
+
+        size_t dataSize = 0;
+        if (vkGetPipelineCacheData(m_device, m_pipelineCache, &dataSize, nullptr) != VK_SUCCESS || dataSize == 0)
+            return;
+
+        std::vector<uint8_t> data(dataSize);
+        if (vkGetPipelineCacheData(m_device, m_pipelineCache, &dataSize, data.data()) != VK_SUCCESS)
+            return;
+
+        std::error_code error;
+        std::filesystem::create_directories(m_pipelineCachePath.parent_path(), error);
+        std::ofstream file(m_pipelineCachePath, std::ios::binary | std::ios::trunc);
+        file.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(dataSize));
     }
 
     void VulkanRHIDevice::CleanupSwapchain()
