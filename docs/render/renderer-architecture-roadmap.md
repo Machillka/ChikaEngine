@@ -215,6 +215,11 @@ Set 3: Pass-local Resources
 
 ## Phase 0：建立升级基线
 
+**状态：已完成（2026-06-13）**
+
+- Step 0.1 实现与验证记录：`docs/render/renderer-step-0.1-baseline.dev.md`
+- Step 0.2 实现与验证记录：`docs/render/renderer-step-0.2-diagnostics.dev.md`
+
 ### Step 0.1：冻结渲染契约与基准场景
 
 **修改范围**

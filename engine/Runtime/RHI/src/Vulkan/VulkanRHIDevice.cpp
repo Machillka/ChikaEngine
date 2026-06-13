@@ -11,12 +11,62 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <string>
 #include <stdexcept>
+#include <type_traits>
 #include <GLFW/glfw3.h>
 #include <vector>
 
 namespace ChikaEngine::Render
 {
+    namespace
+    {
+        /**
+         * @brief 把 Vulkan dispatchable 或 non-dispatchable handle 转换为 Debug Utils 所需的整数句柄。
+         *
+         * Vulkan 在不同平台可能把句柄声明为指针或整数，因此统一转换可以避免各命名函数重复平台判断。
+         */
+        template <typename T> uint64_t ToDebugObjectHandle(T handle)
+        {
+            if constexpr (std::is_pointer_v<T>)
+                return reinterpret_cast<uint64_t>(handle);
+            else
+                return static_cast<uint64_t>(handle);
+        }
+
+        /**
+         * @brief 把 Vulkan Validation Layer 消息转发到 ChikaEngine 日志系统。
+         *
+         * 统一日志出口让验证错误与引擎日志使用相同时间线，便于定位发生错误的具名 Pass 和资源。
+         */
+        VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void*)
+        {
+            const char* message = callbackData && callbackData->pMessage ? callbackData->pMessage : "Unknown Vulkan validation message";
+            if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+                LOG_ERROR("VulkanValidation", "{}", message);
+            else if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+                LOG_WARN("VulkanValidation", "{}", message);
+            else
+                LOG_INFO("VulkanValidation", "{}", message);
+            return VK_FALSE;
+        }
+
+        /**
+         * @brief 构造 Debug Messenger 配置，同时供实例创建阶段和运行阶段使用。
+         *
+         * 在 vkCreateInstance 的 pNext 中复用该配置，可以捕获实例创建期间产生的验证消息。
+         */
+        VkDebugUtilsMessengerCreateInfoEXT BuildDebugMessengerCreateInfo()
+        {
+            VkDebugUtilsMessengerCreateInfoEXT info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT };
+            // Loader 的 Verbose/Info 输出量很大且通常不可操作，基线阶段只保留需要处理的 Warning/Error。
+            info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+            info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+            info.pfnUserCallback = VulkanDebugCallback;
+            return info;
+        }
+    } // namespace
+
     VulkanRHIDevice::VulkanRHIDevice(const RHI_InitParams& params)
     {
         Initialize(params);
@@ -34,8 +84,10 @@ namespace ChikaEngine::Render
         m_height = params.height;
         m_width = params.width;
         m_pipelineCachePath = params.pipelineCachePath;
+        m_enableValidation = params.enableValidation;
 
         CreateInstance();
+        CreateDebugMessenger();
         CreateSurface();
         PickPhysicalDevice();
         CreateLogicalDevice();
@@ -113,6 +165,7 @@ namespace ChikaEngine::Render
 
         vkDestroyDevice(m_device, nullptr);
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+        DestroyDebugMessenger();
         vkDestroyInstance(m_instance, nullptr);
 
         m_buffers.Clear();
@@ -130,6 +183,8 @@ namespace ChikaEngine::Render
 
     void VulkanRHIDevice::BeginFrame()
     {
+        // 每帧从零开始计数，保证 Editor 和自动测试读取到的是单帧数据。
+        m_frameStatistics.Reset();
         m_frameSkipped = false;
         vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -457,6 +512,109 @@ namespace ChikaEngine::Render
         return m_buffers.Get(handle)->allocInfo.pMappedData;
     }
 
+    /**
+     * @brief 为 Buffer 设置 Vulkan Debug Utils 名称。
+     *
+     * Handle 无效或 Debug Utils 未启用时静默跳过，避免诊断功能改变资源生命周期行为。
+     */
+    void VulkanRHIDevice::SetDebugName(BufferHandle handle, std::string_view name)
+    {
+        const VulkanBuffer* buffer = m_buffers.Get(handle);
+        if (buffer)
+            SetVulkanObjectName(VK_OBJECT_TYPE_BUFFER, ToDebugObjectHandle(buffer->buffer), name);
+    }
+
+    /**
+     * @brief 为 Texture 的 Image 和 ImageView 设置关联名称。
+     *
+     * 同时命名 ImageView，便于验证层报告具体引用视图时仍能关联回上层纹理。
+     */
+    void VulkanRHIDevice::SetDebugName(TextureHandle handle, std::string_view name)
+    {
+        const VulkanTexture* texture = m_textures.Get(handle);
+        if (!texture)
+            return;
+
+        SetVulkanObjectName(VK_OBJECT_TYPE_IMAGE, ToDebugObjectHandle(texture->image), name);
+        const std::string viewName = std::string(name) + ".View";
+        SetVulkanObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, ToDebugObjectHandle(texture->view), viewName);
+    }
+
+    /**
+     * @brief 为 Shader Module 设置调试名称，帮助 Pipeline 创建错误指向具体 Shader。
+     */
+    void VulkanRHIDevice::SetDebugName(ShaderHandle handle, std::string_view name)
+    {
+        const VulkanShader* shader = m_shaders.Get(handle);
+        if (shader)
+            SetVulkanObjectName(VK_OBJECT_TYPE_SHADER_MODULE, ToDebugObjectHandle(shader->module), name);
+    }
+
+    /**
+     * @brief 为 Graphics Pipeline 及其 Pipeline Layout 设置关联名称。
+     *
+     * Pipeline 和 Layout 共同命名，能够让 Descriptor 或 Push Constant 验证错误指向同一业务 Pipeline。
+     */
+    void VulkanRHIDevice::SetDebugName(PipelineHandle handle, std::string_view name)
+    {
+        const VulkanPipeline* pipeline = m_pipelines.Get(handle);
+        if (!pipeline)
+            return;
+
+        SetVulkanObjectName(VK_OBJECT_TYPE_PIPELINE, ToDebugObjectHandle(pipeline->pipeline), name);
+        const std::string layoutName = std::string(name) + ".Layout";
+        SetVulkanObjectName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, ToDebugObjectHandle(pipeline->layout), layoutName);
+    }
+
+    /**
+     * @brief 为 Vulkan 对象提交 Debug Utils 名称。
+     *
+     * 函数指针按需加载，使未启用 Validation/Debug Utils 的路径保持可运行。
+     */
+    void VulkanRHIDevice::SetVulkanObjectName(VkObjectType type, uint64_t objectHandle, std::string_view name)
+    {
+        if (!m_enableValidation || objectHandle == 0 || name.empty())
+            return;
+
+        const auto setObjectName = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(m_device, "vkSetDebugUtilsObjectNameEXT"));
+        if (!setObjectName)
+            return;
+
+        const std::string stableName(name);
+        VkDebugUtilsObjectNameInfoEXT info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        info.objectType = type;
+        info.objectHandle = objectHandle;
+        info.pObjectName = stableName.c_str();
+        setObjectName(m_device, &info);
+    }
+
+    /**
+     * @brief 累加一次 Draw 及其实例数量。
+     *
+     * Draw Call 和 Instance 分开统计，为后续 Instancing 优化提供明确基线。
+     */
+    void VulkanRHIDevice::RecordDraw(uint32_t instanceCount)
+    {
+        ++m_frameStatistics.drawCallCount;
+        m_frameStatistics.instanceCount += instanceCount;
+    }
+
+    /**
+     * @brief 累加一次 Pipeline Bind。
+     */
+    void VulkanRHIDevice::RecordPipelineBind()
+    {
+        ++m_frameStatistics.pipelineBindCount;
+    }
+
+    /**
+     * @brief 累加本次 vkUpdateDescriptorSets 实际写入的 Descriptor 数量。
+     */
+    void VulkanRHIDevice::RecordDescriptorUpdates(uint32_t descriptorCount)
+    {
+        m_frameStatistics.descriptorUpdateCount += descriptorCount;
+    }
+
     IRHICommandList* VulkanRHIDevice::AllocateCommandList()
     {
         VkCommandBufferAllocateInfo allocInfo{};
@@ -493,15 +651,58 @@ namespace ChikaEngine::Render
 
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        createInfo.enabledExtensionCount = glfwExtensionCount;
-        createInfo.ppEnabledExtensionNames = glfwExtensions;
+        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        if (m_enableValidation)
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+        createInfo.ppEnabledExtensionNames = extensions.data();
 
-        // 开启验证层
         const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+        if (m_enableValidation)
+        {
+            // 在实例创建阶段提前挂接回调，确保实例初始化问题也进入统一日志。
+            debugCreateInfo = BuildDebugMessengerCreateInfo();
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+            createInfo.pNext = &debugCreateInfo;
+        }
 
         VK_CHECK(vkCreateInstance(&createInfo, nullptr, &m_instance), "Failed to create Vulkan instance");
+    }
+
+    /**
+     * @brief 创建运行阶段 Vulkan Debug Messenger。
+     *
+     * 使用实例函数指针加载扩展入口，避免对 Vulkan Loader 导出符号作额外假设。
+     */
+    void VulkanRHIDevice::CreateDebugMessenger()
+    {
+        if (!m_enableValidation || !m_instance)
+            return;
+
+        const auto createMessenger = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT"));
+        if (!createMessenger)
+            return;
+
+        const VkDebugUtilsMessengerCreateInfoEXT info = BuildDebugMessengerCreateInfo();
+        VK_CHECK(createMessenger(m_instance, &info, nullptr, &m_debugMessenger), "Failed to create Vulkan debug messenger");
+    }
+
+    /**
+     * @brief 销毁 Vulkan Debug Messenger。
+     *
+     * Messenger 必须在 Instance 前销毁，保持 Vulkan 对象生命周期顺序正确。
+     */
+    void VulkanRHIDevice::DestroyDebugMessenger()
+    {
+        if (!m_debugMessenger || !m_instance)
+            return;
+
+        const auto destroyMessenger = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT"));
+        if (destroyMessenger)
+            destroyMessenger(m_instance, m_debugMessenger, nullptr);
+        m_debugMessenger = VK_NULL_HANDLE;
     }
 
     void VulkanRHIDevice::CreateSurface()
@@ -610,6 +811,7 @@ namespace ChikaEngine::Render
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         layoutInfo.pBindings = bindings.data();
         VK_CHECK(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_globalDescriptorLayout), "Failed to create descriptor set layout");
+        SetVulkanObjectName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, ToDebugObjectHandle(m_globalDescriptorLayout), "RHI.GlobalDescriptorLayout");
 
         // 默认采样器
         VkSamplerCreateInfo samplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
@@ -622,6 +824,7 @@ namespace ChikaEngine::Render
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         vkCreateSampler(m_device, &samplerInfo, nullptr, &m_defaultSampler);
+        SetVulkanObjectName(VK_OBJECT_TYPE_SAMPLER, ToDebugObjectHandle(m_defaultSampler), "RHI.DefaultSampler");
 
         // 为每帧创建一个 descriptor pool，支持 transient 分配
         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
@@ -731,6 +934,7 @@ namespace ChikaEngine::Render
             vt.allocation = nullptr;
             vt.handle = nullptr;
             m_swapchainTextures[i] = m_textures.Create(vt);
+            SetDebugName(m_swapchainTextures[i], "Swapchain.Image." + std::to_string(i));
         }
     }
 

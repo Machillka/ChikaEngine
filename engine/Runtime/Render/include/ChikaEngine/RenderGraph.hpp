@@ -40,6 +40,23 @@ namespace ChikaEngine::Render
         void Compile();
         void Execute();
 
+        /**
+         * @brief 返回最近一次 Compile 生成的实际执行顺序。
+         *
+         * 该接口用于自动测试和调试工具验证 Pass 剔除与依赖调度，不暴露内部 Pass 所有权。
+         */
+        std::vector<std::string> GetCompiledPassNames() const;
+
+        /**
+         * @brief 返回最近一次 Execute 实际执行的 Pass 数量。
+         *
+         * Renderer 使用该值补充 RHI 命令统计，因为 RenderGraph 才是 Pass 数量的权威来源。
+         */
+        uint32_t GetLastExecutedPassCount() const
+        {
+            return m_lastExecutedPassCount;
+        }
+
         void Clear();
 
         RGTextureHandle _RegisterTexture(const std::string& name, const TextureDesc& desc);
@@ -59,6 +76,7 @@ namespace ChikaEngine::Render
 
         std::vector<RGPassHandle> m_passInsertionOrder;
         std::vector<RGPassHandle> m_sortedPasses;
+        uint32_t m_lastExecutedPassCount = 0;
 
         std::unordered_map<RGTextureHandle, ResourceState> m_resourceStateMap;
 

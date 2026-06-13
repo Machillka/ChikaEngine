@@ -126,6 +126,11 @@ namespace ChikaEngine::Resource
         Render::BufferHandle vbo = m_rhi.CreateBuffer(vDesc);
         Render::BufferHandle ibo = m_rhi.CreateBuffer(iDesc);
 
+        // 资源名称使用资产路径作为稳定上下文，便于验证层错误直接定位到源资产。
+        const std::string meshDebugName = data->path.empty() ? "Mesh.Unnamed" : "Mesh." + data->path;
+        m_rhi.SetDebugName(vbo, meshDebugName + ".VertexBuffer");
+        m_rhi.SetDebugName(ibo, meshDebugName + ".IndexBuffer");
+
         Render::BufferDesc stagingVDesc{
             .size = vSize,
             .usage = Render::RHI_BufferUsage::Staging,
@@ -139,6 +144,8 @@ namespace ChikaEngine::Resource
 
         Render::BufferHandle stagingV = m_rhi.CreateBuffer(stagingVDesc);
         Render::BufferHandle stagingI = m_rhi.CreateBuffer(stagingIDesc);
+        m_rhi.SetDebugName(stagingV, meshDebugName + ".VertexStaging");
+        m_rhi.SetDebugName(stagingI, meshDebugName + ".IndexStaging");
 
         std::memcpy(m_rhi.GetMappedData(stagingV), vertices.data(), vSize);
         std::memcpy(m_rhi.GetMappedData(stagingI), indices.data(), iSize);
@@ -188,6 +195,8 @@ namespace ChikaEngine::Resource
             .usage = Render::RHI_TextureUsage::Sampled,
         };
         Render::TextureHandle tex = m_rhi.CreateTexture(desc);
+        const std::string textureDebugName = data->path.empty() ? "Texture.Unnamed" : "Texture." + data->path;
+        m_rhi.SetDebugName(tex, textureDebugName);
 
         Render::BufferDesc stagingDesc{
             .size = imageSize,
@@ -195,6 +204,7 @@ namespace ChikaEngine::Resource
             .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
         };
         Render::BufferHandle staging = m_rhi.CreateBuffer(stagingDesc);
+        m_rhi.SetDebugName(staging, textureDebugName + ".Staging");
         std::memcpy(m_rhi.GetMappedData(staging), data->pixels.data(), imageSize);
 
         {
@@ -243,10 +253,16 @@ namespace ChikaEngine::Resource
             .codeSize = fsSpirv->spirv.size(),
         });
 
+        // Material 名称统一作为 Shader、Pipeline 和参数缓冲的前缀，方便在 GPU 捕获中按材质分组。
+        const std::string materialDebugName = materialData->name.empty() ? "Material.Unnamed" : "Material." + materialData->name;
+        m_rhi.SetDebugName(vs, materialDebugName + ".VertexShader");
+        m_rhi.SetDebugName(fs, materialDebugName + ".FragmentShader");
+
         Render::PipelineDesc pipelineDesc{ .vertexShader = vs, .fragmentShader = fs, .vertexLayout = BuildDefaultVertexLayout(), .depthTest = true, .depthWrite = true, .alphaBlendEnable = false };
         pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::BGRA8_UNorm);
         pipelineDesc.depthAttachmentFormat = Render::RHI_Format::D32_SFloat;
         Render::PipelineHandle forwardPipeline = m_rhi.CreateGraphicsPipeline(pipelineDesc);
+        m_rhi.SetDebugName(forwardPipeline, materialDebugName + ".ForwardPipeline");
 
         Asset::ShaderHandle gbufferFsAsset = m_assetManager.LoadShader("Assets/Shaders/gbuffer.frag.spv");
         const auto* gbufferFsSpirv = m_assetManager.GetShader(gbufferFsAsset);
@@ -255,6 +271,7 @@ namespace ChikaEngine::Resource
             .code = gbufferFsSpirv->spirv.data(),
             .codeSize = gbufferFsSpirv->spirv.size(),
         });
+        m_rhi.SetDebugName(gbufferFs, materialDebugName + ".GBufferFragmentShader");
 
         Render::PipelineDesc gbufferPipelineDesc = pipelineDesc;
         gbufferPipelineDesc.fragmentShader = gbufferFs;
@@ -263,6 +280,7 @@ namespace ChikaEngine::Resource
         gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
         gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA8_UNorm);
         Render::PipelineHandle gbufferPipeline = m_rhi.CreateGraphicsPipeline(gbufferPipelineDesc);
+        m_rhi.SetDebugName(gbufferPipeline, materialDebugName + ".GBufferPipeline");
 
         // ubo
         std::vector<const Asset::ShaderParamDesc*> sortedParams;
@@ -348,6 +366,7 @@ namespace ChikaEngine::Resource
         };
 
         Render::BufferHandle uboHandle = m_rhi.CreateBuffer(uboDesc);
+        m_rhi.SetDebugName(uboHandle, materialDebugName + ".Parameters");
         std::memcpy(m_rhi.GetMappedData(uboHandle), uboData.data(), currentOffset);
 
         Render::ResourceBindingGroup bindings;
@@ -476,6 +495,7 @@ namespace ChikaEngine::Resource
                 .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
             };
             bufferHandle = m_rhi.CreateBuffer(boneDesc);
+            m_rhi.SetDebugName(bufferHandle, "Animation.BoneMatrices");
         }
 
         if (bufferHandle.IsValid())

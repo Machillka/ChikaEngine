@@ -58,6 +58,7 @@ namespace ChikaEngine::Render
             .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
         };
         m_sceneUBO = m_rhi->CreateBuffer(uboDesc);
+        m_rhi->SetDebugName(m_sceneUBO, "Renderer.SceneData");
 
         // 初始化 Scene UBO 为默认值
         {
@@ -89,6 +90,7 @@ namespace ChikaEngine::Render
             .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
         };
         m_dummyBoneUBO = m_rhi->CreateBuffer(dummyBoneDesc);
+        m_rhi->SetDebugName(m_dummyBoneUBO, "Renderer.DummyBoneData");
 
         // 填充空数据
         Math::Mat4* mappedBones = static_cast<Math::Mat4*>(m_rhi->GetMappedData(m_dummyBoneUBO));
@@ -110,6 +112,7 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
         };
         m_offscreenColor = m_rhi->CreateTexture(colorDesc);
+        m_rhi->SetDebugName(m_offscreenColor, "Renderer.OffscreenColor");
 
         // 深度 dump texture
         TextureDesc dummyDesc{
@@ -121,6 +124,7 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::Sampled,
         };
         m_dummyTexture = m_rhi->CreateTexture(dummyDesc);
+        m_rhi->SetDebugName(m_dummyTexture, "Renderer.DummyTexture");
 
         // 深度纹理
         // FIXED: 修改成 view port 大小
@@ -133,6 +137,7 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
         };
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
+        m_rhi->SetDebugName(m_depthTexture, "Renderer.SceneDepth");
         m_rgDepth = m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc);
 
         // Shadow
@@ -145,6 +150,7 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment | Render::RHI_TextureUsage::Sampled,
         };
         m_shadowDepthTexture = m_rhi->CreateTexture(shadowDepthDesc);
+        m_rhi->SetDebugName(m_shadowDepthTexture, "Renderer.ShadowDepth");
         m_rgShadowDepth = m_renderGraph->ImportTexture("ShadowDepth", m_shadowDepthTexture, shadowDepthDesc);
 
         Render::TextureDesc shadowColorDesc{
@@ -156,6 +162,7 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::ColorAttachment,
         };
         m_shadowColorTexture = m_rhi->CreateTexture(shadowColorDesc);
+        m_rhi->SetDebugName(m_shadowColorTexture, "Renderer.ShadowColorDummy");
         m_rgShadowColor = m_renderGraph->ImportTexture("ShadowColorDummy", m_shadowColorTexture, shadowColorDesc);
 
         CreateDeferredResources();
@@ -486,10 +493,15 @@ namespace ChikaEngine::Render
         desc.colorAttachmentFormats.push_back(RHI_Format::BGRA8_UNorm);
         desc.depthAttachmentFormat = RHI_Format::Unknown;
         m_deferredLightingPipeline = m_rhi->CreateGraphicsPipeline(desc);
+        m_rhi->SetDebugName(vs, "Renderer.DeferredLighting.VertexShader");
+        m_rhi->SetDebugName(fs, "Renderer.DeferredLighting.FragmentShader");
+        m_rhi->SetDebugName(m_deferredLightingPipeline, "Renderer.DeferredLighting.Pipeline");
     }
 
     void Renderer::BeginFrame()
     {
+        // 清空 Renderer 侧汇总，避免跳帧时继续显示上一帧统计。
+        m_frameStatistics.Reset();
         HandlePendingResize();
         if (m_activeCamera)
         {
@@ -505,6 +517,10 @@ namespace ChikaEngine::Render
         BuildRenderGraph();
 
         m_renderGraph->Execute();
+
+        // RHI 负责命令统计，RenderGraph 负责 Pass 统计；Renderer 在帧执行结束后汇总两者。
+        m_frameStatistics = m_rhi->GetFrameStatistics();
+        m_frameStatistics.passCount = m_renderGraph->GetLastExecutedPassCount();
     }
 
     void Renderer::EndFrame()
@@ -620,6 +636,7 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
         };
         m_offscreenColor = m_rhi->CreateTexture(colorDesc);
+        m_rhi->SetDebugName(m_offscreenColor, "Renderer.OffscreenColor");
 
         // 重建 Depth
         TextureDesc depthDesc{
@@ -631,6 +648,7 @@ namespace ChikaEngine::Render
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
         };
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
+        m_rhi->SetDebugName(m_depthTexture, "Renderer.SceneDepth");
 
         // 通知 RenderGraph 更新物理句柄
         m_renderGraph->UpdateImportedTexture(m_rgOffscreen, m_offscreenColor);

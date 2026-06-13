@@ -1,6 +1,7 @@
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include <ChikaEngine/rhi/Vulkan/VulkanCommandList.hpp>
 #include <ChikaEngine/rhi/Vulkan/VulkanHelper.hpp>
+#include <string>
 
 namespace ChikaEngine::Render
 {
@@ -19,6 +20,48 @@ namespace ChikaEngine::Render
     void VulkanCommandList::End()
     {
         vkEndCommandBuffer(m_cmd);
+    }
+
+    /**
+     * @brief 为底层 VkCommandBuffer 设置调试名称。
+     *
+     * Command List 名称描述整段录制用途，Pass 级区域由 BeginDebugLabel 进一步细分。
+     */
+    void VulkanCommandList::SetDebugName(std::string_view name)
+    {
+        m_device->SetVulkanObjectName(VK_OBJECT_TYPE_COMMAND_BUFFER, reinterpret_cast<uint64_t>(m_cmd), name);
+    }
+
+    /**
+     * @brief 开始一个 Vulkan Debug Utils 命令标签区域。
+     *
+     * 标签颜色由调用者提供，使 RenderDoc 中不同类型的 RenderGraph Pass 更容易区分。
+     */
+    void VulkanCommandList::BeginDebugLabel(std::string_view name, const float color[4])
+    {
+        const auto beginLabel = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(vkGetDeviceProcAddr(m_device->GetRawDevice(), "vkCmdBeginDebugUtilsLabelEXT"));
+        if (!beginLabel)
+            return;
+
+        const std::string stableName(name);
+        VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
+        label.pLabelName = stableName.c_str();
+        if (color)
+        {
+            for (uint32_t i = 0; i < 4; ++i)
+                label.color[i] = color[i];
+        }
+        beginLabel(m_cmd, &label);
+    }
+
+    /**
+     * @brief 结束当前 Vulkan Debug Utils 命令标签区域。
+     */
+    void VulkanCommandList::EndDebugLabel()
+    {
+        const auto endLabel = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetDeviceProcAddr(m_device->GetRawDevice(), "vkCmdEndDebugUtilsLabelEXT"));
+        if (endLabel)
+            endLabel(m_cmd);
     }
 
     // TODO[x]: 加入分辨率推导
@@ -120,12 +163,14 @@ namespace ChikaEngine::Render
 
         vkUpdateDescriptorSets(m_device->GetRawDevice(), writes.size(), writes.data(), 0, nullptr);
         vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->layout, setIndex, 1, &vkSet, 0, nullptr);
+        m_device->RecordDescriptorUpdates(static_cast<uint32_t>(writes.size()));
     }
 
     void VulkanCommandList::BindPipeline(PipelineHandle pipeline)
     {
         m_currentPSO = m_device->GetVkPipeline(pipeline);
         vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->pipeline);
+        m_device->RecordPipelineBind();
     }
 
     void VulkanCommandList::PushConstants(uint32_t size, const void* data)
@@ -148,11 +193,13 @@ namespace ChikaEngine::Render
     void VulkanCommandList::Draw(uint32_t vertexCount, uint32_t instanceCount)
     {
         vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
+        m_device->RecordDraw(instanceCount);
     }
 
     void VulkanCommandList::DrawIndexed(uint32_t indexCount, uint32_t instanceCount)
     {
         vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, 0);
+        m_device->RecordDraw(instanceCount);
     }
 
     void VulkanCommandList::CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size)

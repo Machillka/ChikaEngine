@@ -294,6 +294,7 @@ namespace ChikaEngine::Render
 
     void RenderGraph::Execute()
     {
+        m_lastExecutedPassCount = 0;
         if (m_sortedPasses.empty())
             return;
 
@@ -301,10 +302,13 @@ namespace ChikaEngine::Render
 
         IRHICommandList* cmd = m_device->AllocateCommandList();
         cmd->Begin();
+        cmd->SetDebugName("RenderGraph.Frame");
 
         for (uint32_t passIdx = 0; passIdx < m_sortedPasses.size(); ++passIdx)
         {
             RGPass* pass = m_passes.Get(m_sortedPasses[passIdx]);
+            const float labelColor[4] = { 0.25f, 0.55f, 0.95f, 1.0f };
+            cmd->BeginDebugLabel(pass->name, labelColor);
 
             // 分配显存
             m_textures.ForEach(
@@ -360,10 +364,31 @@ namespace ChikaEngine::Render
                         res.physicalHandle = TextureHandle::Invalid(); // 安全解绑
                     }
                 });
+
+            cmd->EndDebugLabel();
+            ++m_lastExecutedPassCount;
         }
 
         cmd->End();
         m_device->Submit(cmd);
+    }
+
+    /**
+     * @brief 复制最近一次编译后的 Pass 名称顺序。
+     *
+     * 返回副本可避免测试或编辑器持有 RenderGraph 内部 Pass 的悬空引用。
+     */
+    std::vector<std::string> RenderGraph::GetCompiledPassNames() const
+    {
+        std::vector<std::string> names;
+        names.reserve(m_sortedPasses.size());
+        for (const RGPassHandle handle : m_sortedPasses)
+        {
+            const RGPass* pass = m_passes.Get(handle);
+            if (pass)
+                names.push_back(pass->name);
+        }
+        return names;
     }
 
     void RenderGraph::ApplyBarriers(RGPass* pass, IRHICommandList* cmd)
@@ -392,6 +417,7 @@ namespace ChikaEngine::Render
         m_textures.Clear();
         m_passInsertionOrder.clear();
         m_sortedPasses.clear();
+        m_lastExecutedPassCount = 0;
         // m_textures.Clear();
     }
 

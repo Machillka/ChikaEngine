@@ -3,6 +3,7 @@
 #include "ChikaEngine/IRHICommandList.hpp"
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include "VulkanRHIDevice.hpp"
+#include <string_view>
 #include <vulkan/vulkan.h>
 #include <backends/imgui_impl_vulkan.h>
 
@@ -17,6 +18,15 @@ namespace ChikaEngine::Render
         ~VulkanCommandList() override;
         void Begin() override;
         void End() override;
+
+        /**
+         * @brief 将后端无关诊断接口映射到 Vulkan Debug Utils。
+         *
+         * 这些接口只增强 GPU 捕获可读性，不影响命令录制结果。
+         */
+        void SetDebugName(std::string_view name) override;
+        void BeginDebugLabel(std::string_view name, const float color[4]) override;
+        void EndDebugLabel() override;
 
         void BeginRendering(const std::vector<RenderingAttachment>& colors, const RenderingAttachment* depth) override;
         void EndRendering() override;

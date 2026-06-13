@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/IRHIDevice.hpp"
+#include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/base/SlotMap.h"
@@ -10,6 +11,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -34,6 +36,15 @@ namespace ChikaEngine::Render
         PipelineHandle CreateGraphicsPipeline(const PipelineDesc& desc) override;
 
         void* GetMappedData(BufferHandle handle) override;
+
+        void SetDebugName(BufferHandle handle, std::string_view name) override;
+        void SetDebugName(TextureHandle handle, std::string_view name) override;
+        void SetDebugName(ShaderHandle handle, std::string_view name) override;
+        void SetDebugName(PipelineHandle handle, std::string_view name) override;
+        const RenderFrameStatistics& GetFrameStatistics() const override
+        {
+            return m_frameStatistics;
+        }
 
         IRHICommandList* AllocateCommandList() override;
         void DestroyBuffer(BufferHandle handle) override;
@@ -81,6 +92,38 @@ namespace ChikaEngine::Render
         VkDescriptorPool imguiPool = VK_NULL_HANDLE;
 
       private:
+        friend class VulkanCommandList;
+
+        /**
+         * @brief 创建 Vulkan Debug Messenger，把验证层消息转发到引擎日志系统。
+         *
+         * Messenger 仅在启用 Validation 时创建，避免 Release 路径承担额外诊断开销。
+         */
+        void CreateDebugMessenger();
+        void DestroyDebugMessenger();
+
+        /**
+         * @brief 为任意 Vulkan 对象设置调试名称。
+         *
+         * 统一封装可避免各资源路径重复加载 Debug Utils 函数指针。
+         */
+        void SetVulkanObjectName(VkObjectType type, uint64_t objectHandle, std::string_view name);
+
+        /**
+         * @brief 记录一次显式 Draw，用于建立可比较的帧提交基线。
+         */
+        void RecordDraw(uint32_t instanceCount);
+
+        /**
+         * @brief 记录一次 Pipeline Bind，用于后续验证排序和批处理收益。
+         */
+        void RecordPipelineBind();
+
+        /**
+         * @brief 记录实际写入 Descriptor 的数量，而不是仅统计 Descriptor Set 数量。
+         */
+        void RecordDescriptorUpdates(uint32_t descriptorCount);
+
         void CreateInstance();
         void CreateSurface();
         void PickPhysicalDevice();
@@ -107,6 +150,7 @@ namespace ChikaEngine::Render
         static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
         VkInstance m_instance = VK_NULL_HANDLE;
+        VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
         VkDevice m_device = VK_NULL_HANDLE;
         VkQueue m_graphicsQueue = VK_NULL_HANDLE;
@@ -118,6 +162,8 @@ namespace ChikaEngine::Render
 
         VkDescriptorSetLayout m_globalDescriptorLayout = VK_NULL_HANDLE;
         VkSampler m_defaultSampler = VK_NULL_HANDLE;
+        bool m_enableValidation = true;
+        RenderFrameStatistics m_frameStatistics;
 
         uint32_t m_currentFrame = 0;
         uint64_t m_absoluteFrame = 0;

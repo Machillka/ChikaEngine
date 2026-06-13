@@ -13,10 +13,16 @@ add_executable(ChikaAssetPipelineTests
 )
 target_link_libraries(ChikaAssetPipelineTests PRIVATE ChikaAsset)
 
+add_executable(ChikaRenderBaselineTests
+    unit/RenderBaselineTests.cpp
+)
+target_link_libraries(ChikaRenderBaselineTests PRIVATE ChikaRender)
+
 add_test(NAME Chika.CoreBoundary COMMAND ChikaCoreBoundaryTests)
 add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
+add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.RenderBaseline PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )

@@ -15,6 +15,7 @@
 #include "ChikaEngine/ResourceHandle.hpp"
 #include "ChikaEngine/ResourceManager.hpp"
 #include "ChikaEngine/IRHIDevice.hpp"
+#include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "RenderGraph.hpp"
 #include "ChikaEngine/rhi/RHIBackendFactory.hpp"
@@ -118,6 +119,16 @@ namespace ChikaEngine::Render
             return m_pipelineMode;
         }
 
+        /**
+         * @brief 返回最近完成 RenderGraph 执行阶段的帧统计。
+         *
+         * 该值供 Editor、自动测试和性能基线读取，不参与渲染控制逻辑。
+         */
+        const RenderFrameStatistics& GetFrameStatistics() const
+        {
+            return m_frameStatistics;
+        }
+
       public:
         void SubmitImGuiData(void* drawData)
         {
@@ -211,6 +222,7 @@ namespace ChikaEngine::Render
         RGTextureHandle m_rgShadowColor;
 
         float m_time = 0.0f;
+        RenderFrameStatistics m_frameStatistics;
 
         BufferHandle m_sceneUBO;
         TextureHandle m_dummyTexture;

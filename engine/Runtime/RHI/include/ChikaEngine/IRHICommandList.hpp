@@ -15,6 +15,7 @@
 #include "RHIResourceHandle.hpp"
 #include "ResourceBinder.hpp"
 #include <cstdint>
+#include <string_view>
 #include <vector>
 namespace ChikaEngine::Render
 {
@@ -27,6 +28,20 @@ namespace ChikaEngine::Render
         // Begin/End 命令录制
         virtual void Begin() = 0;
         virtual void End() = 0;
+
+        /**
+         * @brief 设置命令列表调试名称，便于在 GPU 调试工具中定位整帧录制入口。
+         */
+        virtual void SetDebugName(std::string_view name) = 0;
+
+        /**
+         * @brief 标记一段具名 GPU 命令区域。
+         *
+         * RenderGraph 使用该接口标记每个 Pass，使 Validation Layer 和 RenderDoc
+         * 可以把底层命令关联回上层 Pass。
+         */
+        virtual void BeginDebugLabel(std::string_view name, const float color[4]) = 0;
+        virtual void EndDebugLabel() = 0;
 
         virtual void BeginRendering(const std::vector<RenderingAttachment>& colors, const RenderingAttachment* depth) = 0;
         virtual void EndRendering() = 0;
