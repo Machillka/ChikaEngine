@@ -46,6 +46,9 @@ namespace ChikaEngine::Editor
         ImGui::Text("Instances: %u", statistics.instanceCount);
         ImGui::Text("Pipeline Binds: %u", statistics.pipelineBindCount);
         ImGui::Text("Descriptor Writes: %u", statistics.descriptorUpdateCount);
+        ImGui::Text("Visible / Culled: %u / %u", statistics.visibleObjectCount, statistics.culledObjectCount);
+        ImGui::Text("Packets / Batches: %u / %u", statistics.packetCount, statistics.batchCount);
+        ImGui::Text("Instanced Batches: %u", statistics.instancedBatchCount);
         ImGui::Separator();
         ImGui::TextDisabled("ImGui backend draw calls are excluded.");
         ImGui::End();

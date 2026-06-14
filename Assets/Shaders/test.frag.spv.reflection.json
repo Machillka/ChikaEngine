@@ -68,7 +68,7 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "_padding",
+            "name": "useInstancing",
             "offset": 76,
             "size": 4,
             "type": 5
@@ -184,7 +184,7 @@
       "type": 2
     }
   ],
-  "stableHash": 464905472221361101,
+  "stableHash": 270039293575600427,
   "stage": 2,
   "version": 1
 }

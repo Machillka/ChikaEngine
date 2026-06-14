@@ -79,6 +79,31 @@ namespace ChikaEngine::Render
         {
             return m_pipeline.GetFrameStatistics();
         }
+        /** @brief 追加当前 RenderWorld 的编辑器调试线框，不影响正式渲染提交。 */
+        void AppendDebugGizmos() const
+        {
+            m_pipeline.AppendDebugGizmos();
+        }
+        /** @brief 开关全部 Render Proxy 的 World AABB Overlay。 */
+        void SetDebugDrawAABBs(bool enabled)
+        {
+            m_settings.debugDrawAABBs = enabled;
+        }
+        /** @brief 查询 World AABB Overlay 是否开启。 */
+        bool IsDebugDrawAABBsEnabled() const
+        {
+            return m_settings.debugDrawAABBs;
+        }
+        /** @brief 开关 Render View 与投影阴影 Light Frustum Overlay。 */
+        void SetDebugDrawFrustums(bool enabled)
+        {
+            m_settings.debugDrawFrustums = enabled;
+        }
+        /** @brief 查询 Frustum Overlay 是否开启。 */
+        bool IsDebugDrawFrustumsEnabled() const
+        {
+            return m_settings.debugDrawFrustums;
+        }
         uint32_t GetViewportWidth() const
         {
             return m_pipeline.GetViewportWidth();

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "AssetAnimation.hpp"
+#include "ChikaEngine/math/Bounds.hpp"
 #include "ChikaEngine/shader/ShaderInterface.hpp"
 #include <cstdint>
 #include <string>
@@ -84,6 +85,7 @@ namespace ChikaEngine::Asset
 
         std::vector<VertexData> vertices;
         std::vector<uint32_t> indices;
+        Math::Bounds bounds;
 
         // 针对蒙皮网络的数据
         // FIXME: 上层做 MeshRender 和 SkeletonRender, 底层数据分离

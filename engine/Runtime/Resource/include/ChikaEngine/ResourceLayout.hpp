@@ -13,6 +13,7 @@
 
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/ResourceBinder.hpp"
+#include "ChikaEngine/math/Bounds.hpp"
 #include <cstdint>
 
 namespace ChikaEngine::Resource
@@ -25,6 +26,7 @@ namespace ChikaEngine::Resource
         // FIXME: 实际上可能不是 32bits 或许重新进行一个枚举封装更安全
         uint32_t indexCount = 0;
         bool isUint32 = true;
+        Math::Bounds bounds;
     };
 
     struct TextureGPU
@@ -42,6 +44,7 @@ namespace ChikaEngine::Resource
         Render::ResourceBindingHandle scene;
         Render::ResourceBindingHandle shadowMap;
         Render::ResourceBindingHandle bones;
+        Render::ResourceBindingHandle instances;
     };
 
     struct MaterialGPU
@@ -56,6 +59,8 @@ namespace ChikaEngine::Resource
         MaterialDrawBindings forwardDrawBindings;
         MaterialDrawBindings gbufferDrawBindings;
         std::vector<Render::ResourceBindingGroup> bindings;
+        bool transparent = false;
+        bool masked = false;
     };
 
 } // namespace ChikaEngine::Resource

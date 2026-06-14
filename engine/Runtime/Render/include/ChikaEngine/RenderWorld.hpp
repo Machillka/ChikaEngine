@@ -3,6 +3,7 @@
 #include "ChikaEngine/ResourceHandle.hpp"
 #include "ChikaEngine/base/HandleTemplate.h"
 #include "ChikaEngine/base/SlotMap.h"
+#include "ChikaEngine/math/Bounds.hpp"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
 #include <cstdint>
@@ -37,6 +38,7 @@ namespace ChikaEngine::Render
         CastShadow = 1u << 1,
         Skinned = 1u << 2,
         Transparent = 1u << 3,
+        Masked = 1u << 4,
     };
 
     RenderObjectFlags operator|(RenderObjectFlags lhs, RenderObjectFlags rhs);
@@ -47,13 +49,7 @@ namespace ChikaEngine::Render
      *
      * Phase 2 建立数据边界；Phase 3 将由 Mesh Importer 计算并更新有效 Bounds。
      */
-    struct RenderBounds
-    {
-        Math::Vector3 center{};
-        Math::Vector3 extents{};
-        float sphereRadius = 0.0f;
-        bool valid = false;
-    };
+    using RenderBounds = Math::Bounds;
 
     /**
      * @brief Renderer 消费的稳定对象代理，等价于简化的 Unreal Primitive Scene Proxy。

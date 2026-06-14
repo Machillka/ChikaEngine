@@ -258,15 +258,15 @@ namespace ChikaEngine::Render
         vkCmdBindIndexBuffer(m_cmd, b, offset, isUint32 ? VK_INDEX_TYPE_UINT32 : VK_INDEX_TYPE_UINT16);
     }
 
-    void VulkanCommandList::Draw(uint32_t vertexCount, uint32_t instanceCount)
+    void VulkanCommandList::Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
     {
-        vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
+        vkCmdDraw(m_cmd, vertexCount, instanceCount, firstVertex, firstInstance);
         m_device->RecordDraw(instanceCount);
     }
 
-    void VulkanCommandList::DrawIndexed(uint32_t indexCount, uint32_t instanceCount)
+    void VulkanCommandList::DrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
     {
-        vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, 0);
+        vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
         m_device->RecordDraw(instanceCount);
     }
 

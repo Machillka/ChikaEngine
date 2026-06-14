@@ -3,8 +3,10 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/GLTFHelper.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <tiny_gltf.h>
 
 namespace ChikaEngine::Asset
@@ -168,6 +170,36 @@ namespace ChikaEngine::Asset
                     mesh->indices.push_back(static_cast<uint32_t>(baseVertex + i));
                 }
             }
+        }
+
+        /**
+         * Local Bounds 在导入时只计算一次，避免运行时为同一 Mesh 重复遍历全部顶点。
+         * 蒙皮 Mesh 暂时扩张 25%，在动态蒙皮 Bounds 落地前优先避免错误剔除。
+         */
+        if (!mesh->vertices.empty())
+        {
+            Math::Vector3 minimum(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+            Math::Vector3 maximum(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest());
+            for (const auto& vertex : mesh->vertices)
+            {
+                minimum.x = std::min(minimum.x, vertex.position[0]);
+                minimum.y = std::min(minimum.y, vertex.position[1]);
+                minimum.z = std::min(minimum.z, vertex.position[2]);
+                maximum.x = std::max(maximum.x, vertex.position[0]);
+                maximum.y = std::max(maximum.y, vertex.position[1]);
+                maximum.z = std::max(maximum.z, vertex.position[2]);
+            }
+
+            mesh->bounds = Math::Bounds::FromMinMax(minimum, maximum);
+            float sphereRadius = 0.0f;
+            for (const auto& vertex : mesh->vertices)
+            {
+                const Math::Vector3 position(vertex.position[0], vertex.position[1], vertex.position[2]);
+                sphereRadius = std::max(sphereRadius, Math::Vector3::Distance(position, mesh->bounds.center));
+            }
+            mesh->bounds.sphereRadius = sphereRadius;
+            if (mesh->isSkinned)
+                mesh->bounds = Math::ExpandBounds(mesh->bounds, 1.25f);
         }
 
         LOG_INFO("MeshLoader", "[Trace 7] Reading Skeleton...");

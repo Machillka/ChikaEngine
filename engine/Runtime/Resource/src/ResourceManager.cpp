@@ -96,6 +96,7 @@ namespace ChikaEngine::Resource
                 .scene = Render::ResolveResourceBinding(interface, "scene"),
                 .shadowMap = Render::ResolveResourceBinding(interface, "shadowMap"),
                 .bones = Render::ResolveResourceBinding(interface, "uboBones"),
+                .instances = Render::ResolveResourceBinding(interface, "instances"),
             };
         }
 
@@ -262,6 +263,7 @@ namespace ChikaEngine::Resource
             .indexBuffer = ibo,
             .indexCount = static_cast<uint32_t>(indices.size()),
             .isUint32 = true,
+            .bounds = data->bounds,
         };
 
         MeshHandle handle = m_meshes.Create(mesh);
@@ -357,14 +359,16 @@ namespace ChikaEngine::Resource
         m_rhi.SetDebugName(vs, materialDebugName + ".VertexShader");
         m_rhi.SetDebugName(fs, materialDebugName + ".FragmentShader");
 
+        const bool transparent = materialData->variants.contains("transparent") && materialData->variants.at("transparent");
+        const bool masked = materialData->variants.contains("masked") && materialData->variants.at("masked");
         Render::PipelineDesc pipelineDesc{
             .vertexShader = vs,
             .fragmentShader = fs,
             .shaderInterface = *forwardInterface,
             .vertexLayout = BuildReflectedVertexLayout(*forwardInterface),
             .depthTest = true,
-            .depthWrite = true,
-            .alphaBlendEnable = false,
+            .depthWrite = !transparent,
+            .alphaBlendEnable = transparent,
         };
         pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::BGRA8_UNorm);
         pipelineDesc.depthAttachmentFormat = Render::RHI_Format::D32_SFloat;
@@ -454,6 +458,8 @@ namespace ChikaEngine::Resource
             .forwardDrawBindings = ResolveMaterialDrawBindings(*forwardInterface),
             .gbufferDrawBindings = ResolveMaterialDrawBindings(*gbufferInterface),
             .bindings = bindings,
+            .transparent = transparent,
+            .masked = masked,
         });
 
         m_materialCache[assetHandle] = handle;
@@ -546,42 +552,4 @@ namespace ChikaEngine::Resource
         return copy;
     }
 
-    Render::BufferHandle ResourceManager::UploadBoneMatrices(const std::vector<Math::Mat4>& matrices, Render::BufferHandle bufferHandle)
-    {
-        if (!bufferHandle.IsValid())
-        {
-            Render::BufferDesc boneDesc{
-                .size = 128 * sizeof(Math::Mat4),
-                .usage = Render::RHI_BufferUsage::Uniform,
-                .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
-            };
-            bufferHandle = m_rhi.CreateBuffer(boneDesc);
-            m_rhi.SetDebugName(bufferHandle, "Animation.BoneMatrices");
-        }
-
-        if (bufferHandle.IsValid())
-        {
-            auto* data = static_cast<Math::Mat4*>(m_rhi.GetMappedData(bufferHandle));
-            if (data)
-            {
-                // NOTE: 初始化数据, 后期拷贝的时候不会出现未定义数据
-                for (int i = 0; i < 128; ++i)
-                {
-                    data[i] = Math::Mat4::Identity();
-                }
-                size_t copyCount = std::min(matrices.size(), (size_t)128);
-                std::vector<Math::Mat4> transposed;
-                transposed.resize(copyCount);
-                for (size_t i = 0; i < copyCount; ++i)
-                {
-                    // 转制后的结果
-                    transposed[i] = matrices[i].Transposed();
-                }
-
-                std::memcpy(data, transposed.data(), copyCount * sizeof(Math::Mat4));
-            }
-        }
-
-        return bufferHandle;
-    }
 } // namespace ChikaEngine::Resource

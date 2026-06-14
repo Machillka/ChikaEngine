@@ -177,16 +177,23 @@ namespace ChikaEngine::Framework
             return;
         }
 
+        const Math::Mat4 worldTransform = owner->transform ? owner->transform->GetWorldMat() : Math::Mat4::Identity();
         Render::RenderObjectProxy proxy{
-            .transform = owner->transform ? owner->transform->GetWorldMat() : Math::Mat4::Identity(),
+            .transform = worldTransform,
             .mesh = entry.meshResource,
             .material = entry.materialResource,
+            .bounds = Math::TransformBounds(_resourceMgr->GetMesh(entry.meshResource).bounds, worldTransform),
         };
         if (const auto* animator = owner->GetComponent<Animator>(); animator && !animator->finalMatrices.empty())
         {
             proxy.flags = proxy.flags | Render::RenderObjectFlags::Skinned;
             proxy.boneMatrices = animator->finalMatrices;
         }
+        const Resource::MaterialGPU& material = _resourceMgr->GetMaterial(entry.materialResource);
+        if (material.transparent)
+            proxy.flags = proxy.flags | Render::RenderObjectFlags::Transparent;
+        if (material.masked)
+            proxy.flags = proxy.flags | Render::RenderObjectFlags::Masked;
 
         if (!entry.renderObject.IsValid())
         {

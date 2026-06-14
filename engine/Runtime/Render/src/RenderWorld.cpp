@@ -20,11 +20,6 @@ namespace ChikaEngine::Render
             return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
         }
 
-        bool Equal(const RenderBounds& lhs, const RenderBounds& rhs)
-        {
-            return Equal(lhs.center, rhs.center) && Equal(lhs.extents, rhs.extents) && lhs.sphereRadius == rhs.sphereRadius && lhs.valid == rhs.valid;
-        }
-
         bool Equal(const std::vector<Math::Mat4>& lhs, const std::vector<Math::Mat4>& rhs)
         {
             return lhs.size() == rhs.size() && std::ranges::equal(lhs, rhs, [](const Math::Mat4& a, const Math::Mat4& b) { return Equal(a, b); });
@@ -32,7 +27,7 @@ namespace ChikaEngine::Render
 
         bool Equal(const RenderObjectProxy& lhs, const RenderObjectProxy& rhs)
         {
-            return Equal(lhs.transform, rhs.transform) && lhs.mesh == rhs.mesh && lhs.material == rhs.material && Equal(lhs.bounds, rhs.bounds) && lhs.flags == rhs.flags && lhs.layerMask == rhs.layerMask && Equal(lhs.boneMatrices, rhs.boneMatrices);
+            return Equal(lhs.transform, rhs.transform) && lhs.mesh == rhs.mesh && lhs.material == rhs.material && lhs.bounds == rhs.bounds && lhs.flags == rhs.flags && lhs.layerMask == rhs.layerMask && Equal(lhs.boneMatrices, rhs.boneMatrices);
         }
 
         bool Equal(const RenderLightProxy& lhs, const RenderLightProxy& rhs)

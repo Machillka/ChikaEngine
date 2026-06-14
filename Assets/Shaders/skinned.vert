@@ -16,16 +16,20 @@ layout(set = 0, binding = 0) uniform SceneData {
     vec4 viewPos;
 } scene;
 
-layout(set = 2, binding = 0) uniform BoneData {
-    mat4 boneMatrices[128];
+layout(set = 2, binding = 0, std430) readonly buffer BoneData {
+    mat4 boneMatrices[];
 } uboBones;
+
+layout(set = 2, binding = 1, std430) readonly buffer InstanceData {
+    mat4 models[];
+} instances;
 
 layout(push_constant) uniform PushConstants {
     mat4 model;
     int isShadowPass;
     int isSkinned;
     int renderMode;
-    int _padding;
+    int useInstancing;
 } pc;
 
 layout(location = 0) out vec3 outWorldPos;
@@ -54,8 +58,9 @@ void main() {
         localNormal = inNormal;
     }
 
-    vec4 worldPos = pc.model * localPos;
-    vec3 worldNormal = normalize(mat3(pc.model) * localNormal);
+    mat4 model = pc.useInstancing == 1 ? instances.models[gl_InstanceIndex] : pc.model;
+    vec4 worldPos = model * localPos;
+    vec3 worldNormal = normalize(mat3(model) * localNormal);
 
     if (pc.isShadowPass == 1) {
         gl_Position = scene.lightVP * worldPos;

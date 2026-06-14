@@ -11,6 +11,7 @@
 #include "ChikaEngine/scene/scene.hpp"
 #include "EditorManager.hpp"
 #include <memory>
+#include <string>
 
 namespace ChikaEngine::Editor
 {
@@ -37,6 +38,25 @@ namespace ChikaEngine::Editor
             auto* plane = scene.GetGameObject(planeId);
             plane->AddComponent<Framework::MeshRenderer>("Assets/Meshes/Box.gltf", "Assets/Materials/floor.json");
             plane->transform->Scale(10.0f, 0.1f, 10.0f);
+
+            /**
+             * 相同 Mesh/Material 的重复对象用于验证 Phase 3 Batch 与 GPU Instancing。
+             * 这些对象应与 Floor 合并为共享状态 Batch，而不是按 GameObject 各自产生 Draw。
+             */
+            for (int index = 0; index < 4; ++index)
+            {
+                const auto instanceId = scene.CreateGameobject("Baseline.Instance." + std::to_string(index));
+                auto* instance = scene.GetGameObject(instanceId);
+                instance->AddComponent<Framework::MeshRenderer>("Assets/Meshes/Box.gltf", "Assets/Materials/floor.json");
+                instance->transform->Translate(Math::Vector3(-3.0f + static_cast<float>(index) * 2.0f, 1.0f, 0.0f));
+                instance->transform->Scale(0.5f);
+            }
+
+            // 明确位于主视锥外，用于验证 Visibility 阶段在 Queue 构建前完成剔除。
+            const auto culledId = scene.CreateGameobject("Baseline.Culled.Box");
+            auto* culled = scene.GetGameObject(culledId);
+            culled->AddComponent<Framework::MeshRenderer>("Assets/Meshes/Box.gltf", "Assets/Materials/floor.json");
+            culled->transform->Translate(Math::Vector3(1000.0f, 0.0f, 0.0f));
 
             // 保留明确的场景迁移锚点，但不挂载 MeshRenderer，避免把当前不支持的效果伪装成正确输出。
             scene.CreateGameobject("Baseline.Pending.MultiMaterial");

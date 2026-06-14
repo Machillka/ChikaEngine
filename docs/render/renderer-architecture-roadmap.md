@@ -689,6 +689,17 @@ Set 3: Pass-local Resources
 
 ## Phase 3：可见性、排序、批处理与实例化
 
+**状态：已完成（2026-06-14）**
+
+- Step 3.1：`docs/render/renderer-step-3.1-mesh-bounds.dev.md`
+- Step 3.2：`docs/render/renderer-step-3.2-frustum-visibility.dev.md`
+- Step 3.3：`docs/render/renderer-step-3.3-render-packets.dev.md`
+- Step 3.4：`docs/render/renderer-step-3.4-stable-sort.dev.md`
+- Step 3.5：`docs/render/renderer-step-3.5-batching.dev.md`
+- Step 3.6：`docs/render/renderer-step-3.6-gpu-instancing.dev.md`
+- Step 3.7：`docs/render/renderer-step-3.7-dynamic-skinned.dev.md`
+- Debug Visibility：`docs/render/renderer-debug-visibility.dev.md`
+
 ### Step 3.1：为 Mesh 建立 Bounds
 
 **修改范围**

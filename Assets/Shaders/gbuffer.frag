@@ -20,7 +20,7 @@ layout(push_constant) uniform PushConstants {
     int isShadowPass;
     int isSkinned;
     int renderMode;
-    int _padding;
+    int useInstancing;
 } pc;
 
 void main()

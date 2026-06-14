@@ -4,9 +4,11 @@
 #include "ChikaEngine/IRHIDevice.hpp"
 #include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RenderGraph.hpp"
+#include "ChikaEngine/RenderQueue.hpp"
 #include "ChikaEngine/RenderSettings.hpp"
 #include "ChikaEngine/RenderWorld.hpp"
 #include "ChikaEngine/ResourceManager.hpp"
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -27,7 +29,7 @@ namespace ChikaEngine::Render
         int isShadowPass;
         int isSkinned;
         int renderMode;
-        int _padding;
+        int useInstancing;
     };
 
     struct RenderPipelineCreateInfo
@@ -66,20 +68,26 @@ namespace ChikaEngine::Render
         uint32_t GetViewportHeight() const;
         TextureHandle GetOffscreenTexture() const;
         const RenderFrameStatistics& GetFrameStatistics() const;
+        /** @brief 按当前调试设置从只读 Snapshot 追加编辑器 Gizmo。 */
+        void AppendDebugGizmos() const;
 
       private:
         void BuildRenderGraph();
         void AddMainScenePass();
         void AddGBufferPass();
         void AddDeferredLightingPass();
+        void AddTransparentPass();
         void AddUploadPasses();
         void AddShadowPass();
         void AddImGuiPass();
-        void DrawSceneGeometry(IRHICommandList* cmd, bool shadowPass, bool gbufferPass);
+        /** @brief 按已排序 Batch 录制 Draw，并缓存相邻 Batch 共享的绑定状态。 */
+        void DrawRenderQueue(IRHICommandList* cmd, const RenderQueue& queue);
         void CreateDeferredResources();
         void HandlePendingResize();
         void UpdateSceneDataFromSnapshot();
         void PrepareSnapshotResources();
+        void PrepareRenderQueues();
+        void PrepareInstanceData();
         /** @brief 释放由 Pipeline 创建、因此必须由 Pipeline 回收的 RHI 资源。 */
         void DestroyOwnedResources();
 
@@ -89,7 +97,19 @@ namespace ChikaEngine::Render
         RenderSettings* m_settings = nullptr;
         std::unique_ptr<RenderGraph> m_renderGraph;
         std::shared_ptr<const RenderWorldSnapshot> m_snapshot;
-        std::unordered_map<uint64_t, BufferHandle> m_boneBuffers;
+        /** @brief 保存 RenderPipeline 拥有的可增长动态 GPU Buffer 及本帧有效数据范围。 */
+        struct DynamicBuffer
+        {
+            BufferHandle handle;
+            uint64_t capacity = 0;
+            uint64_t size = 0;
+        };
+        std::unordered_map<uint64_t, DynamicBuffer> m_boneBuffers;
+        std::array<DynamicBuffer, 3> m_instanceBuffers;
+        RenderQueueSet m_renderQueues;
+        uint32_t m_instanceBufferIndex = 0;
+        uint32_t m_visibleObjectCount = 0;
+        uint32_t m_culledObjectCount = 0;
 
         uint32_t m_width = 0;
         uint32_t m_height = 0;

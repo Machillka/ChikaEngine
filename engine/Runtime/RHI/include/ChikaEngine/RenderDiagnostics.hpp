@@ -17,6 +17,11 @@ namespace ChikaEngine::Render
         uint32_t instanceCount = 0;
         uint32_t pipelineBindCount = 0;
         uint32_t descriptorUpdateCount = 0;
+        uint32_t visibleObjectCount = 0;
+        uint32_t culledObjectCount = 0;
+        uint32_t packetCount = 0;
+        uint32_t batchCount = 0;
+        uint32_t instancedBatchCount = 0;
 
         /**
          * @brief 清空统计，以便 RHI 在每个新帧开始时重新计数。

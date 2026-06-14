@@ -29,7 +29,7 @@ namespace ChikaEngine::Asset
                     expectedSet = 0;
                 else if (resource.name == "material" || resource.name == "Albedo")
                     expectedSet = 1;
-                else if (resource.name == "uboBones")
+                else if (resource.name == "uboBones" || resource.name == "instances")
                     expectedSet = 2;
 
                 if (expectedSet && resource.set != *expectedSet)

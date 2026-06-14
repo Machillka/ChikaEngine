@@ -17,5 +17,7 @@ namespace ChikaEngine::Render
     {
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
         uint32_t shadowResolution = 2048;
+        bool debugDrawAABBs = false;
+        bool debugDrawFrustums = false;
     };
 } // namespace ChikaEngine::Render

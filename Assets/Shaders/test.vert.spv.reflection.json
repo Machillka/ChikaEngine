@@ -78,7 +78,7 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "_padding",
+            "name": "useInstancing",
             "offset": 76,
             "size": 4,
             "type": 5
@@ -166,9 +166,32 @@
       "set": 1,
       "stages": 1,
       "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 1,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "models",
+            "offset": 0,
+            "size": 0,
+            "type": 14
+          }
+        ],
+        "name": "instances",
+        "size": 0
+      },
+      "name": "instances",
+      "set": 2,
+      "stages": 1,
+      "type": 1
     }
   ],
-  "stableHash": 16336459273886805860,
+  "stableHash": 17934845197523505495,
   "stage": 1,
   "version": 1
 }

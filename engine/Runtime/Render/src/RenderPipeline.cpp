@@ -1,9 +1,13 @@
 #include "ChikaEngine/RenderPipeline.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
+#include "ChikaEngine/RenderDebugVisualization.hpp"
 #include "ChikaEngine/RenderPassBuilder.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <memory>
 #include <stdexcept>
 #include <unordered_set>
@@ -65,8 +69,8 @@ namespace ChikaEngine::Render
 
         // bone 的 ubo
         BufferDesc dummyBoneDesc{
-            .size = 128 * sizeof(Math::Mat4),
-            .usage = Render::RHI_BufferUsage::Uniform,
+            .size = sizeof(Math::Mat4),
+            .usage = Render::RHI_BufferUsage::Storage,
             .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
         };
         m_dummyBoneUBO = m_rhi->CreateBuffer(dummyBoneDesc);
@@ -75,12 +79,7 @@ namespace ChikaEngine::Render
         // 填充空数据
         Math::Mat4* mappedBones = static_cast<Math::Mat4*>(m_rhi->GetMappedData(m_dummyBoneUBO));
         if (mappedBones)
-        {
-            for (int i = 0; i < 128; ++i)
-            {
-                mappedBones[i] = Math::Mat4::Identity();
-            }
-        }
+            *mappedBones = Math::Mat4::Identity().Transposed();
 
         // 离屏纹理
         TextureDesc colorDesc{
@@ -230,6 +229,7 @@ namespace ChikaEngine::Render
         {
             AddGBufferPass();
             AddDeferredLightingPass();
+            AddTransparentPass();
         }
         else
         {
@@ -284,7 +284,7 @@ namespace ChikaEngine::Render
                 builder.WriteColor(m_rgShadowColor, LoadOp::Clear, clearColor);
                 builder.WriteDepth(m_rgShadowDepth, LoadOp::Clear);
             },
-            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawSceneGeometry(cmd, true, false); });
+            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawRenderQueue(cmd, m_renderQueues.shadow); });
     }
 
     void RenderPipeline::AddMainScenePass()
@@ -300,7 +300,11 @@ namespace ChikaEngine::Render
                 builder.WriteColor(m_rgOffscreen, LoadOp::Clear, clearColor);
                 builder.WriteDepth(m_rgDepth, LoadOp::Clear);
             },
-            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawSceneGeometry(cmd, false, false); });
+            [this](IRHICommandList* cmd, RenderGraph* graph)
+            {
+                DrawRenderQueue(cmd, m_renderQueues.forwardOpaque);
+                DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
+            });
     }
     void RenderPipeline::AddImGuiPass()
     {
@@ -350,7 +354,7 @@ namespace ChikaEngine::Render
                 builder.WriteColor(m_rgGBufferMaterial, LoadOp::Clear, clearColor);
                 builder.WriteDepth(m_rgDepth, LoadOp::Clear);
             },
-            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawSceneGeometry(cmd, false, true); });
+            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawRenderQueue(cmd, m_renderQueues.gbufferOpaque); });
     }
 
     void RenderPipeline::AddDeferredLightingPass()
@@ -385,59 +389,100 @@ namespace ChikaEngine::Render
             });
     }
 
-    void RenderPipeline::DrawSceneGeometry(IRHICommandList* cmd, bool shadowPass, bool gbufferPass)
+    /**
+     * @brief 在 Deferred Lighting 后按远到近提交透明 Queue。
+     *
+     * 透明对象不写入 GBuffer；独立 Pass 保留已有颜色和深度，为 Phase 6 的正式透明材质路径提供边界。
+     */
+    void RenderPipeline::AddTransparentPass()
     {
-        using namespace ChikaEngine::Math;
-        PC pc{};
-        pc.isShadowPass = shadowPass ? 1 : 0;
-        pc.renderMode = gbufferPass ? 1 : 0;
-
-        if (!m_snapshot)
+        if (m_renderQueues.forwardTransparent.packets.empty())
             return;
 
-        for (const auto& objectSnapshot : m_snapshot->objects)
-        {
-            const RenderObjectProxy& proxy = objectSnapshot.proxy;
-            if (!HasFlag(proxy.flags, RenderObjectFlags::Visible) || (shadowPass && !HasFlag(proxy.flags, RenderObjectFlags::CastShadow)))
-                continue;
-            if (!proxy.mesh.IsValid() || !proxy.material.IsValid())
-                continue;
-
-            const auto& mesh = m_resourceMgr->GetMesh(proxy.mesh);
-            const auto& material = m_resourceMgr->GetMaterial(proxy.material);
-            const PipelineHandle pipeline = gbufferPass ? material.gbufferPipeline : material.forwardPipeline;
-
-            if (!pipeline.IsValid() || !mesh.vertexBuffer.IsValid())
-                continue;
-
-            cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
-            cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
-            cmd->BindPipeline(pipeline);
-
-            const Resource::MaterialDrawBindings& drawBindings = gbufferPass ? material.gbufferDrawBindings : material.forwardDrawBindings;
-            auto bindings = material.bindings;
-            Render::BindBuffer(bindings, drawBindings.scene, m_sceneUBO, 0, sizeof(SceneData));
-            Render::BindTexture(bindings, drawBindings.shadowMap, shadowPass ? m_dummyTexture : m_shadowDepthTexture);
-
-            const uint64_t objectKey = (m_snapshot->worldId << 32u) ^ objectSnapshot.handle.raw_value;
-            const auto boneBuffer = m_boneBuffers.find(objectKey);
-            if (HasFlag(proxy.flags, RenderObjectFlags::Skinned) && boneBuffer != m_boneBuffers.end())
+        m_renderGraph->AddPass(
+            "Forward Transparent Pass",
+            [&](RGPassBuilder& builder)
             {
-                Render::BindBuffer(bindings, drawBindings.bones, boneBuffer->second, 0, 128 * sizeof(Math::Mat4));
-                pc.isSkinned = 1;
+                builder.ReadTexture(m_rgShadowDepth, ResourceState::ShaderResource);
+                builder.WriteColor(m_rgOffscreen, LoadOp::Load);
+                builder.WriteDepth(m_rgDepth, LoadOp::Load);
+            },
+            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawRenderQueue(cmd, m_renderQueues.forwardTransparent); });
+    }
+
+    void RenderPipeline::DrawRenderQueue(IRHICommandList* cmd, const RenderQueue& queue)
+    {
+        PipelineHandle boundPipeline;
+        Resource::MeshHandle boundMesh;
+        Resource::MaterialHandle boundMaterial;
+        BufferHandle boundBoneBuffer;
+
+        for (const RenderBatch& batch : queue.batches)
+        {
+            const Resource::MeshGPU& mesh = m_resourceMgr->GetMesh(batch.mesh);
+            const Resource::MaterialGPU& material = m_resourceMgr->GetMaterial(batch.material);
+            if (!batch.pipeline.IsValid() || !mesh.vertexBuffer.IsValid() || !mesh.indexBuffer.IsValid() || batch.packetCount == 0)
+                continue;
+
+            // 排序后的相邻 Batch 通常共享 Pipeline 或 Mesh，录制时避免重复绑定相同状态。
+            if (batch.mesh != boundMesh)
+            {
+                cmd->BindVertexBuffer(mesh.vertexBuffer, 0);
+                cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
+                boundMesh = batch.mesh;
+            }
+            if (batch.pipeline != boundPipeline)
+            {
+                cmd->BindPipeline(batch.pipeline);
+                boundPipeline = batch.pipeline;
+            }
+
+            const bool shadowPass = batch.pass == RenderPassClass::Shadow;
+            const bool gbufferPass = batch.pass == RenderPassClass::GBufferOpaque;
+            const Resource::MaterialDrawBindings& drawBindings = gbufferPass ? material.gbufferDrawBindings : material.forwardDrawBindings;
+            PC pc{};
+            pc.isShadowPass = shadowPass ? 1 : 0;
+            pc.renderMode = gbufferPass ? 1 : 0;
+            BufferHandle boneBuffer = m_dummyBoneUBO;
+            uint64_t boneBufferSize = sizeof(Math::Mat4);
+
+            if (batch.instanced)
+            {
+                pc.model = Math::Mat4::Identity();
+                pc.useInstancing = 1;
             }
             else
             {
-                Render::BindBuffer(bindings, drawBindings.bones, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
-                pc.isSkinned = 0;
+                const RenderPacket& packet = queue.packets[batch.firstPacket];
+                const RenderObjectProxy& proxy = packet.object->proxy;
+                const uint64_t objectKey = (m_snapshot->worldId << 32u) ^ packet.object->handle.raw_value;
+                const auto objectBoneBuffer = m_boneBuffers.find(objectKey);
+                if (HasFlag(proxy.flags, RenderObjectFlags::Skinned) && objectBoneBuffer != m_boneBuffers.end())
+                {
+                    boneBuffer = objectBoneBuffer->second.handle;
+                    boneBufferSize = objectBoneBuffer->second.size;
+                    pc.isSkinned = 1;
+                }
+                pc.model = proxy.transform.Transposed();
             }
 
-            pc.model = proxy.transform.Transposed();
+            // 相同 Material 与对象数据绑定可跨 Batch 复用；蒙皮对象因骨骼 Buffer 不同会自然失效。
+            if (batch.material != boundMaterial || boneBuffer != boundBoneBuffer)
+            {
+                const DynamicBuffer& instances = m_instanceBuffers[m_instanceBufferIndex];
+                auto bindings = material.bindings;
+                Render::BindBuffer(bindings, drawBindings.scene, m_sceneUBO, 0, sizeof(SceneData));
+                Render::BindTexture(bindings, drawBindings.shadowMap, shadowPass ? m_dummyTexture : m_shadowDepthTexture);
+                Render::BindBuffer(bindings, drawBindings.instances, instances.handle, 0, instances.size);
+                Render::BindBuffer(bindings, drawBindings.bones, boneBuffer, 0, boneBufferSize);
+                for (const auto& group : bindings)
+                    cmd->BindResources(group);
+                boundMaterial = batch.material;
+                boundBoneBuffer = boneBuffer;
+            }
 
-            for (const auto& group : bindings)
-                cmd->BindResources(group);
             cmd->PushConstants("pc", &pc, sizeof(PC));
-            cmd->DrawIndexed(mesh.indexCount, 1);
+            cmd->DrawIndexed(mesh.indexCount, batch.instanced ? static_cast<uint32_t>(batch.packetCount) : 1, 0, 0, batch.instanced ? batch.firstInstance : 0);
         }
     }
 
@@ -505,6 +550,8 @@ namespace ChikaEngine::Render
         m_time += deltaTime;
         UpdateSceneDataFromSnapshot();
         PrepareSnapshotResources();
+        PrepareRenderQueues();
+        PrepareInstanceData();
 
         BuildRenderGraph();
 
@@ -513,6 +560,19 @@ namespace ChikaEngine::Render
         // RHI 负责命令统计，RenderGraph 负责 Pass 统计；Renderer 在帧执行结束后汇总两者。
         m_frameStatistics = m_rhi->GetFrameStatistics();
         m_frameStatistics.passCount = m_renderGraph->GetLastExecutedPassCount();
+        m_frameStatistics.visibleObjectCount = m_visibleObjectCount;
+        m_frameStatistics.culledObjectCount = m_culledObjectCount;
+        const std::array<const RenderQueue*, 3> queues{
+            &m_renderQueues.shadow,
+            m_settings->pipelineMode == RenderPipelineMode::Deferred ? &m_renderQueues.gbufferOpaque : &m_renderQueues.forwardOpaque,
+            &m_renderQueues.forwardTransparent,
+        };
+        for (const RenderQueue* queue : queues)
+        {
+            m_frameStatistics.packetCount += static_cast<uint32_t>(queue->packets.size());
+            m_frameStatistics.batchCount += static_cast<uint32_t>(queue->batches.size());
+            m_frameStatistics.instancedBatchCount += static_cast<uint32_t>(std::ranges::count(queue->batches, true, &RenderBatch::instanced));
+        }
     }
 
     void RenderPipeline::UpdateSceneDataFromSnapshot()
@@ -552,8 +612,28 @@ namespace ChikaEngine::Render
                 if (!HasFlag(object.proxy.flags, RenderObjectFlags::Skinned) || object.proxy.boneMatrices.empty())
                     continue;
                 aliveBoneObjects.insert(objectKey);
-                BufferHandle& boneBuffer = m_boneBuffers[objectKey];
-                boneBuffer = m_resourceMgr->UploadBoneMatrices(object.proxy.boneMatrices, boneBuffer);
+                DynamicBuffer& allocation = m_boneBuffers[objectKey];
+                const uint64_t requiredSize = object.proxy.boneMatrices.size() * sizeof(Math::Mat4);
+                if (!allocation.handle.IsValid() || allocation.capacity < requiredSize)
+                {
+                    if (allocation.handle.IsValid())
+                        m_rhi->DestroyBuffer(allocation.handle);
+                    allocation.handle = m_rhi->CreateBuffer({
+                        .size = requiredSize,
+                        .usage = RHI_BufferUsage::Storage,
+                        .memoryUsage = MemoryUsage::CPU_To_GPU,
+                    });
+                    allocation.capacity = requiredSize;
+                    m_rhi->SetDebugName(allocation.handle, "Animation.BoneMatrices");
+                }
+
+                allocation.size = requiredSize;
+                auto* mapped = static_cast<Math::Mat4*>(m_rhi->GetMappedData(allocation.handle));
+                if (mapped)
+                {
+                    for (size_t index = 0; index < object.proxy.boneMatrices.size(); ++index)
+                        mapped[index] = object.proxy.boneMatrices[index].Transposed();
+                }
             }
         }
 
@@ -564,9 +644,96 @@ namespace ChikaEngine::Render
                 ++it;
                 continue;
             }
-            m_rhi->DestroyBuffer(it->second);
+            m_rhi->DestroyBuffer(it->second.handle);
             it = m_boneBuffers.erase(it);
         }
+    }
+
+    /**
+     * @brief 从当前 Snapshot 构建主视图与阴影视图可见集合，再分类为独立 Pass Queue。
+     *
+     * Pipeline 后续阶段只处理可见 Packet，不再读取全部 Render Proxy 或使用 Pass 布尔分支。
+     */
+    void RenderPipeline::PrepareRenderQueues()
+    {
+        m_renderQueues = {};
+        m_visibleObjectCount = 0;
+        m_culledObjectCount = 0;
+        if (!m_snapshot)
+            return;
+
+        const RenderView* primaryView = m_snapshot->viewFamily.GetPrimaryView();
+        if (!primaryView)
+            return;
+
+        const VisibilityResult mainVisibility = BuildVisibility(*m_snapshot, *primaryView);
+        VisibilityResult shadowVisibility;
+        if (!m_snapshot->lights.empty())
+        {
+            const RenderLightProxy& light = m_snapshot->lights.front().proxy;
+            RenderView shadowView{
+                .viewProjection = light.viewProjection,
+                .layerMask = light.layerMask,
+            };
+            shadowVisibility = BuildVisibility(*m_snapshot, shadowView, true);
+        }
+        else
+            shadowVisibility = BuildVisibility(*m_snapshot, *primaryView, true);
+
+        m_visibleObjectCount = mainVisibility.visibleObjectCount;
+        m_culledObjectCount = mainVisibility.culledObjectCount;
+        m_renderQueues = BuildRenderQueues(mainVisibility, shadowVisibility, *primaryView, *m_resourceMgr);
+    }
+
+    /**
+     * @brief 将所有静态 Batch 的 World Matrix 写入三缓冲 Instance Storage Buffer。
+     *
+     * 三缓冲避免 CPU 覆盖仍被前序 GPU 帧读取的数据；只有容量增长时才等待设备并重建 Buffer。
+     */
+    void RenderPipeline::PrepareInstanceData()
+    {
+        m_instanceBufferIndex = (m_instanceBufferIndex + 1u) % static_cast<uint32_t>(m_instanceBuffers.size());
+        // 第 0 项始终提供合法 Dummy Descriptor，非实例对象不会读取该矩阵。
+        std::vector<Math::Mat4> instanceMatrices{ Math::Mat4::Identity().Transposed() };
+        const std::array<RenderQueue*, 3> queues{
+            &m_renderQueues.shadow,
+            m_settings->pipelineMode == RenderPipelineMode::Deferred ? &m_renderQueues.gbufferOpaque : &m_renderQueues.forwardOpaque,
+            &m_renderQueues.forwardTransparent,
+        };
+        for (RenderQueue* queue : queues)
+        {
+            for (RenderBatch& batch : queue->batches)
+            {
+                if (!batch.instanced)
+                    continue;
+                batch.firstInstance = static_cast<uint32_t>(instanceMatrices.size());
+                for (size_t packetOffset = 0; packetOffset < batch.packetCount; ++packetOffset)
+                    instanceMatrices.push_back(queue->packets[batch.firstPacket + packetOffset].object->proxy.transform.Transposed());
+            }
+        }
+
+        DynamicBuffer& allocation = m_instanceBuffers[m_instanceBufferIndex];
+        const uint64_t requiredSize = instanceMatrices.size() * sizeof(Math::Mat4);
+        allocation.size = requiredSize;
+        if (requiredSize == 0)
+            return;
+
+        if (!allocation.handle.IsValid() || allocation.capacity < requiredSize)
+        {
+            m_rhi->WaitIdle();
+            if (allocation.handle.IsValid())
+                m_rhi->DestroyBuffer(allocation.handle);
+            allocation.handle = m_rhi->CreateBuffer({
+                .size = requiredSize,
+                .usage = RHI_BufferUsage::Storage,
+                .memoryUsage = MemoryUsage::CPU_To_GPU,
+            });
+            allocation.capacity = requiredSize;
+            m_rhi->SetDebugName(allocation.handle, "Renderer.InstanceMatrices");
+        }
+
+        if (void* mapped = m_rhi->GetMappedData(allocation.handle))
+            std::memcpy(mapped, instanceMatrices.data(), requiredSize);
     }
 
     void RenderPipeline::Shutdown()
@@ -582,10 +749,11 @@ namespace ChikaEngine::Render
         if (m_rhi)
         {
             for (const auto& [object, buffer] : m_boneBuffers)
-                m_rhi->DestroyBuffer(buffer);
+                m_rhi->DestroyBuffer(buffer.handle);
             DestroyOwnedResources();
         }
         m_boneBuffers.clear();
+        m_renderQueues = {};
         m_snapshot.reset();
         m_renderGraph.reset();
         m_resourceMgr = nullptr;
@@ -637,6 +805,11 @@ namespace ChikaEngine::Render
         destroyTexture(m_dummyTexture);
         destroyTexture(m_shadowDepthTexture);
         destroyTexture(m_shadowColorTexture);
+        for (DynamicBuffer& allocation : m_instanceBuffers)
+        {
+            destroyBuffer(allocation.handle);
+            allocation = {};
+        }
     }
 
     /*!
@@ -747,6 +920,17 @@ namespace ChikaEngine::Render
     const RenderFrameStatistics& RenderPipeline::GetFrameStatistics() const
     {
         return m_frameStatistics;
+    }
+
+    void RenderPipeline::AppendDebugGizmos() const
+    {
+        if (!m_snapshot || !m_settings)
+            return;
+        AppendRenderWorldDebugGizmos(*m_snapshot,
+                                     {
+                                         .drawAABBs = m_settings->debugDrawAABBs,
+                                         .drawFrustums = m_settings->debugDrawFrustums,
+                                     });
     }
 
 } // namespace ChikaEngine::Render

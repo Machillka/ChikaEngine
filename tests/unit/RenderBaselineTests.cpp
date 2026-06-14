@@ -1,9 +1,14 @@
 #include "ChikaEngine/IRHICommandList.hpp"
 #include "ChikaEngine/IRHIDevice.hpp"
+#include "ChikaEngine/RenderDebugVisualization.hpp"
 #include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RenderGraph.hpp"
+#include "ChikaEngine/RenderQueue.hpp"
+#include "ChikaEngine/RenderVisibility.hpp"
 #include "ChikaEngine/RenderWorld.hpp"
 #include "ChikaEngine/Renderer.hpp"
+#include "ChikaEngine/debug/Gizmo.hpp"
+#include "ChikaEngine/math/Bounds.hpp"
 
 #include <iostream>
 #include <memory>
@@ -56,8 +61,8 @@ namespace
         void PushConstants(std::string_view, const void*, uint32_t) override {}
         void CopyBuffer(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::BufferHandle, uint64_t) override {}
         void CopyBufferToTexture(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::TextureHandle, uint32_t, uint32_t) override {}
-        void Draw(uint32_t, uint32_t instanceCount) override;
-        void DrawIndexed(uint32_t, uint32_t instanceCount) override;
+        void Draw(uint32_t, uint32_t instanceCount, uint32_t, uint32_t) override;
+        void DrawIndexed(uint32_t, uint32_t instanceCount, uint32_t, int32_t, uint32_t) override;
         void DrawImGui(void*) override {}
 
       private:
@@ -189,7 +194,7 @@ namespace
     /**
      * @brief 模拟非索引 Draw，并分别累计 Draw Call 与 Instance。
      */
-    void MockCommandList::Draw(uint32_t, uint32_t instanceCount)
+    void MockCommandList::Draw(uint32_t, uint32_t instanceCount, uint32_t, uint32_t)
     {
         ++m_device.statistics.drawCallCount;
         m_device.statistics.instanceCount += instanceCount;
@@ -198,9 +203,9 @@ namespace
     /**
      * @brief 模拟索引 Draw，保持与非索引 Draw 相同的统计契约。
      */
-    void MockCommandList::DrawIndexed(uint32_t, uint32_t instanceCount)
+    void MockCommandList::DrawIndexed(uint32_t, uint32_t instanceCount, uint32_t, int32_t, uint32_t)
     {
-        Draw(0, instanceCount);
+        Draw(0, instanceCount, 0, 0);
     }
 
     /**
@@ -222,6 +227,7 @@ namespace
         Check(statistics.instanceCount == 0, "frame statistics reset instance count");
         Check(statistics.pipelineBindCount == 0, "frame statistics reset pipeline bind count");
         Check(statistics.descriptorUpdateCount == 0, "frame statistics reset descriptor update count");
+        Check(statistics.visibleObjectCount == 0 && statistics.batchCount == 0, "frame statistics reset visibility and batch counts");
     }
 
     /**
@@ -254,6 +260,116 @@ namespace
         Check(world.DestroyObject(object), "render world destroys proxy");
         Check(snapshot->objects.size() == 1, "existing snapshot remains immutable after world mutation");
         Check(world.GetObject(object) == nullptr, "stale render object handle is rejected");
+    }
+
+    /**
+     * @brief 验证 Local Bounds 在平移、旋转和非均匀缩放后仍保守覆盖物体。
+     */
+    void TestBoundsTransform()
+    {
+        using namespace ChikaEngine::Math;
+
+        const Bounds localBounds = Bounds::FromMinMax(Vector3(-1.0f, -2.0f, -3.0f), Vector3(1.0f, 2.0f, 3.0f));
+        const Mat4 transform = Mat4::TRSMatrix(Vector3(10.0f, 20.0f, 30.0f), Quaternion::Identity(), Vector3(2.0f, 3.0f, 4.0f));
+        const Bounds worldBounds = TransformBounds(localBounds, transform);
+
+        Check(worldBounds.valid, "transformed bounds remain valid");
+        Check(worldBounds.center == Vector3(10.0f, 20.0f, 30.0f), "bounds center follows world translation");
+        Check(worldBounds.extents == Vector3(2.0f, 6.0f, 12.0f), "bounds extents include non-uniform world scale");
+        Check(ExpandBounds(localBounds, 1.25f).extents == Vector3(1.25f, 2.5f, 3.75f), "conservative bounds expansion preserves center");
+    }
+
+    /**
+     * @brief 验证 Visibility 在 Queue 构建前剔除视锥外、隐藏和 Layer 不匹配对象。
+     */
+    void TestFrustumVisibility()
+    {
+        using namespace ChikaEngine::Render;
+
+        RenderWorldSnapshot snapshot;
+        RenderObjectProxy inside;
+        inside.bounds = { .center = { 0.0f, 0.0f, 0.5f }, .extents = { 0.1f, 0.1f, 0.1f }, .sphereRadius = 0.2f, .valid = true };
+        RenderObjectProxy outside = inside;
+        outside.bounds.center.x = 5.0f;
+        RenderObjectProxy hidden = inside;
+        hidden.flags = RenderObjectFlags::CastShadow;
+        snapshot.objects = {
+            { RenderObjectHandle::FromParts(1, 1), inside },
+            { RenderObjectHandle::FromParts(2, 1), outside },
+            { RenderObjectHandle::FromParts(3, 1), hidden },
+        };
+
+        const VisibilityResult visibility = BuildVisibility(snapshot, RenderView{ .viewProjection = ChikaEngine::Math::Mat4::Identity() });
+        Check(visibility.testedObjectCount == 3, "visibility tests every render proxy once");
+        Check(visibility.visibleObjectCount == 1 && visibility.culledObjectCount == 2, "frustum and flags reject invisible proxies");
+        Check(visibility.visibleObjects.front()->handle == snapshot.objects.front().handle, "visibility retains stable render object identity");
+    }
+
+    /**
+     * @brief 验证 Opaque 稳定排序会把相同状态 Packet 合并成可实例化 Batch。
+     */
+    void TestRenderQueueSortAndBatch()
+    {
+        using namespace ChikaEngine::Render;
+
+        std::vector<RenderObjectSnapshot> objects(3);
+        for (uint32_t index = 0; index < objects.size(); ++index)
+            objects[index].handle = RenderObjectHandle::FromParts(index + 1, 1);
+
+        RenderQueue queue;
+        queue.packets = {
+            { .object = &objects[2], .pass = RenderPassClass::ForwardOpaque, .pipeline = PipelineHandle::FromParts(2, 1), .material = ChikaEngine::Resource::MaterialHandle::FromParts(2, 1), .mesh = ChikaEngine::Resource::MeshHandle::FromParts(2, 1), .instancingEligible = true },
+            { .object = &objects[1], .pass = RenderPassClass::ForwardOpaque, .pipeline = PipelineHandle::FromParts(1, 1), .material = ChikaEngine::Resource::MaterialHandle::FromParts(1, 1), .mesh = ChikaEngine::Resource::MeshHandle::FromParts(1, 1), .instancingEligible = true },
+            { .object = &objects[0], .pass = RenderPassClass::ForwardOpaque, .pipeline = PipelineHandle::FromParts(1, 1), .material = ChikaEngine::Resource::MaterialHandle::FromParts(1, 1), .mesh = ChikaEngine::Resource::MeshHandle::FromParts(1, 1), .instancingEligible = true },
+        };
+
+        SortAndBuildRenderBatches(queue, false);
+        Check(queue.packets.front().pipeline == PipelineHandle::FromParts(1, 1), "opaque sort groups lower pipeline state first");
+        Check(queue.batches.size() == 2, "batch builder separates different render states");
+        Check(queue.batches.front().packetCount == 2 && queue.batches.front().instanced, "matching static packets form one instanced batch");
+
+        RenderQueue transparentQueue;
+        transparentQueue.packets = {
+            { .object = &objects[0], .pass = RenderPassClass::ForwardTransparent, .viewDepth = 2.0f },
+            { .object = &objects[1], .pass = RenderPassClass::ForwardTransparent, .viewDepth = 8.0f },
+        };
+        SortAndBuildRenderBatches(transparentQueue, true);
+        Check(transparentQueue.packets.front().viewDepth == 8.0f, "transparent sort records farther packets before nearer packets");
+        Check(transparentQueue.batches.size() == 2, "transparent packets remain separate draw batches");
+
+        SortAndBuildRenderBatches(queue, false);
+        Check(queue.batches.size() == 2, "rebuilding a render queue replaces stale batches");
+    }
+
+    /**
+     * @brief 验证 RenderWorld 调试可视化生成 AABB 与 View/Light Frustum，且颜色反映剔除结果。
+     */
+    void TestRenderDebugVisualization()
+    {
+        using namespace ChikaEngine;
+
+        Render::RenderWorldSnapshot snapshot;
+        Render::RenderObjectProxy visible;
+        visible.bounds = { .center = { 0.0f, 0.0f, 0.5f }, .extents = { 0.1f, 0.1f, 0.1f }, .sphereRadius = 0.2f, .valid = true };
+        Render::RenderObjectProxy culled = visible;
+        culled.bounds.center.x = 5.0f;
+        snapshot.objects = {
+            { Render::RenderObjectHandle::FromParts(1, 1), visible },
+            { Render::RenderObjectHandle::FromParts(2, 1), culled },
+        };
+        snapshot.viewFamily.views.push_back({ Render::RenderViewHandle::FromParts(1, 1), { .viewProjection = Math::Mat4::Identity(), .primary = true } });
+        snapshot.lights.push_back({ Render::RenderLightHandle::FromParts(1, 1), { .viewProjection = Math::Mat4::Identity() } });
+
+        Debug::Gizmo::Clear();
+        Render::AppendRenderWorldDebugGizmos(snapshot, { .drawAABBs = true, .drawFrustums = true });
+        const auto& lines = Debug::Gizmo::GetLines();
+        Check(Debug::Gizmo::GetLineCount() == 48, "debug visualization emits two AABBs and two frustums");
+        Check(lines[0].color == Math::Vector4(0.1f, 1.0f, 0.2f, 1.0f), "visible AABB uses visible color");
+        Check(lines[12].color == Math::Vector4(1.0f, 0.15f, 0.1f, 1.0f), "culled AABB uses culled color");
+
+        Debug::Gizmo::Clear();
+        Render::AppendRenderWorldDebugGizmos(snapshot, {});
+        Check(Debug::Gizmo::GetLineCount() == 0, "disabled debug visualization emits no lines");
     }
 
     /**
@@ -350,6 +466,10 @@ int main()
 {
     TestFrameStatisticsReset();
     TestRenderWorldLifecycleAndSnapshot();
+    TestBoundsTransform();
+    TestFrustumVisibility();
+    TestRenderQueueSortAndBatch();
+    TestRenderDebugVisualization();
     TestRHIStatisticsAndNames();
     TestRenderGraphCompileAndExecuteOrder();
 

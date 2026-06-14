@@ -21,20 +21,25 @@ layout(set = 0, binding = 0) uniform SceneData {
     vec4 viewPos;
 } scene;
 
+layout(set = 2, binding = 1, std430) readonly buffer InstanceData {
+    mat4 models[];
+} instances;
+
 layout(push_constant) uniform PushConstants {
     mat4 model;
     int isShadowPass;
     int isSkinned;
     int renderMode;
-    int _padding;
+    int useInstancing;
 } pc;
 
 void main()
 {
-    vec4 worldPos = pc.model * vec4(inPos, 1.0);
+    mat4 model = pc.useInstancing == 1 ? instances.models[gl_InstanceIndex] : pc.model;
+    vec4 worldPos = model * vec4(inPos, 1.0);
     outWorldPos = worldPos.xyz;
 
-    outNormal = mat3(pc.model) * inNormal;
+    outNormal = mat3(model) * inNormal;
     outUV = inUV;
 
     if (pc.isShadowPass == 1) {

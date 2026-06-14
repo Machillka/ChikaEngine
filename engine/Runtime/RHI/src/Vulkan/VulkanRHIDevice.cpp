@@ -387,6 +387,9 @@ namespace ChikaEngine::Render
         case RHI_BufferUsage::Uniform:
             bInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
             break;
+        case RHI_BufferUsage::Storage:
+            bInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+            break;
         case RHI_BufferUsage::Staging:
             bInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
             break;

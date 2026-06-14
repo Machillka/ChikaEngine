@@ -26,7 +26,7 @@ layout(push_constant) uniform PushConstants {
     int isShadowPass;
     int isSkinned;
     int renderMode;
-    int _padding;
+    int useInstancing;
 } pc;
 
 float ShadowCalculation(vec3 worldPos, vec3 normal)
