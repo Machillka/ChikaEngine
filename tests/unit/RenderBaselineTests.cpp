@@ -2,6 +2,7 @@
 #include "ChikaEngine/IRHIDevice.hpp"
 #include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RenderGraph.hpp"
+#include "ChikaEngine/RenderWorld.hpp"
 #include "ChikaEngine/Renderer.hpp"
 
 #include <iostream>
@@ -12,6 +13,8 @@
 
 namespace
 {
+    namespace Shader = ChikaEngine::Shader;
+
     int g_failures = 0;
 
     /**
@@ -47,10 +50,10 @@ namespace
         void EndRendering() override {}
         void InsertTextureBarrier(ChikaEngine::Render::TextureHandle, ChikaEngine::Render::ResourceState, ChikaEngine::Render::ResourceState) override {}
         void BindPipeline(ChikaEngine::Render::PipelineHandle) override;
-        void BindResources(uint32_t, const ChikaEngine::Render::ResourceBindingGroup& group) override;
+        void BindResources(const ChikaEngine::Render::ResourceBindingGroup& group) override;
         void BindVertexBuffer(ChikaEngine::Render::BufferHandle, uint64_t) override {}
         void BindIndexBuffer(ChikaEngine::Render::BufferHandle, uint64_t, bool) override {}
-        void PushConstants(uint32_t, const void*) override {}
+        void PushConstants(std::string_view, const void*, uint32_t) override {}
         void CopyBuffer(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::BufferHandle, uint64_t) override {}
         void CopyBufferToTexture(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::TextureHandle, uint32_t, uint32_t) override {}
         void Draw(uint32_t, uint32_t instanceCount) override;
@@ -178,9 +181,9 @@ namespace
     /**
      * @brief 按实际绑定资源数量模拟 Descriptor Write 统计。
      */
-    void MockCommandList::BindResources(uint32_t, const ChikaEngine::Render::ResourceBindingGroup& group)
+    void MockCommandList::BindResources(const ChikaEngine::Render::ResourceBindingGroup& group)
     {
-        m_device.statistics.descriptorUpdateCount += static_cast<uint32_t>(group.buffers.size() + group.textures.size());
+        m_device.statistics.descriptorUpdateCount += static_cast<uint32_t>(group.buffers.size() + group.textures.size() + group.samplers.size());
     }
 
     /**
@@ -234,6 +237,38 @@ namespace
     }
 
     /**
+     * @brief 验证 RenderWorld 稳定句柄、增量更新和不可变 Snapshot 边界。
+     */
+    void TestRenderWorldLifecycleAndSnapshot()
+    {
+        using namespace ChikaEngine::Render;
+
+        RenderWorld world;
+        RenderObjectProxy proxy;
+        proxy.mesh = ChikaEngine::Resource::MeshHandle::FromParts(2, 1);
+        proxy.material = ChikaEngine::Resource::MaterialHandle::FromParts(3, 1);
+
+        const RenderObjectHandle object = world.CreateObject(proxy);
+        const uint64_t createdRevision = world.GetRevision();
+        Check(object.IsValid() && world.GetObjectCount() == 1, "render world creates stable object proxy");
+        Check(!world.UpdateObject(object, proxy) && world.GetRevision() == createdRevision, "unchanged proxy does not dirty render world");
+
+        proxy.transform(0, 3) = 4.0f;
+        Check(world.UpdateObject(object, proxy), "changed proxy updates render world");
+
+        RenderView primaryView{ .primary = true };
+        world.CreateView(primaryView);
+        world.CreateLight({});
+        const auto snapshot = world.CreateSnapshot();
+        Check(snapshot->objects.size() == 1 && snapshot->lights.size() == 1, "render world snapshot copies objects and lights");
+        Check(snapshot->viewFamily.GetPrimaryView() != nullptr, "view family exposes primary view");
+
+        Check(world.DestroyObject(object), "render world destroys proxy");
+        Check(snapshot->objects.size() == 1, "existing snapshot remains immutable after world mutation");
+        Check(world.GetObject(object) == nullptr, "stale render object handle is rejected");
+    }
+
+    /**
      * @brief 验证 RHI 命令统计与资源命名契约，不依赖具体图形后端。
      */
     void TestRHIStatisticsAndNames()
@@ -250,13 +285,24 @@ namespace
         device.SetDebugName(texture, "Baseline.Texture");
         device.SetDebugName(pipeline, "Baseline.Pipeline");
 
-        ResourceBindingGroup bindings;
-        bindings.BindBuffer(0, buffer, 0, 64);
-        bindings.BindTexture(1, texture);
+        const Shader::ShaderProgramInterface interface{
+            .resources = {
+                { .name = "Buffer", .set = 0, .binding = 0, .type = Shader::ShaderDescriptorType::UniformBuffer, .arrayCount = 1 },
+                { .name = "Texture", .set = 0, .binding = 1, .type = Shader::ShaderDescriptorType::CombinedImageSampler, .arrayCount = 1 },
+            },
+        };
+        const ResourceBindingHandle bufferBinding = ResolveResourceBinding(interface, "Buffer");
+        const ResourceBindingHandle textureBinding = ResolveResourceBinding(interface, "Texture");
+        ResourceBindingGroup bindings{ .set = 0 };
+        bindings.BindBuffer(bufferBinding, buffer, 0, 64);
+        bindings.BindTexture(textureBinding, texture);
 
+        Check(bufferBinding.IsValid(), "resource binding resolves once from shader interface");
+        Check(!ResolveResourceBinding(interface, "Missing").IsValid(), "missing resource resolves to invalid binding");
+        Check(!bindings.BindTexture(textureBinding, texture, 1), "resource binding rejects descriptor array overflow");
         IRHICommandList* commandList = device.AllocateCommandList();
         commandList->BindPipeline(pipeline);
-        commandList->BindResources(0, bindings);
+        commandList->BindResources(bindings);
         commandList->Draw(3, 2);
         commandList->DrawIndexed(6, 3);
         device.Submit(commandList);
@@ -316,6 +362,7 @@ int main()
 {
     TestFrameStatisticsReset();
     TestDrawCommandDefaults();
+    TestRenderWorldLifecycleAndSnapshot();
     TestRHIStatisticsAndNames();
     TestRenderGraphCompileAndExecuteOrder();
 

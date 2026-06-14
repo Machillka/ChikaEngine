@@ -7,6 +7,45 @@
 
 namespace ChikaEngine::Render
 {
+    /**
+     * @brief 将后端无关 Shader Stage Mask 转换为 Vulkan 标志。
+     */
+    static VkShaderStageFlags ToVkShaderStages(Shader::ShaderStageMask stages)
+    {
+        VkShaderStageFlags result = 0;
+        if (Shader::HasStage(stages, Shader::ShaderStageMask::Vertex))
+            result |= VK_SHADER_STAGE_VERTEX_BIT;
+        if (Shader::HasStage(stages, Shader::ShaderStageMask::Fragment))
+            result |= VK_SHADER_STAGE_FRAGMENT_BIT;
+        if (Shader::HasStage(stages, Shader::ShaderStageMask::Compute))
+            result |= VK_SHADER_STAGE_COMPUTE_BIT;
+        return result;
+    }
+
+    /**
+     * @brief 将 Reflection Descriptor 类型转换为 Vulkan Descriptor 类型。
+     */
+    static VkDescriptorType ToVkDescriptorType(Shader::ShaderDescriptorType type)
+    {
+        switch (type)
+        {
+        case Shader::ShaderDescriptorType::UniformBuffer:
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        case Shader::ShaderDescriptorType::StorageBuffer:
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        case Shader::ShaderDescriptorType::CombinedImageSampler:
+            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        case Shader::ShaderDescriptorType::SampledImage:
+            return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        case Shader::ShaderDescriptorType::StorageImage:
+            return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        case Shader::ShaderDescriptorType::Sampler:
+            return VK_DESCRIPTOR_TYPE_SAMPLER;
+        default:
+            return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+        }
+    }
+
     // 单独对 Vulkan Check 的检查封装
     // TODO: 接入 Chika Log System
     static void VK_CHECK(VkResult res, const char* msg)

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "AssetAnimation.hpp"
+#include "ChikaEngine/shader/ShaderInterface.hpp"
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -39,7 +40,6 @@ namespace ChikaEngine::Asset
     struct ShaderTextureDesc
     {
         std::string name;
-        uint32_t slot = 0;
     };
 
     // Shader 模板
@@ -95,6 +95,8 @@ namespace ChikaEngine::Asset
     {
         std::string path;
         std::vector<uint8_t> spirv;
+        Shader::ShaderReflectionData reflection;
+        bool hasReflection = false;
     };
 
     struct MaterialData

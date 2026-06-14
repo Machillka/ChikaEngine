@@ -11,6 +11,9 @@
 
 #pragma once
 
+#include "ChikaEngine/shader/ShaderInterface.hpp"
+
+#include <vector>
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
@@ -32,6 +35,10 @@ namespace ChikaEngine::Render
     {
         VkPipeline pipeline;
         VkPipelineLayout layout;
+        std::vector<VkDescriptorSetLayout> setLayouts;
+        std::vector<Shader::ShaderResourceBinding> resources;
+        std::vector<Shader::ShaderPushConstantRange> pushConstants;
+        uint64_t interfaceHash = 0;
     };
 
     struct VulkanTexture

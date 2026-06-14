@@ -230,6 +230,8 @@ namespace ChikaEngine::Asset
         const std::string extension = LowerExtension(path);
         if (extension == ".meta" || extension == ".pyc")
             return true;
+        if (path.filename().string().ends_with(".reflection.json"))
+            return true;
         if (extension == ".spv")
         {
             std::filesystem::path possibleSource = path;

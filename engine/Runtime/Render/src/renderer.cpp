@@ -7,6 +7,7 @@
 #include "ChikaEngine/rhi/RHIBackendFactory.hpp"
 #include <memory>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace ChikaEngine::Render
 {
@@ -178,9 +179,21 @@ namespace ChikaEngine::Render
         m_rgSwapchain = m_renderGraph->ImportTexture("Swapchain", TextureHandle{}, swapDesc);
     }
 
-    void Renderer::SubmitDrawCommands(const std::vector<DrawCommand>& drawCommandQueue)
+    void Renderer::SubmitRenderWorldSnapshot(std::shared_ptr<const RenderWorldSnapshot> snapshot)
     {
-        m_drawCommandQueue = drawCommandQueue;
+        m_snapshot = std::move(snapshot);
+    }
+
+    RenderView Renderer::CreateEditorView()
+    {
+        RenderView view{ .primary = true };
+        if (!m_activeCamera)
+            return view;
+        view.view = m_activeCamera->GetViewMatrix();
+        view.projection = m_activeCamera->GetProjectionMatrix();
+        view.viewProjection = m_activeCamera->GetViewProjectionMatrix();
+        view.position = m_activeCamera->GetPosition();
+        return view;
     }
 
     void Renderer::BuildRenderGraph()
@@ -303,18 +316,6 @@ namespace ChikaEngine::Render
             },
             [this](IRHICommandList* cmd, RenderGraph* graph)
             {
-                SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
-                if (m_activeCamera)
-                {
-                    sceneData->cameraVP = m_activeCamera->GetViewProjectionMatrix().Transposed();
-
-                    auto pos = m_activeCamera->GetPosition();
-                    sceneData->viewPos[0] = pos.x;
-                    sceneData->viewPos[1] = pos.y;
-                    sceneData->viewPos[2] = pos.z;
-                    sceneData->viewPos[3] = 1.0f;
-                }
-
                 DrawSceneGeometry(cmd, true, false);
             });
     }
@@ -404,14 +405,15 @@ namespace ChikaEngine::Render
                 if (!m_deferredLightingPipeline.IsValid())
                     return;
 
-                Render::ResourceBindingGroup bindings;
-                bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
-                bindings.BindTexture(4, graph->GetPhysicalTexture(m_rgGBufferAlbedo));
-                bindings.BindTexture(5, graph->GetPhysicalTexture(m_rgGBufferNormal));
-                bindings.BindTexture(6, graph->GetPhysicalTexture(m_rgGBufferMaterial));
+                std::vector<Render::ResourceBindingGroup> bindings;
+                Render::BindBuffer(bindings, m_deferredSceneBinding, m_sceneUBO, 0, sizeof(SceneData));
+                Render::BindTexture(bindings, m_deferredAlbedoBinding, graph->GetPhysicalTexture(m_rgGBufferAlbedo));
+                Render::BindTexture(bindings, m_deferredNormalBinding, graph->GetPhysicalTexture(m_rgGBufferNormal));
+                Render::BindTexture(bindings, m_deferredMaterialBinding, graph->GetPhysicalTexture(m_rgGBufferMaterial));
 
                 cmd->BindPipeline(m_deferredLightingPipeline);
-                cmd->BindResources(0, bindings);
+                for (const auto& group : bindings)
+                    cmd->BindResources(group);
                 cmd->Draw(3, 1);
             });
     }
@@ -423,13 +425,19 @@ namespace ChikaEngine::Render
         pc.isShadowPass = shadowPass ? 1 : 0;
         pc.renderMode = gbufferPass ? 1 : 0;
 
-        for (const auto& drawCmd : m_drawCommandQueue)
+        if (!m_snapshot)
+            return;
+
+        for (const auto& objectSnapshot : m_snapshot->objects)
         {
-            if (!drawCmd.meshHandle.IsValid() || !drawCmd.materialHandle.IsValid())
+            const RenderObjectProxy& proxy = objectSnapshot.proxy;
+            if (!HasFlag(proxy.flags, RenderObjectFlags::Visible) || (shadowPass && !HasFlag(proxy.flags, RenderObjectFlags::CastShadow)))
+                continue;
+            if (!proxy.mesh.IsValid() || !proxy.material.IsValid())
                 continue;
 
-            const auto& mesh = m_resourceMgr->GetMesh(drawCmd.meshHandle);
-            const auto& material = m_resourceMgr->GetMaterial(drawCmd.materialHandle);
+            const auto& mesh = m_resourceMgr->GetMesh(proxy.mesh);
+            const auto& material = m_resourceMgr->GetMaterial(proxy.material);
             const PipelineHandle pipeline = gbufferPass ? material.gbufferPipeline : material.forwardPipeline;
 
             if (!pipeline.IsValid() || !mesh.vertexBuffer.IsValid())
@@ -439,37 +447,56 @@ namespace ChikaEngine::Render
             cmd->BindIndexBuffer(mesh.indexBuffer, 0, mesh.isUint32);
             cmd->BindPipeline(pipeline);
 
+            const Resource::MaterialDrawBindings& drawBindings = gbufferPass ? material.gbufferDrawBindings : material.forwardDrawBindings;
             auto bindings = material.bindings;
-            bindings.BindBuffer(1, m_sceneUBO, 0, sizeof(SceneData));
-            bindings.BindTexture(4, shadowPass ? m_dummyTexture : m_shadowDepthTexture);
+            Render::BindBuffer(bindings, drawBindings.scene, m_sceneUBO, 0, sizeof(SceneData));
+            Render::BindTexture(bindings, drawBindings.shadowMap, shadowPass ? m_dummyTexture : m_shadowDepthTexture);
 
-            if (drawCmd.isSkinned && drawCmd.boneUBO.IsValid())
+            const uint64_t objectKey = (m_snapshot->worldId << 32u) ^ objectSnapshot.handle.raw_value;
+            const auto boneBuffer = m_boneBuffers.find(objectKey);
+            if (HasFlag(proxy.flags, RenderObjectFlags::Skinned) && boneBuffer != m_boneBuffers.end())
             {
-                bindings.BindBuffer(2, drawCmd.boneUBO, 0, 128 * sizeof(Math::Mat4));
+                Render::BindBuffer(bindings, drawBindings.bones, boneBuffer->second, 0, 128 * sizeof(Math::Mat4));
                 pc.isSkinned = 1;
             }
             else
             {
-                bindings.BindBuffer(2, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
+                Render::BindBuffer(bindings, drawBindings.bones, m_dummyBoneUBO, 0, 128 * sizeof(Math::Mat4));
                 pc.isSkinned = 0;
             }
 
-            pc.model = drawCmd.model.Transposed();
+            pc.model = proxy.transform.Transposed();
 
-            cmd->BindResources(0, bindings);
-            cmd->PushConstants(sizeof(PC), &pc);
+            for (const auto& group : bindings)
+                cmd->BindResources(group);
+            cmd->PushConstants("pc", &pc, sizeof(PC));
             cmd->DrawIndexed(mesh.indexCount, 1);
         }
     }
 
     void Renderer::CreateDeferredResources()
     {
-        Asset::ShaderHandle vsAsset = m_assetMgr->LoadShader("Assets/Shaders/fullscreen.vert.spv");
-        Asset::ShaderHandle fsAsset = m_assetMgr->LoadShader("Assets/Shaders/deferred_lighting.frag.spv");
+        Asset::ShaderHandle vsAsset = m_assetMgr->LoadShader("Assets/Shaders/fullscreen.vert");
+        Asset::ShaderHandle fsAsset = m_assetMgr->LoadShader("Assets/Shaders/deferred_lighting.frag");
         const auto* vsSpirv = m_assetMgr->GetShader(vsAsset);
         const auto* fsSpirv = m_assetMgr->GetShader(fsAsset);
         if (!vsSpirv || !fsSpirv)
             return;
+        if (!vsSpirv->hasReflection || !fsSpirv->hasReflection)
+            return;
+        const std::array reflectedStages{ vsSpirv->reflection, fsSpirv->reflection };
+        Shader::ShaderProgramBuildResult interfaceResult = Shader::BuildShaderProgramInterface(reflectedStages);
+        if (!interfaceResult.success)
+        {
+            for (const std::string& error : interfaceResult.errors)
+                LOG_ERROR("Renderer", "Deferred shader interface conflict: {}", error);
+            return;
+        }
+        m_deferredLightingInterface = std::move(interfaceResult.interface);
+        m_deferredSceneBinding = ResolveResourceBinding(m_deferredLightingInterface, "scene");
+        m_deferredAlbedoBinding = ResolveResourceBinding(m_deferredLightingInterface, "GBufferAlbedo");
+        m_deferredNormalBinding = ResolveResourceBinding(m_deferredLightingInterface, "GBufferNormal");
+        m_deferredMaterialBinding = ResolveResourceBinding(m_deferredLightingInterface, "GBufferMaterial");
 
         ShaderHandle vs = m_rhi->CreateShader({
             .stage = RHI_ShaderStage::Vertex,
@@ -485,6 +512,7 @@ namespace ChikaEngine::Render
         PipelineDesc desc{
             .vertexShader = vs,
             .fragmentShader = fs,
+            .shaderInterface = m_deferredLightingInterface,
             .vertexLayout = {},
             .depthTest = false,
             .depthWrite = false,
@@ -513,6 +541,8 @@ namespace ChikaEngine::Render
     void Renderer::Tick(float deltaTime)
     {
         m_time += deltaTime;
+        UpdateSceneDataFromSnapshot();
+        PrepareSnapshotResources();
 
         BuildRenderGraph();
 
@@ -533,33 +563,59 @@ namespace ChikaEngine::Render
         return m_rhi.get();
     }
 
-    void Renderer::SubmitLight(Math::Mat4& lightMat, Math::Vector3 lightPos)
+    void Renderer::UpdateSceneDataFromSnapshot()
     {
         SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
+        if (!sceneData || !m_snapshot)
+            return;
 
-        if (sceneData)
+        if (const RenderView* view = m_snapshot->viewFamily.GetPrimaryView())
         {
-            sceneData->lightVP = lightMat.Transposed();
+            sceneData->cameraVP = view->viewProjection.Transposed();
+            sceneData->viewPos[0] = view->position.x;
+            sceneData->viewPos[1] = view->position.y;
+            sceneData->viewPos[2] = view->position.z;
+            sceneData->viewPos[3] = 1.0f;
+        }
 
-            sceneData->lightDir[0] = lightPos.x;
-            sceneData->lightDir[1] = lightPos.y;
-            sceneData->lightDir[2] = lightPos.z;
+        if (!m_snapshot->lights.empty())
+        {
+            const RenderLightProxy& light = m_snapshot->lights.front().proxy;
+            sceneData->lightVP = light.viewProjection.Transposed();
+            sceneData->lightDir[0] = light.direction.x;
+            sceneData->lightDir[1] = light.direction.y;
+            sceneData->lightDir[2] = light.direction.z;
             sceneData->lightDir[3] = 0.0f;
         }
     }
-    // void Renderer::SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos)
-    // {
-    //     SceneData* sceneData = static_cast<SceneData*>(m_rhi->GetMappedData(m_sceneUBO));
-    //     if (sceneData)
-    //     {
-    //         sceneData->cameraVP = cameraMat.Transposed();
 
-    //         sceneData->viewPos[0] = cameraPos.x;
-    //         sceneData->viewPos[1] = cameraPos.y;
-    //         sceneData->viewPos[2] = cameraPos.z;
-    //         sceneData->viewPos[3] = 1.0f;
-    //     }
-    // }
+    void Renderer::PrepareSnapshotResources()
+    {
+        std::unordered_set<uint64_t> aliveObjects;
+        if (m_snapshot)
+        {
+            for (const auto& object : m_snapshot->objects)
+            {
+                const uint64_t objectKey = (m_snapshot->worldId << 32u) ^ object.handle.raw_value;
+                aliveObjects.insert(objectKey);
+                if (!HasFlag(object.proxy.flags, RenderObjectFlags::Skinned) || object.proxy.boneMatrices.empty())
+                    continue;
+                BufferHandle& boneBuffer = m_boneBuffers[objectKey];
+                boneBuffer = m_resourceMgr->UploadBoneMatrices(object.proxy.boneMatrices, boneBuffer);
+            }
+        }
+
+        for (auto it = m_boneBuffers.begin(); it != m_boneBuffers.end();)
+        {
+            if (aliveObjects.contains(it->first))
+            {
+                ++it;
+                continue;
+            }
+            m_rhi->DestroyBuffer(it->second);
+            it = m_boneBuffers.erase(it);
+        }
+    }
 
     Asset::AssetManager* Renderer::GetAssetManager()
     {
@@ -580,6 +636,10 @@ namespace ChikaEngine::Render
             m_renderGraph->Clear();
 
         m_imguiDrawData = nullptr;
+        for (const auto& [object, buffer] : m_boneBuffers)
+            m_rhi->DestroyBuffer(buffer);
+        m_boneBuffers.clear();
+        m_snapshot.reset();
         m_activeCamera = nullptr;
         m_defaultCamera.reset();
         m_resourceMgr.reset();

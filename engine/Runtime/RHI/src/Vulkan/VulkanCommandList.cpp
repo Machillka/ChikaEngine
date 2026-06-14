@@ -1,6 +1,7 @@
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include <ChikaEngine/rhi/Vulkan/VulkanCommandList.hpp>
 #include <ChikaEngine/rhi/Vulkan/VulkanHelper.hpp>
+#include <algorithm>
 #include <string>
 
 namespace ChikaEngine::Render
@@ -127,43 +128,102 @@ namespace ChikaEngine::Render
     {
         vkCmdEndRendering(m_cmd);
     }
-    void VulkanCommandList::BindResources(uint32_t setIndex, const ResourceBindingGroup& group)
+    void VulkanCommandList::BindResources(const ResourceBindingGroup& group)
     {
-        VkDescriptorSet vkSet = m_device->AllocateTransientDescriptorSet();
+        if (!m_currentPSO)
+            return;
+
+        // 在触发 Vulkan Validation Error 前先用 Reflection 契约拒绝错误 set/binding/type。
+        const auto validateBinding = [&](uint32_t binding, Shader::ShaderDescriptorType type, uint32_t arrayElement, std::string_view name)
+        {
+            const auto reflected = std::ranges::find_if(m_currentPSO->resources, [&](const Shader::ShaderResourceBinding& resource) { return resource.set == group.set && resource.binding == binding; });
+            if (reflected == m_currentPSO->resources.end() || reflected->type != type || arrayElement >= reflected->arrayCount)
+            {
+                LOG_ERROR("VulkanCommandList", "Resource '{}' does not match reflected set {}, binding {}", name, group.set, binding);
+                return false;
+            }
+            return true;
+        };
+        for (const auto& buffer : group.buffers)
+        {
+            if (!validateBinding(buffer.binding, buffer.type, buffer.arrayElement, buffer.name))
+                return;
+        }
+        for (const auto& texture : group.textures)
+        {
+            if (!validateBinding(texture.binding, texture.type, texture.arrayElement, texture.name))
+                return;
+        }
+        for (const auto& sampler : group.samplers)
+        {
+            if (!validateBinding(sampler.binding, Shader::ShaderDescriptorType::Sampler, sampler.arrayElement, sampler.name))
+                return;
+        }
+
+        const VulkanRHIDevice::DescriptorAllocation allocation = m_device->AllocateDescriptorSet(*m_currentPSO, group);
+        const VkDescriptorSet vkSet = allocation.set;
 
         std::vector<VkWriteDescriptorSet> writes;
         std::vector<VkDescriptorBufferInfo> bInfos(group.buffers.size());
         std::vector<VkDescriptorImageInfo> iInfos(group.textures.size());
+        std::vector<VkDescriptorImageInfo> samplerInfos(group.samplers.size());
 
-        for (size_t i = 0; i < group.buffers.size(); ++i)
+        if (allocation.requiresUpdate)
         {
-            VulkanBuffer* vb = m_device->GetVkBuffer(group.buffers[i].buf);
-            bInfos[i] = { vb->buffer, group.buffers[i].offset, group.buffers[i].size };
-            VkWriteDescriptorSet w{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-            w.dstSet = vkSet;
-            w.dstBinding = group.buffers[i].slot;
-            w.descriptorCount = 1;
-            w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            w.pBufferInfo = &bInfos[i];
-            writes.push_back(w);
+            for (size_t i = 0; i < group.buffers.size(); ++i)
+            {
+                const auto& binding = group.buffers[i];
+                VulkanBuffer* buffer = m_device->GetVkBuffer(binding.buf);
+                bInfos[i] = { buffer->buffer, binding.offset, binding.size };
+                VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                write.dstSet = vkSet;
+                write.dstBinding = binding.binding;
+                write.dstArrayElement = binding.arrayElement;
+                write.descriptorCount = 1;
+                write.descriptorType = ToVkDescriptorType(binding.type);
+                write.pBufferInfo = &bInfos[i];
+                writes.push_back(write);
+            }
+
+            for (size_t i = 0; i < group.textures.size(); ++i)
+            {
+                const auto& binding = group.textures[i];
+                VulkanTexture* texture = m_device->GetVkTexture(binding.tex);
+                const bool storageImage = binding.type == Shader::ShaderDescriptorType::StorageImage;
+                iInfos[i] = {
+                    binding.type == Shader::ShaderDescriptorType::CombinedImageSampler ? m_device->GetDefaultSampler() : VK_NULL_HANDLE,
+                    texture->view,
+                    storageImage ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                };
+                VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                write.dstSet = vkSet;
+                write.dstBinding = binding.binding;
+                write.dstArrayElement = binding.arrayElement;
+                write.descriptorCount = 1;
+                write.descriptorType = ToVkDescriptorType(binding.type);
+                write.pImageInfo = &iInfos[i];
+                writes.push_back(write);
+            }
+
+            for (size_t i = 0; i < group.samplers.size(); ++i)
+            {
+                const auto& binding = group.samplers[i];
+                samplerInfos[i] = { m_device->GetDefaultSampler(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED };
+                VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                write.dstSet = vkSet;
+                write.dstBinding = binding.binding;
+                write.dstArrayElement = binding.arrayElement;
+                write.descriptorCount = 1;
+                write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+                write.pImageInfo = &samplerInfos[i];
+                writes.push_back(write);
+            }
+
+            vkUpdateDescriptorSets(m_device->GetRawDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+            m_device->RecordDescriptorUpdates(static_cast<uint32_t>(writes.size()));
         }
 
-        for (size_t i = 0; i < group.textures.size(); ++i)
-        {
-            VulkanTexture* vt = m_device->GetVkTexture(group.textures[i].tex);
-            iInfos[i] = { m_device->GetDefaultSampler(), vt->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-            VkWriteDescriptorSet w{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-            w.dstSet = vkSet;
-            w.dstBinding = group.textures[i].slot;
-            w.descriptorCount = 1;
-            w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            w.pImageInfo = &iInfos[i];
-            writes.push_back(w);
-        }
-
-        vkUpdateDescriptorSets(m_device->GetRawDevice(), writes.size(), writes.data(), 0, nullptr);
-        vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->layout, setIndex, 1, &vkSet, 0, nullptr);
-        m_device->RecordDescriptorUpdates(static_cast<uint32_t>(writes.size()));
+        vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->layout, group.set, 1, &vkSet, 0, nullptr);
     }
 
     void VulkanCommandList::BindPipeline(PipelineHandle pipeline)
@@ -173,9 +233,17 @@ namespace ChikaEngine::Render
         m_device->RecordPipelineBind();
     }
 
-    void VulkanCommandList::PushConstants(uint32_t size, const void* data)
+    void VulkanCommandList::PushConstants(std::string_view rangeName, const void* data, uint32_t size)
     {
-        vkCmdPushConstants(m_cmd, m_currentPSO->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, size, data);
+        if (!m_currentPSO)
+            return;
+        const auto range = std::ranges::find(m_currentPSO->pushConstants, rangeName, &Shader::ShaderPushConstantRange::name);
+        if (range == m_currentPSO->pushConstants.end() || size > range->size)
+        {
+            LOG_ERROR("VulkanCommandList", "Push constant range '{}' is missing or too small", rangeName);
+            return;
+        }
+        vkCmdPushConstants(m_cmd, m_currentPSO->layout, ToVkShaderStages(range->stages), range->offset, size, data);
     }
     void VulkanCommandList::BindVertexBuffer(BufferHandle buffer, uint64_t offset)
     {

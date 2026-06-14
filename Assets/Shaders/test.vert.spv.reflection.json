@@ -1,0 +1,174 @@
+{
+  "entryPoint": "main",
+  "inputs": [
+    {
+      "location": 0,
+      "name": "inPos",
+      "type": 3
+    },
+    {
+      "location": 1,
+      "name": "inNormal",
+      "type": 3
+    },
+    {
+      "location": 2,
+      "name": "inUV",
+      "type": 2
+    }
+  ],
+  "outputs": [
+    {
+      "location": 0,
+      "name": "outWorldPos",
+      "type": 3
+    },
+    {
+      "location": 1,
+      "name": "outNormal",
+      "type": 3
+    },
+    {
+      "location": 2,
+      "name": "outUV",
+      "type": 2
+    }
+  ],
+  "pushConstants": [
+    {
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "model",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isShadowPass",
+            "offset": 64,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isSkinned",
+            "offset": 68,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "renderMode",
+            "offset": 72,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "_padding",
+            "offset": 76,
+            "size": 4,
+            "type": 5
+          }
+        ],
+        "name": "pc",
+        "size": 80
+      },
+      "name": "pc",
+      "offset": 0,
+      "size": 80,
+      "stages": 1
+    }
+  ],
+  "resources": [
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "cameraVP",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "lightVP",
+            "offset": 64,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "lightDir",
+            "offset": 128,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "viewPos",
+            "offset": 144,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "scene",
+        "size": 160
+      },
+      "name": "scene",
+      "set": 0,
+      "stages": 1,
+      "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "BaseColor",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "material",
+        "size": 16
+      },
+      "name": "material",
+      "set": 1,
+      "stages": 1,
+      "type": 0
+    }
+  ],
+  "stableHash": 16336459273886805860,
+  "stage": 1,
+  "version": 1
+}

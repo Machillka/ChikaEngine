@@ -1,6 +1,7 @@
 #include "ChikaEngine/AssetDatabase.hpp"
 #include "ChikaEngine/AssetImporter.hpp"
 #include "ChikaEngine/AssetManager.hpp"
+#include "ChikaEngine/ShaderReflection.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -64,7 +65,7 @@ int main()
     if (!importers.Import(database, secondRecord->guid).success)
         return 7;
     const Asset::AssetRecord* compiledShaderRecord = database.FindByPath(compiledShaderSource);
-    if (!compiledShaderRecord || !importers.Import(database, compiledShaderRecord->guid).success || !std::filesystem::exists(compiledShaderSource.string() + ".spv"))
+    if (!compiledShaderRecord || !importers.Import(database, compiledShaderRecord->guid).success || !std::filesystem::exists(compiledShaderSource.string() + ".spv") || !std::filesystem::exists(Asset::ShaderReflection::SidecarPath(compiledShaderSource.string() + ".spv")))
         return 16;
 
     const auto shaderPath = root / "runtime.spv";
@@ -74,6 +75,11 @@ int main()
     Asset::AssetManager assets;
     if (!assets.Initialize(root, false))
         return 9;
+
+    const Asset::ShaderHandle compiledShader = assets.LoadShader(compiledShaderSource.string());
+    const Asset::ShaderData* compiledData = assets.GetShader(compiledShader);
+    if (!compiledData || !compiledData->hasReflection || compiledData->reflection.stage != ChikaEngine::Shader::ShaderStageMask::Vertex)
+        return 17;
 
     const Asset::ShaderHandle shader = assets.LoadShaderAsync(shaderPath.string()).get();
     const Asset::AssetRecord* shaderRecord = assets.GetDatabase().FindByPath(shaderPath);

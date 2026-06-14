@@ -32,6 +32,18 @@ namespace ChikaEngine::Resource
         Render::TextureHandle texture;
     };
 
+    /**
+     * @brief 保存材质 Pipeline 在逐 Draw 阶段需要更新的动态资源地址。
+     *
+     * Handle 在材质创建时由 Reflection 解析，Renderer 不再逐 Draw 查询资源名称。
+     */
+    struct MaterialDrawBindings
+    {
+        Render::ResourceBindingHandle scene;
+        Render::ResourceBindingHandle shadowMap;
+        Render::ResourceBindingHandle bones;
+    };
+
     struct MaterialGPU
     {
         Render::PipelineHandle pipeline;
@@ -41,7 +53,9 @@ namespace ChikaEngine::Resource
         Render::ShaderHandle fragmentShader;
         Render::ShaderHandle gbufferFragmentShader;
         Render::BufferHandle uboBuffer;
-        Render::ResourceBindingGroup bindings;
+        MaterialDrawBindings forwardDrawBindings;
+        MaterialDrawBindings gbufferDrawBindings;
+        std::vector<Render::ResourceBindingGroup> bindings;
     };
 
 } // namespace ChikaEngine::Resource

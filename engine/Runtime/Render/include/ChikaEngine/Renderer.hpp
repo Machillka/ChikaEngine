@@ -16,11 +16,13 @@
 #include "ChikaEngine/ResourceManager.hpp"
 #include "ChikaEngine/IRHIDevice.hpp"
 #include "ChikaEngine/RenderDiagnostics.hpp"
+#include "ChikaEngine/RenderWorld.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "RenderGraph.hpp"
 #include "ChikaEngine/rhi/RHIBackendFactory.hpp"
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 #include "ChikaEngine/math/mat4.h"
 
@@ -61,15 +63,6 @@ namespace ChikaEngine::Render
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
     };
 
-    struct DrawCommand
-    {
-        Math::Mat4 model;
-        Resource::MaterialHandle materialHandle;
-        Resource::MeshHandle meshHandle;
-        bool isSkinned = false;
-        Render::BufferHandle boneUBO;
-    };
-
     class Renderer
     {
       public:
@@ -83,18 +76,18 @@ namespace ChikaEngine::Render
         void EndFrame();
 
       public:
-        void SubmitDrawCommands(const std::vector<DrawCommand>& drawCommandQueue);
+        /**
+         * @brief 提交帧边界生成的不可变 RenderWorld Snapshot。
+         */
+        void SubmitRenderWorldSnapshot(std::shared_ptr<const RenderWorldSnapshot> snapshot);
 
-        // 先使用单全局光
-        void SubmitLight(Math::Mat4& lightMat, Math::Vector3 lightPos);
-        // void SubmitCamera(Math::Mat4& cameraMat, Math::Vector3 cameraPos);
+        /**
+         * @brief 将编辑器相机转换为 Render View 数据，Gameplay Bridge 不持有 Camera 指针。
+         */
+        RenderView CreateEditorView();
 
       public:
         // 相机设置
-        void SetActiveCamera(Camera* camera)
-        {
-            m_activeCamera = camera;
-        }
         Camera* GetActiveCamera() const
         {
             return m_activeCamera;
@@ -157,6 +150,8 @@ namespace ChikaEngine::Render
 
       private:
         void BuildRenderGraph();
+        void UpdateSceneDataFromSnapshot();
+        void PrepareSnapshotResources();
 
       private:
         void AddMainScenePass();
@@ -170,7 +165,8 @@ namespace ChikaEngine::Render
         void CreateDeferredResources();
 
       private:
-        std::vector<DrawCommand> m_drawCommandQueue;
+        std::shared_ptr<const RenderWorldSnapshot> m_snapshot;
+        std::unordered_map<uint64_t, BufferHandle> m_boneBuffers;
 
       private:
         // 视口尺寸状态
@@ -214,6 +210,11 @@ namespace ChikaEngine::Render
         TextureHandle m_gbufferNormalTexture;
         TextureHandle m_gbufferMaterialTexture;
         PipelineHandle m_deferredLightingPipeline;
+        Shader::ShaderProgramInterface m_deferredLightingInterface;
+        ResourceBindingHandle m_deferredSceneBinding;
+        ResourceBindingHandle m_deferredAlbedoBinding;
+        ResourceBindingHandle m_deferredNormalBinding;
+        ResourceBindingHandle m_deferredMaterialBinding;
 
         // shadow
         TextureHandle m_shadowDepthTexture;

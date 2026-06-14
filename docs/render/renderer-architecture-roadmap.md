@@ -276,6 +276,17 @@ Set 3: Pass-local Resources
 
 ## Phase 1：使用 Shader Reflection 移除硬编码布局
 
+**状态：已完成（2026-06-13）**
+
+- Step 1.1：`docs/render/renderer-step-1.1-shader-interface.dev.md`
+- Step 1.2：`docs/render/renderer-step-1.2-shader-reflection-import.dev.md`
+- Step 1.3：`docs/render/renderer-step-1.3-program-interface.dev.md`
+- Step 1.4：`docs/render/renderer-step-1.4-rhi-layout.dev.md`
+- Step 1.5：`docs/render/renderer-step-1.5-vulkan-layout-cache.dev.md`
+- Step 1.6：`docs/render/renderer-step-1.6-descriptor-binding.dev.md`
+- Step 1.7：`docs/render/renderer-step-1.7-material-layout.dev.md`
+- Step 1.8：`docs/render/renderer-step-1.8-remove-legacy-binding.dev.md`
+
 ### Step 1.1：定义后端无关的 Shader Interface 数据模型
 
 **修改范围**

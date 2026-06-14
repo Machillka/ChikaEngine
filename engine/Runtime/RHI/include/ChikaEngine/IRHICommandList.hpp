@@ -50,10 +50,10 @@ namespace ChikaEngine::Render
         virtual void InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after) = 0;
 
         virtual void BindPipeline(PipelineHandle pipeline) = 0;
-        virtual void BindResources(uint32_t setIndex, const ResourceBindingGroup& group) = 0;
+        virtual void BindResources(const ResourceBindingGroup& group) = 0;
         virtual void BindVertexBuffer(BufferHandle buffer, uint64_t offset) = 0;
         virtual void BindIndexBuffer(BufferHandle buffer, uint64_t offset, bool isUint32) = 0;
-        virtual void PushConstants(uint32_t size, const void* data) = 0;
+        virtual void PushConstants(std::string_view rangeName, const void* data, uint32_t size) = 0;
 
         // 提供绑定指令
         virtual void CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size) = 0;

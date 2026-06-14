@@ -48,4 +48,12 @@ namespace ChikaEngine::Framework
         Core::GameObjectID gameObjectId = Core::InvalidGameObjectID;
         const char* componentType = nullptr;
     };
+
+    struct ComponentActivationChangedEvent
+    {
+        Scene* scene = nullptr;
+        Core::GameObjectID gameObjectId = Core::InvalidGameObjectID;
+        Component* component = nullptr;
+        bool activeAndEnabled = false;
+    };
 } // namespace ChikaEngine::Framework

@@ -11,7 +11,9 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -62,7 +64,16 @@ namespace ChikaEngine::Render
         void Resize(uint32_t width, uint32_t height) override;
 
       public:
-        VkDescriptorSet AllocateTransientDescriptorSet();
+        struct DescriptorAllocation
+        {
+            VkDescriptorSet set = VK_NULL_HANDLE;
+            bool requiresUpdate = true;
+        };
+
+        /**
+         * @brief 按当前 Pipeline 的目标 Set Layout 分配或复用 Descriptor Set。
+         */
+        DescriptorAllocation AllocateDescriptorSet(const VulkanPipeline& pipeline, const ResourceBindingGroup& group);
         VulkanBuffer* GetVkBuffer(BufferHandle h)
         {
             return m_buffers.Get(h);
@@ -78,10 +89,6 @@ namespace ChikaEngine::Render
         VkDevice GetRawDevice() const
         {
             return m_device;
-        }
-        VkDescriptorSetLayout GetGlobalDescriptorLayout() const
-        {
-            return m_globalDescriptorLayout;
         }
         VkSampler GetDefaultSampler() const
         {
@@ -132,7 +139,21 @@ namespace ChikaEngine::Render
         void CreatePipelineCache();
         void SavePipelineCache();
         void CreateAllocator();
-        void CreateGlobalLayouts();
+
+        /**
+         * @brief 创建通用 Descriptor Pools 与默认 Sampler，具体 Layout 由 Reflection 按需生成。
+         */
+        void CreateDescriptorInfrastructure();
+
+        /**
+         * @brief 按 Reflection Binding 创建或复用 Descriptor Set Layout。
+         */
+        VkDescriptorSetLayout GetOrCreateDescriptorSetLayout(std::span<const Shader::ShaderResourceBinding> bindings);
+
+        /**
+         * @brief 按合并 Shader Interface 创建或复用 Pipeline Layout。
+         */
+        VulkanPipeline CreatePipelineLayout(const Shader::ShaderProgramInterface& interface);
         void CreateSwapchain();
         void CreateSyncObjects();
         void FlushDeletionQueue();
@@ -160,7 +181,6 @@ namespace ChikaEngine::Render
 
         VmaAllocator m_allocator = VK_NULL_HANDLE;
 
-        VkDescriptorSetLayout m_globalDescriptorLayout = VK_NULL_HANDLE;
         VkSampler m_defaultSampler = VK_NULL_HANDLE;
         bool m_enableValidation = true;
         RenderFrameStatistics m_frameStatistics;
@@ -169,6 +189,10 @@ namespace ChikaEngine::Render
         uint64_t m_absoluteFrame = 0;
         VkCommandPool m_commandPools[MAX_FRAMES_IN_FLIGHT];
         VkDescriptorPool m_descriptorPools[MAX_FRAMES_IN_FLIGHT];
+        VkDescriptorPool m_persistentDescriptorPool = VK_NULL_HANDLE;
+        std::unordered_map<uint64_t, VkDescriptorSetLayout> m_descriptorSetLayoutCache;
+        std::unordered_map<uint64_t, VkPipelineLayout> m_pipelineLayoutCache;
+        std::unordered_map<uint64_t, VkDescriptorSet> m_persistentDescriptorSetCache;
         // VkFence m_inFlightFences[MAX_FRAMES_IN_FLIGHT];
         std::vector<VkFence> m_inFlightFences;
 

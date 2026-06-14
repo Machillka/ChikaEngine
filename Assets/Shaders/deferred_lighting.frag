@@ -1,18 +1,19 @@
 #version 450
 
+// Import-validated descriptor frequency convention: set 0 = frame, set 1 = material, set 2 = object.
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 1) uniform SceneData {
+layout(set = 0, binding = 0) uniform SceneData {
     mat4 cameraVP;
     mat4 lightVP;
     vec4 lightDir;
     vec4 viewPos;
 } scene;
 
-layout(set = 0, binding = 4) uniform sampler2D GBufferAlbedo;
-layout(set = 0, binding = 5) uniform sampler2D GBufferNormal;
-layout(set = 0, binding = 6) uniform sampler2D GBufferMaterial;
+layout(set = 0, binding = 1) uniform sampler2D GBufferAlbedo;
+layout(set = 0, binding = 2) uniform sampler2D GBufferNormal;
+layout(set = 0, binding = 3) uniform sampler2D GBufferMaterial;
 
 void main()
 {

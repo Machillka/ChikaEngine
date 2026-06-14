@@ -1,5 +1,6 @@
 #version 450
 
+// Fullscreen passes use gl_VertexIndex and intentionally declare no reflected vertex input layout.
 layout(location = 0) out vec2 outUV;
 
 void main()

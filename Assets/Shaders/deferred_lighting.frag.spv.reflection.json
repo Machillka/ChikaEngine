@@ -1,0 +1,112 @@
+{
+  "entryPoint": "main",
+  "inputs": [
+    {
+      "location": 0,
+      "name": "inUV",
+      "type": 2
+    }
+  ],
+  "outputs": [
+    {
+      "location": 0,
+      "name": "outColor",
+      "type": 4
+    }
+  ],
+  "pushConstants": [],
+  "resources": [
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "cameraVP",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "lightVP",
+            "offset": 64,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "lightDir",
+            "offset": 128,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "viewPos",
+            "offset": 144,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "scene",
+        "size": 160
+      },
+      "name": "scene",
+      "set": 0,
+      "stages": 2,
+      "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 1,
+      "buffer": {
+        "members": [],
+        "name": "GBufferAlbedo",
+        "size": 0
+      },
+      "name": "GBufferAlbedo",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 2,
+      "buffer": {
+        "members": [],
+        "name": "GBufferNormal",
+        "size": 0
+      },
+      "name": "GBufferNormal",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 3,
+      "buffer": {
+        "members": [],
+        "name": "GBufferMaterial",
+        "size": 0
+      },
+      "name": "GBufferMaterial",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    }
+  ],
+  "stableHash": 13736654997039263740,
+  "stage": 2,
+  "version": 1
+}

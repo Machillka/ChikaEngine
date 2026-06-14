@@ -223,6 +223,16 @@ namespace ChikaEngine::Framework
         }
         else
             component.OnDisable();
+
+        if (_scene)
+        {
+            _scene->GetEventBus().Publish(ComponentActivationChangedEvent{
+                .scene = _scene,
+                .gameObjectId = _id,
+                .component = &component,
+                .activeAndEnabled = shouldBeActive,
+            });
+        }
     }
 
     void GameObject::RefreshActiveInHierarchy()

@@ -32,13 +32,13 @@ namespace ChikaEngine::Render
         void EndRendering() override;
 
         void BindPipeline(PipelineHandle pipeline) override;
-        void BindResources(uint32_t setIndex, const ResourceBindingGroup& group) override;
+        void BindResources(const ResourceBindingGroup& group) override;
 
         void InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after) override;
 
         // push 到 current pipeline 中 ->
         // NOTE: 是否需要提供 Pipeline Handle 来指定绑定？
-        void PushConstants(uint32_t size, const void* data) override;
+        void PushConstants(std::string_view rangeName, const void* data, uint32_t size) override;
 
         void BindVertexBuffer(BufferHandle buffer, uint64_t offset) override;
         void BindIndexBuffer(BufferHandle buffer, uint64_t offset, bool isUint32) override;

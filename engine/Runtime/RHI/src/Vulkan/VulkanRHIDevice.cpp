@@ -14,6 +14,7 @@
 #include <string>
 #include <stdexcept>
 #include <type_traits>
+#include <unordered_map>
 #include <GLFW/glfw3.h>
 #include <vector>
 
@@ -32,6 +33,85 @@ namespace ChikaEngine::Render
                 return reinterpret_cast<uint64_t>(handle);
             else
                 return static_cast<uint64_t>(handle);
+        }
+
+        /**
+         * @brief 组合稳定整数 Hash，用于 Vulkan Layout 和持久 Descriptor 缓存。
+         */
+        void HashCombine(uint64_t& hash, uint64_t value)
+        {
+            hash ^= value + 0x9e3779b97f4a7c15ull + (hash << 6) + (hash >> 2);
+        }
+
+        /**
+         * @brief 计算单个 Descriptor Set Layout 的缓存 Key。
+         */
+        uint64_t HashDescriptorSetLayout(std::span<const Shader::ShaderResourceBinding> bindings)
+        {
+            uint64_t hash = 14695981039346656037ull;
+            for (const auto& binding : bindings)
+            {
+                HashCombine(hash, binding.binding);
+                HashCombine(hash, static_cast<uint32_t>(binding.type));
+                HashCombine(hash, binding.arrayCount);
+                HashCombine(hash, static_cast<uint32_t>(binding.stages));
+            }
+            return hash;
+        }
+
+        /**
+         * @brief 计算持久 Descriptor Set 的资源内容 Key。
+         */
+        uint64_t HashResourceBindingGroup(const ResourceBindingGroup& group, VkDescriptorSetLayout layout)
+        {
+            uint64_t hash = ToDebugObjectHandle(layout);
+            HashCombine(hash, group.set);
+            for (const auto& buffer : group.buffers)
+            {
+                HashCombine(hash, buffer.binding);
+                HashCombine(hash, buffer.arrayElement);
+                HashCombine(hash, buffer.buf.raw_value);
+                HashCombine(hash, buffer.offset);
+                HashCombine(hash, buffer.size);
+            }
+            for (const auto& texture : group.textures)
+            {
+                HashCombine(hash, texture.binding);
+                HashCombine(hash, texture.arrayElement);
+                HashCombine(hash, texture.tex.raw_value);
+            }
+            for (const auto& sampler : group.samplers)
+            {
+                HashCombine(hash, sampler.binding);
+                HashCombine(hash, sampler.arrayElement);
+                HashCombine(hash, sampler.sampler.raw_value);
+            }
+            return hash;
+        }
+
+        /**
+         * @brief 返回颜色 Attachment 在 Shader 中对应的数值类型，用于 Pipeline 创建前接口校验。
+         */
+        Shader::ShaderValueType AttachmentValueType(RHI_Format format)
+        {
+            switch (format)
+            {
+            case RHI_Format::R32_Float:
+                return Shader::ShaderValueType::Float;
+            case RHI_Format::RG32_Float:
+                return Shader::ShaderValueType::Float2;
+            case RHI_Format::RGB32_Float:
+                return Shader::ShaderValueType::Float3;
+            case RHI_Format::RGBA32_SInt:
+                return Shader::ShaderValueType::Int4;
+            case RHI_Format::RGBA8_UNorm:
+            case RHI_Format::BGRA8_UNorm:
+            case RHI_Format::RGBA16_Float:
+            case RHI_Format::RGBA32_Float:
+                return Shader::ShaderValueType::Float4;
+            default:
+                return Shader::ShaderValueType::Unknown;
+            }
         }
 
         /**
@@ -93,7 +173,7 @@ namespace ChikaEngine::Render
         CreateLogicalDevice();
         CreatePipelineCache();
         CreateAllocator();
-        CreateGlobalLayouts();
+        CreateDescriptorInfrastructure();
         CreateCommandPools();
         CreateSwapchain();
         CreateSyncObjects();
@@ -132,8 +212,9 @@ namespace ChikaEngine::Render
             imguiPool = VK_NULL_HANDLE;
         }
 
+        if (m_persistentDescriptorPool)
+            vkDestroyDescriptorPool(m_device, m_persistentDescriptorPool, nullptr);
         vkDestroySampler(m_device, m_defaultSampler, nullptr);
-        vkDestroyDescriptorSetLayout(m_device, m_globalDescriptorLayout, nullptr);
 
         m_buffers.ForEach([&](auto h, VulkanBuffer& vb) { vmaDestroyBuffer(m_allocator, vb.buffer, vb.allocation); });
         m_textures.ForEach(
@@ -156,9 +237,11 @@ namespace ChikaEngine::Render
             {
                 if (pso.pipeline)
                     vkDestroyPipeline(m_device, pso.pipeline, nullptr);
-                if (pso.layout)
-                    vkDestroyPipelineLayout(m_device, pso.layout, nullptr);
             });
+        for (const auto& [hash, layout] : m_pipelineLayoutCache)
+            vkDestroyPipelineLayout(m_device, layout, nullptr);
+        for (const auto& [hash, layout] : m_descriptorSetLayoutCache)
+            vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
         if (m_pipelineCache)
             vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
         vmaDestroyAllocator(m_allocator);
@@ -172,6 +255,9 @@ namespace ChikaEngine::Render
         m_textures.Clear();
         m_shaders.Clear();
         m_pipelines.Clear();
+        m_pipelineLayoutCache.clear();
+        m_descriptorSetLayoutCache.clear();
+        m_persistentDescriptorSetCache.clear();
 
         m_allocator = VK_NULL_HANDLE;
         m_device = VK_NULL_HANDLE;
@@ -386,18 +472,18 @@ namespace ChikaEngine::Render
     {
         VulkanShader* vs = m_shaders.Get(desc.vertexShader);
         VulkanShader* fs = m_shaders.Get(desc.fragmentShader);
+        if (!vs || !fs)
+            throw std::runtime_error("Graphics Pipeline references an invalid Shader Handle");
+        if (!desc.shaderInterface.fragmentOutputs.empty() && desc.shaderInterface.fragmentOutputs.size() != desc.colorAttachmentFormats.size())
+            throw std::runtime_error("Fragment output count does not match graphics pipeline color attachments");
+        for (const auto& output : desc.shaderInterface.fragmentOutputs)
+        {
+            if (output.location >= desc.colorAttachmentFormats.size() || output.type != AttachmentValueType(desc.colorAttachmentFormats[output.location]))
+                throw std::runtime_error("Fragment output type does not match graphics pipeline color attachment");
+        }
 
-        // 128 + description set
-        VkPushConstantRange pcRange{ VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 128 };
-        VkPipelineLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layoutInfo.setLayoutCount = 1;
-        layoutInfo.pSetLayouts = &m_globalDescriptorLayout;
-        layoutInfo.pushConstantRangeCount = 1;
-        layoutInfo.pPushConstantRanges = &pcRange;
-
-        VulkanPipeline pso;
-        VK_CHECK(vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &pso.layout), "Failed to create pipeline");
+        // Pipeline Layout 完全由合并后的 Shader Interface 生成，避免后端继续保留固定布局假设。
+        VulkanPipeline pso = CreatePipelineLayout(desc.shaderInterface);
 
         VkPipelineShaderStageCreateInfo shaderStages[2] = {};
         shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -628,16 +714,37 @@ namespace ChikaEngine::Render
         return new VulkanCommandList(this, cmd);
     }
 
-    VkDescriptorSet VulkanRHIDevice::AllocateTransientDescriptorSet()
+    VulkanRHIDevice::DescriptorAllocation VulkanRHIDevice::AllocateDescriptorSet(const VulkanPipeline& pipeline, const ResourceBindingGroup& group)
     {
+        if (group.set >= pipeline.setLayouts.size())
+            throw std::runtime_error("Resource binding group targets a set not declared by the current pipeline");
+
+        const VkDescriptorSetLayout layout = pipeline.setLayouts[group.set];
+        if (group.lifetime == ResourceBindingLifetime::Persistent)
+        {
+            const uint64_t cacheKey = HashResourceBindingGroup(group, layout);
+            const auto existing = m_persistentDescriptorSetCache.find(cacheKey);
+            if (existing != m_persistentDescriptorSetCache.end())
+                return { existing->second, false };
+
+            VkDescriptorSetAllocateInfo persistentInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+            persistentInfo.descriptorPool = m_persistentDescriptorPool;
+            persistentInfo.descriptorSetCount = 1;
+            persistentInfo.pSetLayouts = &layout;
+            VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+            VK_CHECK(vkAllocateDescriptorSets(m_device, &persistentInfo, &descriptorSet), "Failed to allocate persistent descriptor set");
+            m_persistentDescriptorSetCache.emplace(cacheKey, descriptorSet);
+            return { descriptorSet, true };
+        }
+
         VkDescriptorSetAllocateInfo allocInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
         allocInfo.descriptorPool = m_descriptorPools[m_currentFrame];
         allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &m_globalDescriptorLayout;
+        allocInfo.pSetLayouts = &layout;
 
-        VkDescriptorSet set;
-        vkAllocateDescriptorSets(m_device, &allocInfo, &set);
-        return set;
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+        VK_CHECK(vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet), "Failed to allocate transient descriptor set");
+        return { descriptorSet, true };
     }
 
     void VulkanRHIDevice::CreateInstance()
@@ -783,66 +890,128 @@ namespace ChikaEngine::Render
         VK_CHECK(vmaCreateAllocator(&allocatorInfo, &m_allocator), "Failed to create VMA allocator");
     }
 
-    // TODO: 使用反射实现
-    void VulkanRHIDevice::CreateGlobalLayouts()
+    /**
+     * @brief 创建 Reflection Descriptor 系统使用的默认 Sampler 和 Descriptor Pool。
+     *
+     * Pool 覆盖 RHI 可表达的 Descriptor 类型，具体 Set Layout 在创建 Pipeline 时按需缓存。
+     */
+    void VulkanRHIDevice::CreateDescriptorInfrastructure()
     {
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-
-        // Uniform Buffer
-        for (uint32_t i = 0; i < 4; i++)
-        {
-            bindings.push_back({ i, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL_GRAPHICS });
-        }
-
-        // Image Sampler
-        for (uint32_t i = 4; i < 16; i++)
-        {
-            bindings.push_back({
-                i,
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                1,
-                VK_SHADER_STAGE_FRAGMENT_BIT,
-                nullptr,
-            });
-        }
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-        VK_CHECK(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_globalDescriptorLayout), "Failed to create descriptor set layout");
-        SetVulkanObjectName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, ToDebugObjectHandle(m_globalDescriptorLayout), "RHI.GlobalDescriptorLayout");
-
-        // 默认采样器
         VkSamplerCreateInfo samplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
         samplerInfo.magFilter = VK_FILTER_LINEAR;
         samplerInfo.minFilter = VK_FILTER_LINEAR;
-        // samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        // samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        // samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        vkCreateSampler(m_device, &samplerInfo, nullptr, &m_defaultSampler);
+        VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, &m_defaultSampler), "Failed to create default sampler");
         SetVulkanObjectName(VK_OBJECT_TYPE_SAMPLER, ToDebugObjectHandle(m_defaultSampler), "RHI.DefaultSampler");
 
-        // 为每帧创建一个 descriptor pool，支持 transient 分配
+        const std::array<VkDescriptorPoolSize, 6> poolSizes = {
+            VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1024 }, VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 512 }, VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2048 }, VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 512 }, VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512 }, VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_SAMPLER, 256 },
+        };
+
         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
         {
-            std::array<VkDescriptorPoolSize, 2> poolSizes{};
-            poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            poolSizes[0].descriptorCount = 64;
-            poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            poolSizes[1].descriptorCount = 256;
-
             VkDescriptorPoolCreateInfo poolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
             poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-            poolInfo.maxSets = 256;
+            poolInfo.maxSets = 1024;
             poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
             poolInfo.pPoolSizes = poolSizes.data();
-
             VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPools[i]), "Failed to create descriptor pool");
         }
+
+        VkDescriptorPoolCreateInfo persistentPoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+        persistentPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        persistentPoolInfo.maxSets = 4096;
+        persistentPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        persistentPoolInfo.pPoolSizes = poolSizes.data();
+        VK_CHECK(vkCreateDescriptorPool(m_device, &persistentPoolInfo, nullptr, &m_persistentDescriptorPool), "Failed to create persistent descriptor pool");
+    }
+
+    /**
+     * @brief 创建或复用一个完全由 Reflection Binding 描述的 VkDescriptorSetLayout。
+     */
+    VkDescriptorSetLayout VulkanRHIDevice::GetOrCreateDescriptorSetLayout(std::span<const Shader::ShaderResourceBinding> bindings)
+    {
+        const uint64_t hash = HashDescriptorSetLayout(bindings);
+        const auto cached = m_descriptorSetLayoutCache.find(hash);
+        if (cached != m_descriptorSetLayoutCache.end())
+            return cached->second;
+
+        std::vector<VkDescriptorSetLayoutBinding> vkBindings;
+        vkBindings.reserve(bindings.size());
+        for (const auto& binding : bindings)
+        {
+            vkBindings.push_back({
+                .binding = binding.binding,
+                .descriptorType = ToVkDescriptorType(binding.type),
+                .descriptorCount = binding.arrayCount,
+                .stageFlags = ToVkShaderStages(binding.stages),
+            });
+        }
+
+        VkDescriptorSetLayoutCreateInfo createInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+        createInfo.bindingCount = static_cast<uint32_t>(vkBindings.size());
+        createInfo.pBindings = vkBindings.empty() ? nullptr : vkBindings.data();
+        VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+        VK_CHECK(vkCreateDescriptorSetLayout(m_device, &createInfo, nullptr, &layout), "Failed to create reflected descriptor set layout");
+        m_descriptorSetLayoutCache.emplace(hash, layout);
+        return layout;
+    }
+
+    /**
+     * @brief 根据合并 Shader Interface 创建并缓存 Pipeline Layout。
+     *
+     * Set Layout 与 Pipeline Layout 均以稳定 Interface Hash 复用，Pipeline 仅持有 Vulkan Handle 引用。
+     */
+    VulkanPipeline VulkanRHIDevice::CreatePipelineLayout(const Shader::ShaderProgramInterface& interface)
+    {
+        VulkanPipeline pipeline{};
+        Shader::ShaderReflectionData layoutReflection{
+            .resources = interface.resources,
+            .pushConstants = interface.pushConstants,
+        };
+        pipeline.interfaceHash = Shader::HashShaderReflection(layoutReflection);
+        pipeline.resources = interface.resources;
+        pipeline.pushConstants = interface.pushConstants;
+
+        uint32_t maxSet = 0;
+        for (const auto& resource : interface.resources)
+            maxSet = std::max(maxSet, resource.set);
+        if (!interface.resources.empty())
+            pipeline.setLayouts.resize(maxSet + 1);
+
+        for (uint32_t set = 0; set < pipeline.setLayouts.size(); ++set)
+        {
+            std::vector<Shader::ShaderResourceBinding> setBindings;
+            for (const auto& resource : interface.resources)
+            {
+                if (resource.set == set)
+                    setBindings.push_back(resource);
+            }
+            pipeline.setLayouts[set] = GetOrCreateDescriptorSetLayout(setBindings);
+        }
+
+        const auto cached = m_pipelineLayoutCache.find(pipeline.interfaceHash);
+        if (cached != m_pipelineLayoutCache.end())
+        {
+            pipeline.layout = cached->second;
+            return pipeline;
+        }
+
+        std::vector<VkPushConstantRange> ranges;
+        ranges.reserve(interface.pushConstants.size());
+        for (const auto& range : interface.pushConstants)
+            ranges.push_back({ ToVkShaderStages(range.stages), range.offset, range.size });
+
+        VkPipelineLayoutCreateInfo createInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        createInfo.setLayoutCount = static_cast<uint32_t>(pipeline.setLayouts.size());
+        createInfo.pSetLayouts = pipeline.setLayouts.empty() ? nullptr : pipeline.setLayouts.data();
+        createInfo.pushConstantRangeCount = static_cast<uint32_t>(ranges.size());
+        createInfo.pPushConstantRanges = ranges.empty() ? nullptr : ranges.data();
+        VK_CHECK(vkCreatePipelineLayout(m_device, &createInfo, nullptr, &pipeline.layout), "Failed to create reflected pipeline layout");
+        m_pipelineLayoutCache.emplace(pipeline.interfaceHash, pipeline.layout);
+        return pipeline;
     }
     void VulkanRHIDevice::CreateCommandPools()
     {
@@ -1076,8 +1245,6 @@ namespace ChikaEngine::Render
                     {
                         if (pipeline->pipeline)
                             vkDestroyPipeline(m_device, pipeline->pipeline, nullptr);
-                        if (pipeline->layout)
-                            vkDestroyPipelineLayout(m_device, pipeline->layout, nullptr);
                     }
                     m_pipelines.Destroy(handle);
                     it = m_pipelineDeletionQueue.erase(it);

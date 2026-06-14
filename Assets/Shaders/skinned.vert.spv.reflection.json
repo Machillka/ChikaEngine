@@ -1,0 +1,184 @@
+{
+  "entryPoint": "main",
+  "inputs": [
+    {
+      "location": 0,
+      "name": "inPosition",
+      "type": 3
+    },
+    {
+      "location": 1,
+      "name": "inNormal",
+      "type": 3
+    },
+    {
+      "location": 2,
+      "name": "inUV",
+      "type": 2
+    },
+    {
+      "location": 3,
+      "name": "inBoneIndices",
+      "type": 8
+    },
+    {
+      "location": 4,
+      "name": "inBoneWeights",
+      "type": 4
+    }
+  ],
+  "outputs": [
+    {
+      "location": 0,
+      "name": "outWorldPos",
+      "type": 3
+    },
+    {
+      "location": 1,
+      "name": "outNormal",
+      "type": 3
+    },
+    {
+      "location": 2,
+      "name": "outUV",
+      "type": 2
+    }
+  ],
+  "pushConstants": [
+    {
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "model",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isShadowPass",
+            "offset": 64,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isSkinned",
+            "offset": 68,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "renderMode",
+            "offset": 72,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "_padding",
+            "offset": 76,
+            "size": 4,
+            "type": 5
+          }
+        ],
+        "name": "pc",
+        "size": 80
+      },
+      "name": "pc",
+      "offset": 0,
+      "size": 80,
+      "stages": 1
+    }
+  ],
+  "resources": [
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "cameraVP",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "lightVP",
+            "offset": 64,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "lightDir",
+            "offset": 128,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "viewPos",
+            "offset": 144,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "scene",
+        "size": 160
+      },
+      "name": "scene",
+      "set": 0,
+      "stages": 1,
+      "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 128,
+            "arrayStride": 64,
+            "matrixStride": 0,
+            "name": "boneMatrices",
+            "offset": 0,
+            "size": 8192,
+            "type": 14
+          }
+        ],
+        "name": "uboBones",
+        "size": 8192
+      },
+      "name": "uboBones",
+      "set": 2,
+      "stages": 1,
+      "type": 0
+    }
+  ],
+  "stableHash": 8183971026786617634,
+  "stage": 1,
+  "version": 1
+}

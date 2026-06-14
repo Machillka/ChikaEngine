@@ -1,29 +1,32 @@
 #version 450
 
+// Import-validated descriptor frequency convention: set 0 = frame, set 1 = material, set 2 = object.
 layout(location = 0) in vec3 inWorldPos;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 0) uniform MaterialData {
+layout(set = 1, binding = 0) uniform MaterialData {
     vec4 BaseColor;
 } material;
 
-layout(set = 0, binding = 1) uniform SceneData {
+layout(set = 0, binding = 0) uniform SceneData {
     mat4 cameraVP;
     mat4 lightVP;
     vec4 lightDir;
     vec4 viewPos;
 } scene;
 
-layout(set = 0, binding = 4) uniform sampler2D shadowMap;
-layout(set = 0, binding = 5) uniform sampler2D Albedo;
+layout(set = 0, binding = 1) uniform sampler2D shadowMap;
+layout(set = 1, binding = 1) uniform sampler2D Albedo;
 
-layout(push_constant) uniform PC {
+layout(push_constant) uniform PushConstants {
     mat4 model;
     int isShadowPass;
     int isSkinned;
+    int renderMode;
+    int _padding;
 } pc;
 
 float ShadowCalculation(vec3 worldPos, vec3 normal)

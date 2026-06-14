@@ -11,6 +11,7 @@
 #pragma once
 
 #include "RHIResourceHandle.hpp"
+#include "ChikaEngine/shader/ShaderInterface.hpp"
 #include <cstdint>
 #include <vector>
 namespace ChikaEngine::Render
@@ -181,6 +182,12 @@ namespace ChikaEngine::Render
         ShaderHandle vertexShader;
         ShaderHandle fragmentShader;
 
+        /**
+         * @brief Pipeline 的唯一资源与 Push Constant 布局来源。
+         *
+         * Vulkan 后端必须严格按该接口创建布局，不再使用全局固定 Descriptor Layout。
+         */
+        Shader::ShaderProgramInterface shaderInterface;
         VertexLayout vertexLayout;
 
         bool depthTest = true;
