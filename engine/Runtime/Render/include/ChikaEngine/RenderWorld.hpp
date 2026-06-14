@@ -159,9 +159,16 @@ namespace ChikaEngine::Render
     {
       public:
         RenderWorld();
+        RenderWorld(const RenderWorld&) = delete;
+        RenderWorld& operator=(const RenderWorld&) = delete;
+        RenderWorld(RenderWorld&&) = delete;
+        RenderWorld& operator=(RenderWorld&&) = delete;
 
+        /** @brief 创建具有稳定 generation Handle 的渲染对象代理。 */
         RenderObjectHandle CreateObject(const RenderObjectProxy& proxy);
+        /** @brief 仅在代理值变化时更新对象并推进 World Revision。 */
         bool UpdateObject(RenderObjectHandle handle, const RenderObjectProxy& proxy);
+        /** @brief 删除对象并使旧 generation Handle 失效。 */
         bool DestroyObject(RenderObjectHandle handle);
         const RenderObjectProxy* GetObject(RenderObjectHandle handle) const;
 
@@ -173,7 +180,9 @@ namespace ChikaEngine::Render
         bool UpdateView(RenderViewHandle handle, const RenderView& view);
         bool DestroyView(RenderViewHandle handle);
 
+        /** @brief 在帧边界复制只读输入，使 Renderer 不访问可变 RenderWorld。 */
         std::shared_ptr<const RenderWorldSnapshot> CreateSnapshot() const;
+        /** @brief 清空全部代理并推进 Revision，用于 Scene 生命周期结束。 */
         void Clear();
 
         uint64_t GetRevision() const

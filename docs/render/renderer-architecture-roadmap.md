@@ -518,6 +518,34 @@ Set 3: Pass-local Resources
 
 ## Phase 2：拆分 Renderer 并建立 RenderWorld
 
+
+**状态：已完成（2026-06-14）**
+
+- Step 2.1：`docs/render/renderer-step-2.1-renderer-facade.dev.md`
+- Step 2.2：`docs/render/renderer-step-2.2-render-world.dev.md`
+- Step 2.3：`docs/render/renderer-step-2.3-render-bridge.dev.md`
+- Step 2.4：`docs/render/renderer-step-2.4-render-world-snapshot.dev.md`
+- Step 2.5：`docs/render/renderer-step-2.5-view-family-light-proxy.dev.md`
+
+**Unreal 设计映射**
+
+| ChikaEngine | Unreal 参考角色 | 当前边界 |
+| --- | --- | --- |
+| `MeshRenderer` + `RenderSubsystem` | `UPrimitiveComponent` 到 Render Scene 的同步入口 | 读取 Gameplay 生命周期并增量维护代理 |
+| `RenderObjectProxy` | `FPrimitiveSceneProxy` | 只保存渲染所需值与 Resource Handle |
+| `RenderWorld` | `FScene` | 保存稳定 Proxy 身份，不访问 GameObject |
+| `RenderWorldSnapshot` | Render Thread 可消费的 Scene 状态 | 当前单线程完整复制，接口保持不可变 |
+| `ViewFamily` / `RenderView` | `FSceneViewFamily` / `FSceneView` | 为多视口、剔除和 Shadow View 提供统一输入 |
+| `Renderer` / `RenderPipeline` | 高层 Renderer Facade / Pipeline 实现 | Facade 协调生命周期，Pipeline 持有 Pass 与资源 |
+
+**Phase 验证**
+
+- `cmake --build build`：通过。
+- `ctest --test-dir build --output-on-failure`：5/5 通过。
+- Forward Editor：正常启动、关闭，退出码 0。
+- Deferred Editor：完整执行一帧，统计为 6 Pass、5 Draw、5 Instance、5 Pipeline Bind、16 Descriptor Write。
+- 静态搜索确认旧 `DrawCommand`、`SubmitDrawCommands`、`SubmitLight` 和 MeshRenderer Bone UBO API 已移除。
+
 ### Step 2.1：将 Renderer 收缩为 Facade
 
 **修改范围**

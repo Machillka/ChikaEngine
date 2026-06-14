@@ -225,18 +225,6 @@ namespace
     }
 
     /**
-     * @brief 验证当前 DrawCommand 基础契约，作为后续 RenderWorld 迁移前的行为冻结点。
-     */
-    void TestDrawCommandDefaults()
-    {
-        ChikaEngine::Render::DrawCommand command{};
-        Check(!command.meshHandle.IsValid(), "draw command mesh handle defaults invalid");
-        Check(!command.materialHandle.IsValid(), "draw command material handle defaults invalid");
-        Check(!command.boneUBO.IsValid(), "draw command bone buffer defaults invalid");
-        Check(!command.isSkinned, "draw command defaults to static mesh");
-    }
-
-    /**
      * @brief 验证 RenderWorld 稳定句柄、增量更新和不可变 Snapshot 边界。
      */
     void TestRenderWorldLifecycleAndSnapshot()
@@ -361,7 +349,6 @@ namespace
 int main()
 {
     TestFrameStatisticsReset();
-    TestDrawCommandDefaults();
     TestRenderWorldLifecycleAndSnapshot();
     TestRHIStatisticsAndNames();
     TestRenderGraphCompileAndExecuteOrder();
