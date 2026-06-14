@@ -2,7 +2,6 @@
 
 #include "ChikaEngine/AssetHandle.hpp"
 #include "ChikaEngine/AssetManager.hpp"
-#include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include <string>
@@ -57,16 +56,12 @@ namespace ChikaEngine::Framework
             return _materialAsset;
         }
 
-        void ResolveAssets(Asset::AssetManager & assetMgr);
+        bool NeedsAssetResolve() const
+        {
+            return _dirty;
+        }
 
-        Render::BufferHandle GetBoneUBO() const
-        {
-            return _boneUBO;
-        }
-        void SetBoneUBO(Render::BufferHandle ubo)
-        {
-            _boneUBO = ubo;
-        }
+        void ResolveAssets(Asset::AssetManager & assetMgr);
 
       private:
         // 材质只需要记录位置, 办法交给老爹来想
@@ -81,8 +76,5 @@ namespace ChikaEngine::Framework
         Asset::MaterialHandle _materialAsset{};
 
         bool _dirty = true;
-
-        // 骨骼动画使用的 UBO, 但是由 Render Subsystem 来维护
-        Render::BufferHandle _boneUBO = Render::BufferHandle::Invalid();
     };
 } // namespace ChikaEngine::Framework

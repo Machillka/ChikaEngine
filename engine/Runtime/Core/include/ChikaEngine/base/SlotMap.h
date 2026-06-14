@@ -99,6 +99,22 @@ namespace ChikaEngine::Core
             }
         }
 
+        /**
+         * @brief 遍历只读存活槽位，用于生成不可变快照而不暴露可变存储。
+         */
+        template <typename Func> void ForEach(Func&& func) const
+        {
+            for (uint32_t i = 0; i < m_entries.size(); ++i)
+            {
+                const Entry& e = m_entries[i];
+                if (!e.alive)
+                    continue;
+
+                Handle h = Handle::FromParts(i, e.generation);
+                func(h, e.value);
+            }
+        }
+
         const uint32_t Size() const
         {
             return m_aliveCount;

@@ -1,10 +1,12 @@
 #pragma once
 
 #include "IRHICommandList.hpp"
+#include "RenderDiagnostics.hpp"
 #include "RHIDesc.hpp"
 #include "RHIResourceHandle.hpp"
 #include <cstdint>
 #include <filesystem>
+#include <string_view>
 namespace ChikaEngine::Render
 {
 
@@ -33,10 +35,33 @@ namespace ChikaEngine::Render
         // 资源创建（返回 RHI 句柄）
         virtual BufferHandle CreateBuffer(const BufferDesc& desc) = 0;
         virtual TextureHandle CreateTexture(const TextureDesc& desc) = 0;
+        virtual SamplerHandle CreateSampler(const SamplerDesc& desc) = 0;
+        virtual TextureViewHandle CreateTextureView(const TextureViewDesc& desc) = 0;
         virtual ShaderHandle CreateShader(const ShaderDesc& desc) = 0;
         virtual PipelineHandle CreateGraphicsPipeline(const PipelineDesc& desc) = 0;
+        virtual PipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) = 0;
 
         virtual void* GetMappedData(BufferHandle handle) = 0;
+
+        /**
+         * @brief 为 RHI 资源设置调试名称，供 Validation Layer、RenderDoc 和 GPU 调试器显示。
+         *
+         * 名称不参与资源身份或生命周期，只用于提高诊断信息可读性。
+         */
+        virtual void SetDebugName(BufferHandle handle, std::string_view name) = 0;
+        virtual void SetDebugName(TextureHandle handle, std::string_view name) = 0;
+        virtual void SetDebugName(ShaderHandle handle, std::string_view name) = 0;
+        virtual void SetDebugName(PipelineHandle handle, std::string_view name) = 0;
+        virtual void SetDebugName(SamplerHandle handle, std::string_view name) = 0;
+        virtual void SetDebugName(TextureViewHandle handle, std::string_view name) = 0;
+
+        /**
+         * @brief 返回当前帧由 RHI 收集的命令统计。
+         *
+         * Renderer 会在 RenderGraph 执行后补充 Pass 数量，形成最终帧统计。
+         */
+        virtual const RenderFrameStatistics& GetFrameStatistics() const = 0;
+        virtual const std::vector<RenderPassGpuTiming>& GetPassGpuTimings() const = 0;
 
         // Create -> Allocate
         virtual IRHICommandList* AllocateCommandList() = 0;
@@ -46,6 +71,8 @@ namespace ChikaEngine::Render
         virtual void DestroyTexture(TextureHandle handle) = 0;
         virtual void DestroyShader(ShaderHandle handle) = 0;
         virtual void DestroyPipeline(PipelineHandle handle) = 0;
+        virtual void DestroySampler(SamplerHandle handle) = 0;
+        virtual void DestroyTextureView(TextureViewHandle handle) = 0;
 
         virtual TextureHandle GetActiveSwapchainTexture() = 0;
 

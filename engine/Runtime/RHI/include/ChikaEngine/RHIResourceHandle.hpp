@@ -19,6 +19,9 @@ namespace ChikaEngine::Render
     struct SamplerTag
     {
     };
+    struct TextureViewTag
+    {
+    };
 
     // NOTE: 和 Vulkan 一样, 例如 vertex mesh等资源, 都是作为 Buffer 传入
     using BufferHandle = Core::THandle<BufferTag>;
@@ -26,4 +29,5 @@ namespace ChikaEngine::Render
     using ShaderHandle = Core::THandle<ShaderTag>;
     using PipelineHandle = Core::THandle<PipelineTag>;
     using SamplerHandle = Core::THandle<SamplerTag>;
+    using TextureViewHandle = Core::THandle<TextureViewTag>;
 }; // namespace ChikaEngine::Render

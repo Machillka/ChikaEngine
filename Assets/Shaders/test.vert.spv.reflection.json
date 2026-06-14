@@ -1,0 +1,183 @@
+{
+  "entryPoint": "main",
+  "inputs": [
+    {
+      "location": 0,
+      "name": "inPos",
+      "type": 3
+    },
+    {
+      "location": 1,
+      "name": "inNormal",
+      "type": 3
+    },
+    {
+      "location": 2,
+      "name": "inUV",
+      "type": 2
+    }
+  ],
+  "outputs": [
+    {
+      "location": 0,
+      "name": "outWorldPos",
+      "type": 3
+    },
+    {
+      "location": 1,
+      "name": "outNormal",
+      "type": 3
+    },
+    {
+      "location": 2,
+      "name": "outUV",
+      "type": 2
+    }
+  ],
+  "pushConstants": [
+    {
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "model",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isShadowPass",
+            "offset": 64,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isSkinned",
+            "offset": 68,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "renderMode",
+            "offset": 72,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "useInstancing",
+            "offset": 76,
+            "size": 4,
+            "type": 5
+          }
+        ],
+        "name": "pc",
+        "size": 80
+      },
+      "name": "pc",
+      "offset": 0,
+      "size": 80,
+      "stages": 1
+    }
+  ],
+  "resources": [
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "cameraVP",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "lightVP",
+            "offset": 64,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "viewPos",
+            "offset": 128,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "frameOptions",
+            "offset": 144,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "shadowOptions",
+            "offset": 160,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "scene",
+        "size": 176
+      },
+      "name": "scene",
+      "set": 0,
+      "stages": 1,
+      "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 1,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "models",
+            "offset": 0,
+            "size": 0,
+            "type": 14
+          }
+        ],
+        "name": "instances",
+        "size": 0
+      },
+      "name": "instances",
+      "set": 2,
+      "stages": 1,
+      "type": 1
+    }
+  ],
+  "stableHash": 15565470001683293035,
+  "stage": 1,
+  "version": 1
+}

@@ -138,6 +138,18 @@ namespace ChikaEngine::Editor
             {
                 _context->renderer->SetPipelineMode(selected == 1 ? Render::RenderPipelineMode::Deferred : Render::RenderPipelineMode::Forward);
             }
+            ImGui::SameLine();
+            bool drawAABBs = _context->renderer->IsDebugDrawAABBsEnabled();
+            if (ImGui::Checkbox("AABB", &drawAABBs))
+                _context->renderer->SetDebugDrawAABBs(drawAABBs);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Green: visible in primary view\nRed: culled or hidden");
+            ImGui::SameLine();
+            bool drawFrustums = _context->renderer->IsDebugDrawFrustumsEnabled();
+            if (ImGui::Checkbox("Frustum", &drawFrustums))
+                _context->renderer->SetDebugDrawFrustums(drawFrustums);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Cyan: primary view\nPurple: secondary view\nYellow: shadow light");
             ImGui::PopStyleVar();
             windowSize = ImGui::GetContentRegionAvail();
             windowPos = ImGui::GetCursorScreenPos();
@@ -197,6 +209,7 @@ namespace ChikaEngine::Editor
         if (_context->activeScene && _context->renderer->GetActiveCamera())
         {
             Debug::Gizmo::Clear();
+            _context->renderer->AppendDebugGizmos();
 
             const auto& gameObjects = _context->activeScene->GetAllGameobjects();
             for (const auto& go : gameObjects)

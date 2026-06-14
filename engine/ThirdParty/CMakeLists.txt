@@ -50,6 +50,13 @@ add_subdirectory(${THIRD_PARTY_PATH}/pybind11)
 add_library(tinygltf INTERFACE)
 target_include_directories(tinygltf INTERFACE ${THIRD_PARTY_PATH}/tinygltf)
 
+# SPIRV-Reflect
+set(SPIRV_REFLECT_EXECUTABLE OFF CACHE BOOL "Build spirv-reflect executable" FORCE)
+set(SPIRV_REFLECT_STATIC_LIB ON CACHE BOOL "Build a SPIRV-Reflect static library" FORCE)
+set(SPIRV_REFLECT_BUILD_TESTS OFF CACHE BOOL "Build the SPIRV-Reflect test suite" FORCE)
+set(SPIRV_REFLECT_INSTALL OFF CACHE BOOL "Install SPIRV-Reflect targets" FORCE)
+add_subdirectory(${THIRD_PARTY_PATH}/SPIRVReflect)
+
 # Header-only wrappers with one translation unit for required implementations.
 file(GLOB THIRD_PARTY_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
@@ -78,6 +85,7 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     pybind11::module
     pybind11::embed
     tinygltf
+    spirv-reflect-static
     $<TARGET_OBJECTS:ChikaThirdPartyObjects>
 )
 

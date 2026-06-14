@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/IRHIDevice.hpp"
+#include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/base/SlotMap.h"
@@ -10,6 +11,9 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <span>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -30,16 +34,36 @@ namespace ChikaEngine::Render
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         TextureHandle CreateTexture(const TextureDesc& desc) override;
+        SamplerHandle CreateSampler(const SamplerDesc& desc) override;
+        TextureViewHandle CreateTextureView(const TextureViewDesc& desc) override;
         ShaderHandle CreateShader(const ShaderDesc& desc) override;
         PipelineHandle CreateGraphicsPipeline(const PipelineDesc& desc) override;
+        PipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) override;
 
         void* GetMappedData(BufferHandle handle) override;
+
+        void SetDebugName(BufferHandle handle, std::string_view name) override;
+        void SetDebugName(TextureHandle handle, std::string_view name) override;
+        void SetDebugName(ShaderHandle handle, std::string_view name) override;
+        void SetDebugName(PipelineHandle handle, std::string_view name) override;
+        void SetDebugName(SamplerHandle handle, std::string_view name) override;
+        void SetDebugName(TextureViewHandle handle, std::string_view name) override;
+        const RenderFrameStatistics& GetFrameStatistics() const override
+        {
+            return m_frameStatistics;
+        }
+        const std::vector<RenderPassGpuTiming>& GetPassGpuTimings() const override
+        {
+            return m_passGpuTimings;
+        }
 
         IRHICommandList* AllocateCommandList() override;
         void DestroyBuffer(BufferHandle handle) override;
         void DestroyTexture(TextureHandle handle) override;
         void DestroyShader(ShaderHandle handle) override;
         void DestroyPipeline(PipelineHandle handle) override;
+        void DestroySampler(SamplerHandle handle) override;
+        void DestroyTextureView(TextureViewHandle handle) override;
 
         void* GetImGuiTextureHandle(TextureHandle handle) override;
         TextureHandle GetActiveSwapchainTexture() override;
@@ -51,7 +75,16 @@ namespace ChikaEngine::Render
         void Resize(uint32_t width, uint32_t height) override;
 
       public:
-        VkDescriptorSet AllocateTransientDescriptorSet();
+        struct DescriptorAllocation
+        {
+            VkDescriptorSet set = VK_NULL_HANDLE;
+            bool requiresUpdate = true;
+        };
+
+        /**
+         * @brief 按当前 Pipeline 的目标 Set Layout 分配或复用 Descriptor Set。
+         */
+        DescriptorAllocation AllocateDescriptorSet(const VulkanPipeline& pipeline, const ResourceBindingGroup& group);
         VulkanBuffer* GetVkBuffer(BufferHandle h)
         {
             return m_buffers.Get(h);
@@ -68,19 +101,59 @@ namespace ChikaEngine::Render
         {
             return m_device;
         }
-        VkDescriptorSetLayout GetGlobalDescriptorLayout() const
-        {
-            return m_globalDescriptorLayout;
-        }
         VkSampler GetDefaultSampler() const
         {
             return m_defaultSampler;
+        }
+        VkSampler GetVkSampler(SamplerHandle handle) const
+        {
+            const VulkanSampler* sampler = m_samplers.Get(handle);
+            return sampler ? sampler->sampler : m_defaultSampler;
+        }
+        VkImageView GetVkTextureView(TextureViewHandle handle) const
+        {
+            const VulkanTextureView* view = m_textureViews.Get(handle);
+            return view ? view->view : VK_NULL_HANDLE;
         }
 
       public:
         VkDescriptorPool imguiPool = VK_NULL_HANDLE;
 
       private:
+        friend class VulkanCommandList;
+
+        /**
+         * @brief 创建 Vulkan Debug Messenger，把验证层消息转发到引擎日志系统。
+         *
+         * Messenger 仅在启用 Validation 时创建，避免 Release 路径承担额外诊断开销。
+         */
+        void CreateDebugMessenger();
+        void DestroyDebugMessenger();
+
+        /**
+         * @brief 为任意 Vulkan 对象设置调试名称。
+         *
+         * 统一封装可避免各资源路径重复加载 Debug Utils 函数指针。
+         */
+        void SetVulkanObjectName(VkObjectType type, uint64_t objectHandle, std::string_view name);
+
+        /**
+         * @brief 记录一次显式 Draw，用于建立可比较的帧提交基线。
+         */
+        void RecordDraw(uint32_t instanceCount);
+
+        /**
+         * @brief 记录一次 Pipeline Bind，用于后续验证排序和批处理收益。
+         */
+        void RecordPipelineBind();
+
+        /**
+         * @brief 记录实际写入 Descriptor 的数量，而不是仅统计 Descriptor Set 数量。
+         */
+        void RecordDescriptorUpdates(uint32_t descriptorCount);
+        void PrepareTimestampQueries(VkCommandBuffer commandBuffer);
+        uint32_t AllocateTimestampScope(std::string_view name);
+
         void CreateInstance();
         void CreateSurface();
         void PickPhysicalDevice();
@@ -89,7 +162,21 @@ namespace ChikaEngine::Render
         void CreatePipelineCache();
         void SavePipelineCache();
         void CreateAllocator();
-        void CreateGlobalLayouts();
+
+        /**
+         * @brief 创建通用 Descriptor Pools 与默认 Sampler，具体 Layout 由 Reflection 按需生成。
+         */
+        void CreateDescriptorInfrastructure();
+
+        /**
+         * @brief 按 Reflection Binding 创建或复用 Descriptor Set Layout。
+         */
+        VkDescriptorSetLayout GetOrCreateDescriptorSetLayout(std::span<const Shader::ShaderResourceBinding> bindings);
+
+        /**
+         * @brief 按合并 Shader Interface 创建或复用 Pipeline Layout。
+         */
+        VulkanPipeline CreatePipelineLayout(const Shader::ShaderProgramInterface& interface);
         void CreateSwapchain();
         void CreateSyncObjects();
         void FlushDeletionQueue();
@@ -107,6 +194,7 @@ namespace ChikaEngine::Render
         static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
         VkInstance m_instance = VK_NULL_HANDLE;
+        VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
         VkDevice m_device = VK_NULL_HANDLE;
         VkQueue m_graphicsQueue = VK_NULL_HANDLE;
@@ -116,13 +204,30 @@ namespace ChikaEngine::Render
 
         VmaAllocator m_allocator = VK_NULL_HANDLE;
 
-        VkDescriptorSetLayout m_globalDescriptorLayout = VK_NULL_HANDLE;
         VkSampler m_defaultSampler = VK_NULL_HANDLE;
+        bool m_enableValidation = true;
+        RenderFrameStatistics m_frameStatistics;
+        std::vector<RenderPassGpuTiming> m_passGpuTimings;
 
         uint32_t m_currentFrame = 0;
         uint64_t m_absoluteFrame = 0;
         VkCommandPool m_commandPools[MAX_FRAMES_IN_FLIGHT];
         VkDescriptorPool m_descriptorPools[MAX_FRAMES_IN_FLIGHT];
+        VkQueryPool m_timestampQueryPools[MAX_FRAMES_IN_FLIGHT]{};
+        bool m_timestampQueriesReset = false;
+        static constexpr uint32_t MAX_TIMESTAMP_QUERIES = 512;
+        struct TimestampScope
+        {
+            std::string name;
+            uint32_t beginQuery = 0;
+            uint32_t endQuery = 0;
+        };
+        std::vector<TimestampScope> m_timestampScopes[MAX_FRAMES_IN_FLIGHT];
+        float m_timestampPeriodNs = 1.0f;
+        VkDescriptorPool m_persistentDescriptorPool = VK_NULL_HANDLE;
+        std::unordered_map<uint64_t, VkDescriptorSetLayout> m_descriptorSetLayoutCache;
+        std::unordered_map<uint64_t, VkPipelineLayout> m_pipelineLayoutCache;
+        std::unordered_map<uint64_t, VkDescriptorSet> m_persistentDescriptorSetCache;
         // VkFence m_inFlightFences[MAX_FRAMES_IN_FLIGHT];
         std::vector<VkFence> m_inFlightFences;
 
@@ -157,6 +262,8 @@ namespace ChikaEngine::Render
         Core::SlotMap<TextureHandle, VulkanTexture> m_textures;
         Core::SlotMap<ShaderHandle, VulkanShader> m_shaders;
         Core::SlotMap<PipelineHandle, VulkanPipeline> m_pipelines;
+        Core::SlotMap<SamplerHandle, VulkanSampler> m_samplers;
+        Core::SlotMap<TextureViewHandle, VulkanTextureView> m_textureViews;
 
         struct PendingDeletion
         {
@@ -170,5 +277,7 @@ namespace ChikaEngine::Render
         std::vector<PendingDeletion> m_textureDeletionQueue;
         std::vector<PendingDeletion> m_shaderDeletionQueue;
         std::vector<PendingDeletion> m_pipelineDeletionQueue;
+        std::vector<PendingDeletion> m_samplerDeletionQueue;
+        std::vector<PendingDeletion> m_textureViewDeletionQueue;
     };
 } // namespace ChikaEngine::Render

@@ -1,0 +1,187 @@
+{
+  "entryPoint": "main",
+  "inputs": [
+    {
+      "location": 0,
+      "name": "inWorldPos",
+      "type": 3
+    },
+    {
+      "location": 1,
+      "name": "inNormal",
+      "type": 3
+    },
+    {
+      "location": 2,
+      "name": "inUV",
+      "type": 2
+    }
+  ],
+  "outputs": [
+    {
+      "location": 0,
+      "name": "outAlbedoMetallic",
+      "type": 4
+    },
+    {
+      "location": 1,
+      "name": "outNormalRoughness",
+      "type": 4
+    },
+    {
+      "location": 2,
+      "name": "outEmissiveOcclusion",
+      "type": 4
+    },
+    {
+      "location": 3,
+      "name": "outPosition",
+      "type": 4
+    }
+  ],
+  "pushConstants": [
+    {
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "model",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isShadowPass",
+            "offset": 64,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "isSkinned",
+            "offset": 68,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "renderMode",
+            "offset": 72,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "useInstancing",
+            "offset": 76,
+            "size": 4,
+            "type": 5
+          }
+        ],
+        "name": "pc",
+        "size": 80
+      },
+      "name": "pc",
+      "offset": 0,
+      "size": 80,
+      "stages": 2
+    }
+  ],
+  "resources": [
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "BaseColor",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "Emissive",
+            "offset": 16,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "Metallic",
+            "offset": 32,
+            "size": 4,
+            "type": 1
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "Roughness",
+            "offset": 36,
+            "size": 4,
+            "type": 1
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "OcclusionStrength",
+            "offset": 40,
+            "size": 4,
+            "type": 1
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "NormalScale",
+            "offset": 44,
+            "size": 4,
+            "type": 1
+          }
+        ],
+        "name": "material",
+        "size": 48
+      },
+      "name": "material",
+      "set": 1,
+      "stages": 2,
+      "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 1,
+      "buffer": {
+        "members": [],
+        "name": "Albedo",
+        "size": 0
+      },
+      "name": "Albedo",
+      "set": 1,
+      "stages": 2,
+      "type": 2
+    }
+  ],
+  "stableHash": 16255333889014030839,
+  "stage": 2,
+  "version": 1
+}

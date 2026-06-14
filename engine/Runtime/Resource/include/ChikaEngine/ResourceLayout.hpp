@@ -13,6 +13,7 @@
 
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/ResourceBinder.hpp"
+#include "ChikaEngine/math/Bounds.hpp"
 #include <cstdint>
 
 namespace ChikaEngine::Resource
@@ -25,6 +26,7 @@ namespace ChikaEngine::Resource
         // FIXME: 实际上可能不是 32bits 或许重新进行一个枚举封装更安全
         uint32_t indexCount = 0;
         bool isUint32 = true;
+        Math::Bounds bounds;
     };
 
     struct TextureGPU
@@ -32,16 +34,37 @@ namespace ChikaEngine::Resource
         Render::TextureHandle texture;
     };
 
+    /**
+     * @brief 保存材质 Pipeline 在逐 Draw 阶段需要更新的动态资源地址。
+     *
+     * Handle 在材质创建时由 Reflection 解析，Renderer 不再逐 Draw 查询资源名称。
+     */
+    struct MaterialDrawBindings
+    {
+        Render::ResourceBindingHandle scene;
+        Render::ResourceBindingHandle shadowMap;
+        Render::ResourceBindingHandle bones;
+        Render::ResourceBindingHandle instances;
+        Render::ResourceBindingHandle lights;
+    };
+
     struct MaterialGPU
     {
         Render::PipelineHandle pipeline;
         Render::PipelineHandle forwardPipeline;
         Render::PipelineHandle gbufferPipeline;
+        Render::PipelineHandle shadowPipeline;
         Render::ShaderHandle vertexShader;
         Render::ShaderHandle fragmentShader;
         Render::ShaderHandle gbufferFragmentShader;
         Render::BufferHandle uboBuffer;
-        Render::ResourceBindingGroup bindings;
+        MaterialDrawBindings forwardDrawBindings;
+        MaterialDrawBindings gbufferDrawBindings;
+        MaterialDrawBindings shadowDrawBindings;
+        std::vector<Render::ResourceBindingGroup> bindings;
+        std::vector<Render::ResourceBindingGroup> shadowBindings;
+        bool transparent = false;
+        bool masked = false;
     };
 
 } // namespace ChikaEngine::Resource

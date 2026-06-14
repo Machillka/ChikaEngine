@@ -1,6 +1,8 @@
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
 #include <ChikaEngine/rhi/Vulkan/VulkanCommandList.hpp>
 #include <ChikaEngine/rhi/Vulkan/VulkanHelper.hpp>
+#include <algorithm>
+#include <string>
 
 namespace ChikaEngine::Render
 {
@@ -14,11 +16,77 @@ namespace ChikaEngine::Render
         VkCommandBufferBeginInfo info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
         info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         vkBeginCommandBuffer(m_cmd, &info);
+        m_device->PrepareTimestampQueries(m_cmd);
     }
 
     void VulkanCommandList::End()
     {
         vkEndCommandBuffer(m_cmd);
+    }
+
+    /**
+     * @brief 为底层 VkCommandBuffer 设置调试名称。
+     *
+     * Command List 名称描述整段录制用途，Pass 级区域由 BeginDebugLabel 进一步细分。
+     */
+    void VulkanCommandList::SetDebugName(std::string_view name)
+    {
+        m_device->SetVulkanObjectName(VK_OBJECT_TYPE_COMMAND_BUFFER, reinterpret_cast<uint64_t>(m_cmd), name);
+    }
+
+    /**
+     * @brief 开始一个 Vulkan Debug Utils 命令标签区域。
+     *
+     * 标签颜色由调用者提供，使 RenderDoc 中不同类型的 RenderGraph Pass 更容易区分。
+     */
+    void VulkanCommandList::BeginDebugLabel(std::string_view name, const float color[4])
+    {
+        const auto beginLabel = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(vkGetDeviceProcAddr(m_device->GetRawDevice(), "vkCmdBeginDebugUtilsLabelEXT"));
+        if (!beginLabel)
+            return;
+
+        const std::string stableName(name);
+        VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
+        label.pLabelName = stableName.c_str();
+        if (color)
+        {
+            for (uint32_t i = 0; i < 4; ++i)
+                label.color[i] = color[i];
+        }
+        beginLabel(m_cmd, &label);
+    }
+
+    /**
+     * @brief 结束当前 Vulkan Debug Utils 命令标签区域。
+     */
+    void VulkanCommandList::EndDebugLabel()
+    {
+        const auto endLabel = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetDeviceProcAddr(m_device->GetRawDevice(), "vkCmdEndDebugUtilsLabelEXT"));
+        if (endLabel)
+            endLabel(m_cmd);
+    }
+
+    /**
+     * @brief 在 Pass 开始位置写入 Vulkan Timestamp，并保存对应结束 Query。
+     */
+    void VulkanCommandList::BeginTimestampScope(std::string_view name)
+    {
+        const uint32_t beginQuery = m_device->AllocateTimestampScope(name);
+        if (beginQuery == UINT32_MAX)
+            return;
+        vkCmdWriteTimestamp(m_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_device->m_timestampQueryPools[m_device->m_currentFrame], beginQuery);
+        m_timestampEndQueries.push_back(beginQuery + 1);
+    }
+
+    /**
+     * @brief 在 Pass 结束位置写入 Vulkan Timestamp。
+     */
+    void VulkanCommandList::EndTimestampScope()
+    {
+        if (m_timestampEndQueries.empty())
+            return;
+        vkCmdWriteTimestamp(m_cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_device->m_timestampQueryPools[m_device->m_currentFrame], m_timestampEndQueries.back());
+        m_timestampEndQueries.pop_back();
     }
 
     // TODO[x]: 加入分辨率推导
@@ -84,53 +152,122 @@ namespace ChikaEngine::Render
     {
         vkCmdEndRendering(m_cmd);
     }
-    void VulkanCommandList::BindResources(uint32_t setIndex, const ResourceBindingGroup& group)
+    void VulkanCommandList::BindResources(const ResourceBindingGroup& group)
     {
-        VkDescriptorSet vkSet = m_device->AllocateTransientDescriptorSet();
+        if (!m_currentPSO)
+            return;
+
+        // 在触发 Vulkan Validation Error 前先用 Reflection 契约拒绝错误 set/binding/type。
+        const auto validateBinding = [&](uint32_t binding, Shader::ShaderDescriptorType type, uint32_t arrayElement, std::string_view name)
+        {
+            const auto reflected = std::ranges::find_if(m_currentPSO->resources, [&](const Shader::ShaderResourceBinding& resource) { return resource.set == group.set && resource.binding == binding; });
+            if (reflected == m_currentPSO->resources.end() || reflected->type != type || arrayElement >= reflected->arrayCount)
+            {
+                LOG_ERROR("VulkanCommandList", "Resource '{}' does not match reflected set {}, binding {}", name, group.set, binding);
+                return false;
+            }
+            return true;
+        };
+        for (const auto& buffer : group.buffers)
+        {
+            if (!validateBinding(buffer.binding, buffer.type, buffer.arrayElement, buffer.name))
+                return;
+        }
+        for (const auto& texture : group.textures)
+        {
+            if (!validateBinding(texture.binding, texture.type, texture.arrayElement, texture.name))
+                return;
+        }
+        for (const auto& sampler : group.samplers)
+        {
+            if (!validateBinding(sampler.binding, Shader::ShaderDescriptorType::Sampler, sampler.arrayElement, sampler.name))
+                return;
+        }
+
+        const VulkanRHIDevice::DescriptorAllocation allocation = m_device->AllocateDescriptorSet(*m_currentPSO, group);
+        const VkDescriptorSet vkSet = allocation.set;
 
         std::vector<VkWriteDescriptorSet> writes;
         std::vector<VkDescriptorBufferInfo> bInfos(group.buffers.size());
         std::vector<VkDescriptorImageInfo> iInfos(group.textures.size());
+        std::vector<VkDescriptorImageInfo> samplerInfos(group.samplers.size());
 
-        for (size_t i = 0; i < group.buffers.size(); ++i)
+        if (allocation.requiresUpdate)
         {
-            VulkanBuffer* vb = m_device->GetVkBuffer(group.buffers[i].buf);
-            bInfos[i] = { vb->buffer, group.buffers[i].offset, group.buffers[i].size };
-            VkWriteDescriptorSet w{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-            w.dstSet = vkSet;
-            w.dstBinding = group.buffers[i].slot;
-            w.descriptorCount = 1;
-            w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            w.pBufferInfo = &bInfos[i];
-            writes.push_back(w);
+            for (size_t i = 0; i < group.buffers.size(); ++i)
+            {
+                const auto& binding = group.buffers[i];
+                VulkanBuffer* buffer = m_device->GetVkBuffer(binding.buf);
+                bInfos[i] = { buffer->buffer, binding.offset, binding.size };
+                VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                write.dstSet = vkSet;
+                write.dstBinding = binding.binding;
+                write.dstArrayElement = binding.arrayElement;
+                write.descriptorCount = 1;
+                write.descriptorType = ToVkDescriptorType(binding.type);
+                write.pBufferInfo = &bInfos[i];
+                writes.push_back(write);
+            }
+
+            for (size_t i = 0; i < group.textures.size(); ++i)
+            {
+                const auto& binding = group.textures[i];
+                VulkanTexture* texture = m_device->GetVkTexture(binding.tex);
+                const bool storageImage = binding.type == Shader::ShaderDescriptorType::StorageImage;
+                iInfos[i] = {
+                    binding.type == Shader::ShaderDescriptorType::CombinedImageSampler ? m_device->GetDefaultSampler() : VK_NULL_HANDLE,
+                    binding.view.IsValid() ? m_device->GetVkTextureView(binding.view) : texture->view,
+                    storageImage ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                };
+                VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                write.dstSet = vkSet;
+                write.dstBinding = binding.binding;
+                write.dstArrayElement = binding.arrayElement;
+                write.descriptorCount = 1;
+                write.descriptorType = ToVkDescriptorType(binding.type);
+                write.pImageInfo = &iInfos[i];
+                writes.push_back(write);
+            }
+
+            for (size_t i = 0; i < group.samplers.size(); ++i)
+            {
+                const auto& binding = group.samplers[i];
+                samplerInfos[i] = { m_device->GetVkSampler(binding.sampler), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED };
+                VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                write.dstSet = vkSet;
+                write.dstBinding = binding.binding;
+                write.dstArrayElement = binding.arrayElement;
+                write.descriptorCount = 1;
+                write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+                write.pImageInfo = &samplerInfos[i];
+                writes.push_back(write);
+            }
+
+            vkUpdateDescriptorSets(m_device->GetRawDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+            m_device->RecordDescriptorUpdates(static_cast<uint32_t>(writes.size()));
         }
 
-        for (size_t i = 0; i < group.textures.size(); ++i)
-        {
-            VulkanTexture* vt = m_device->GetVkTexture(group.textures[i].tex);
-            iInfos[i] = { m_device->GetDefaultSampler(), vt->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-            VkWriteDescriptorSet w{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-            w.dstSet = vkSet;
-            w.dstBinding = group.textures[i].slot;
-            w.descriptorCount = 1;
-            w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            w.pImageInfo = &iInfos[i];
-            writes.push_back(w);
-        }
-
-        vkUpdateDescriptorSets(m_device->GetRawDevice(), writes.size(), writes.data(), 0, nullptr);
-        vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->layout, setIndex, 1, &vkSet, 0, nullptr);
+        vkCmdBindDescriptorSets(m_cmd, m_currentPSO->bindPoint, m_currentPSO->layout, group.set, 1, &vkSet, 0, nullptr);
     }
 
     void VulkanCommandList::BindPipeline(PipelineHandle pipeline)
     {
         m_currentPSO = m_device->GetVkPipeline(pipeline);
-        vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->pipeline);
+        vkCmdBindPipeline(m_cmd, m_currentPSO->bindPoint, m_currentPSO->pipeline);
+        m_device->RecordPipelineBind();
     }
 
-    void VulkanCommandList::PushConstants(uint32_t size, const void* data)
+    void VulkanCommandList::PushConstants(std::string_view rangeName, const void* data, uint32_t size)
     {
-        vkCmdPushConstants(m_cmd, m_currentPSO->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, size, data);
+        if (!m_currentPSO)
+            return;
+        const auto range = std::ranges::find(m_currentPSO->pushConstants, rangeName, &Shader::ShaderPushConstantRange::name);
+        if (range == m_currentPSO->pushConstants.end() || size > range->size)
+        {
+            LOG_ERROR("VulkanCommandList", "Push constant range '{}' is missing or too small", rangeName);
+            return;
+        }
+        vkCmdPushConstants(m_cmd, m_currentPSO->layout, ToVkShaderStages(range->stages), range->offset, size, data);
     }
     void VulkanCommandList::BindVertexBuffer(BufferHandle buffer, uint64_t offset)
     {
@@ -145,14 +282,42 @@ namespace ChikaEngine::Render
         vkCmdBindIndexBuffer(m_cmd, b, offset, isUint32 ? VK_INDEX_TYPE_UINT32 : VK_INDEX_TYPE_UINT16);
     }
 
-    void VulkanCommandList::Draw(uint32_t vertexCount, uint32_t instanceCount)
+    void VulkanCommandList::Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
     {
-        vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
+        vkCmdDraw(m_cmd, vertexCount, instanceCount, firstVertex, firstInstance);
+        m_device->RecordDraw(instanceCount);
     }
 
-    void VulkanCommandList::DrawIndexed(uint32_t indexCount, uint32_t instanceCount)
+    void VulkanCommandList::DrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
     {
-        vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, 0);
+        vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+        m_device->RecordDraw(instanceCount);
+    }
+
+    /**
+     * @brief 使用 GPU Buffer 中的 VkDrawIndirectCommand 录制间接绘制。
+     */
+    void VulkanCommandList::DrawIndirect(BufferHandle arguments, uint64_t offset, uint32_t drawCount, uint32_t stride)
+    {
+        vkCmdDrawIndirect(m_cmd, m_device->GetVkBuffer(arguments)->buffer, offset, drawCount, stride);
+        m_device->RecordDraw(drawCount);
+    }
+
+    /**
+     * @brief 使用 GPU Buffer 中的 VkDrawIndexedIndirectCommand 录制索引间接绘制。
+     */
+    void VulkanCommandList::DrawIndexedIndirect(BufferHandle arguments, uint64_t offset, uint32_t drawCount, uint32_t stride)
+    {
+        vkCmdDrawIndexedIndirect(m_cmd, m_device->GetVkBuffer(arguments)->buffer, offset, drawCount, stride);
+        m_device->RecordDraw(drawCount);
+    }
+
+    /**
+     * @brief 录制 Compute Dispatch，Pipeline 类型由当前绑定点约束。
+     */
+    void VulkanCommandList::Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
+    {
+        vkCmdDispatch(m_cmd, groupCountX, groupCountY, groupCountZ);
     }
 
     void VulkanCommandList::CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size)
@@ -198,7 +363,7 @@ namespace ChikaEngine::Render
         vkCmdCopyBufferToImage(m_cmd, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     }
 
-    void VulkanCommandList::InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after)
+    void VulkanCommandList::InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after, const TextureSubresourceRange& range)
     {
         if (after == ResourceState::Undefined)
             return;
@@ -233,12 +398,39 @@ namespace ChikaEngine::Render
             barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         }
 
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.baseMipLevel = range.baseMipLevel;
+        barrier.subresourceRange.levelCount = range.mipLevelCount == 0 ? vkTex->mipLevels - range.baseMipLevel : range.mipLevelCount;
+        barrier.subresourceRange.baseArrayLayer = range.baseArrayLayer;
+        barrier.subresourceRange.layerCount = range.arrayLayerCount == 0 ? vkTex->arrayLayers - range.baseArrayLayer : range.arrayLayerCount;
 
         vkCmdPipelineBarrier(m_cmd, srcS, dstS, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
+
+    /**
+     * @brief 插入 Buffer Memory Barrier，连接 Copy、Compute 与 Graphics 访问。
+     */
+    void VulkanCommandList::InsertBufferBarrier(BufferHandle buffer, ResourceState before, ResourceState after, const BufferRange& range)
+    {
+        VulkanBuffer* vkBuffer = m_device->GetVkBuffer(buffer);
+        if (!vkBuffer || after == ResourceState::Undefined)
+            return;
+
+        VkAccessFlags srcAccess = 0;
+        VkAccessFlags dstAccess = 0;
+        VkPipelineStageFlags srcStage = 0;
+        VkPipelineStageFlags dstStage = 0;
+        GetVkBufferStateInfo(before, srcAccess, srcStage);
+        GetVkBufferStateInfo(after, dstAccess, dstStage);
+
+        VkBufferMemoryBarrier barrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        barrier.srcAccessMask = srcAccess;
+        barrier.dstAccessMask = dstAccess;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.buffer = vkBuffer->buffer;
+        barrier.offset = range.offset;
+        barrier.size = range.size == UINT64_MAX ? VK_WHOLE_SIZE : range.size;
+        vkCmdPipelineBarrier(m_cmd, srcStage, dstStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
     }
 
 } // namespace ChikaEngine::Render

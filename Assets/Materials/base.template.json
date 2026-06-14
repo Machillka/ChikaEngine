@@ -1,11 +1,11 @@
 {
     "name": "StandardPBR",
     "stages": {
-        "vertex": "Assets/Shaders/test.vert.spv",
-        "fragment": "Assets/Shaders/test.frag.spv"
+        "vertex": "Assets/Shaders/test.vert",
+        "fragment": "Assets/Shaders/test.frag"
     },
     "parameters": {
-        "Base.Color": {
+        "BaseColor": {
             "type": "vec4",
             "default": [
                 1.0,
@@ -13,11 +13,42 @@
                 1.0,
                 1.0
             ]
+        },
+        "Emissive": {
+            "type": "vec4",
+            "default": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ]
+        },
+        "Metallic": {
+            "type": "float",
+            "default": [
+                0.0
+            ]
+        },
+        "Roughness": {
+            "type": "float",
+            "default": [
+                0.6
+            ]
+        },
+        "OcclusionStrength": {
+            "type": "float",
+            "default": [
+                1.0
+            ]
+        },
+        "NormalScale": {
+            "type": "float",
+            "default": [
+                1.0
+            ]
         }
     },
     "textures": {
-        "Albedo": {
-            "slot": 5
-        }
+        "Albedo": {}
     }
 }

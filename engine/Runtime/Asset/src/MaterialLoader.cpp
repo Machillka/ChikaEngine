@@ -56,6 +56,11 @@ namespace ChikaEngine::Asset
 
         mat->name = j.value("name", path);
         mat->shaderTemplatePath = j["shader"]["template"];
+        if (j.contains("variants"))
+        {
+            for (const auto& [name, enabled] : j["variants"].items())
+                mat->variants[name] = enabled.get<bool>();
+        }
 
         // 拍扁 Parameters
         if (j.contains("parameters"))

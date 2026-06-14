@@ -4,48 +4,179 @@
 #include "ChikaEngine/IRHICommandList.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
+#include "ChikaEngine/shader/ShaderInterface.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include <span>
 
 namespace ChikaEngine::Resource
 {
     namespace
     {
-        Render::VertexLayout BuildDefaultVertexLayout()
+        /**
+         * @brief 把反射 Vertex Input 映射到引擎唯一的 VertexData 流布局。
+         *
+         * Reflection 决定 Pipeline 实际声明哪些 location；CPU VertexData 只负责提供对应 offset。
+         */
+        Render::VertexLayout BuildReflectedVertexLayout(const Shader::ShaderProgramInterface& interface)
+        {
+            Render::VertexLayout layout{
+                .stride = interface.vertexInputs.empty() ? 0u : static_cast<uint32_t>(sizeof(Asset::VertexData)),
+            };
+            for (const auto& input : interface.vertexInputs)
+            {
+                Shader::ShaderValueType expectedType = Shader::ShaderValueType::Unknown;
+                Render::VertexAttribute attribute{};
+                switch (input.location)
+                {
+                case 0:
+                    expectedType = Shader::ShaderValueType::Float3;
+                    attribute = { input.location, Render::RHI_Format::RGB32_Float, offsetof(Asset::VertexData, position) };
+                    break;
+                case 1:
+                    expectedType = Shader::ShaderValueType::Float3;
+                    attribute = { input.location, Render::RHI_Format::RGB32_Float, offsetof(Asset::VertexData, normal) };
+                    break;
+                case 2:
+                    expectedType = Shader::ShaderValueType::Float2;
+                    attribute = { input.location, Render::RHI_Format::RG32_Float, offsetof(Asset::VertexData, uv) };
+                    break;
+                case 3:
+                    expectedType = Shader::ShaderValueType::Int4;
+                    attribute = { input.location, Render::RHI_Format::RGBA32_SInt, offsetof(Asset::VertexData, boneIndices) };
+                    break;
+                case 4:
+                    expectedType = Shader::ShaderValueType::Float4;
+                    attribute = { input.location, Render::RHI_Format::RGBA32_Float, offsetof(Asset::VertexData, boneWeights) };
+                    break;
+                default:
+                    LOG_ERROR("ResourceManager", "Vertex input '{}' uses unsupported location {}", input.name, input.location);
+                    continue;
+                }
+                if (input.type != expectedType)
+                {
+                    LOG_ERROR("ResourceManager", "Vertex input '{}' type does not match VertexData location {}", input.name, input.location);
+                    continue;
+                }
+                layout.attributes.push_back(attribute);
+            }
+            return layout;
+        }
+
+        /**
+         * @brief 合并 Vertex/Fragment Reflection，并输出可定位的 Pipeline 接口冲突。
+         */
+        std::optional<Shader::ShaderProgramInterface> BuildProgramInterface(const Asset::ShaderData& vertex, const Asset::ShaderData& fragment)
+        {
+            if (!vertex.hasReflection || !fragment.hasReflection)
+            {
+                LOG_ERROR("ResourceManager", "Shader reflection sidecar is missing");
+                return std::nullopt;
+            }
+            const std::array stages{ vertex.reflection, fragment.reflection };
+            Shader::ShaderProgramBuildResult result = Shader::BuildShaderProgramInterface(stages);
+            for (const std::string& error : result.errors)
+                LOG_ERROR("ResourceManager", "Shader interface conflict: {}", error);
+            if (!result.success)
+                return std::nullopt;
+            return std::move(result.interface);
+        }
+
+        /**
+         * @brief 从单个 Shader Stage Reflection 构建 Depth-only 等单 Stage Pipeline 接口。
+         */
+        std::optional<Shader::ShaderProgramInterface> BuildSingleStageInterface(const Asset::ShaderData& shader)
+        {
+            if (!shader.hasReflection)
+            {
+                LOG_ERROR("ResourceManager", "Shader reflection sidecar is missing");
+                return std::nullopt;
+            }
+            const std::array stages{ shader.reflection };
+            Shader::ShaderProgramBuildResult result = Shader::BuildShaderProgramInterface(stages);
+            for (const std::string& error : result.errors)
+                LOG_ERROR("ResourceManager", "Shader interface conflict: {}", error);
+            if (!result.success)
+                return std::nullopt;
+            return std::move(result.interface);
+        }
+
+        /**
+         * @brief 过滤绑定组，只保留目标 Pipeline Reflection 实际声明的 Descriptor。
+         */
+        std::vector<Render::ResourceBindingGroup> FilterBindingGroups(const std::vector<Render::ResourceBindingGroup>& groups, const Shader::ShaderProgramInterface& interface)
+        {
+            const auto hasResource = [&](uint32_t set, uint32_t binding, Shader::ShaderDescriptorType type) { return std::ranges::any_of(interface.resources, [&](const Shader::ShaderResourceBinding& resource) { return resource.set == set && resource.binding == binding && resource.type == type; }); };
+            std::vector<Render::ResourceBindingGroup> result;
+            for (const Render::ResourceBindingGroup& source : groups)
+            {
+                Render::ResourceBindingGroup filtered{ .set = source.set, .lifetime = source.lifetime };
+                std::ranges::copy_if(source.textures, std::back_inserter(filtered.textures), [&](const auto& binding) { return hasResource(source.set, binding.binding, binding.type); });
+                std::ranges::copy_if(source.buffers, std::back_inserter(filtered.buffers), [&](const auto& binding) { return hasResource(source.set, binding.binding, binding.type); });
+                std::ranges::copy_if(source.samplers, std::back_inserter(filtered.samplers), [&](const auto& binding) { return hasResource(source.set, binding.binding, Shader::ShaderDescriptorType::Sampler); });
+                if (!filtered.textures.empty() || !filtered.buffers.empty() || !filtered.samplers.empty())
+                    result.push_back(std::move(filtered));
+            }
+            return result;
+        }
+
+        /**
+         * @brief 在材质创建阶段解析逐 Draw 动态资源，避免 Renderer 热路径查询 Reflection 名称。
+         */
+        MaterialDrawBindings ResolveMaterialDrawBindings(const Shader::ShaderProgramInterface& interface)
         {
             return {
-                .stride = sizeof(Asset::VertexData),
-                .attributes = {
-                    {
-                        0,
-                        Render::RHI_Format::RGB32_Float,
-                        offsetof(Asset::VertexData, position),
-                    },
-                    {
-                        1,
-                        Render::RHI_Format::RGB32_Float,
-                        offsetof(Asset::VertexData, normal),
-                    },
-                    {
-                        2,
-                        Render::RHI_Format::RG32_Float,
-                        offsetof(Asset::VertexData, uv),
-                    },
-                    {
-                        3,
-                        Render::RHI_Format::RGBA32_SInt,
-                        offsetof(Asset::VertexData, boneIndices),
-                    },
-                    {
-                        4,
-                        Render::RHI_Format::RGBA32_Float,
-                        offsetof(Asset::VertexData, boneWeights),
-                    },
-                },
+                .scene = Render::ResolveResourceBinding(interface, "scene"),
+                .shadowMap = Render::ResolveResourceBinding(interface, "shadowMap"),
+                .bones = Render::ResolveResourceBinding(interface, "uboBones"),
+                .instances = Render::ResolveResourceBinding(interface, "instances"),
+                .lights = Render::ResolveResourceBinding(interface, "lights"),
             };
+        }
+
+        /**
+         * @brief 将 Material 参数值写入 Reflection 指定的真实 Buffer Offset。
+         */
+        void WriteMaterialParameter(std::vector<uint8_t>& data, const Shader::ShaderBufferMember& member, const Asset::ShaderParamDesc& parameter, const Asset::MaterialData& material)
+        {
+            Shader::ShaderValueType expectedType = Shader::ShaderValueType::Unknown;
+            switch (parameter.type)
+            {
+            case Asset::ShaderParamTypes::Float:
+                expectedType = Shader::ShaderValueType::Float;
+                break;
+            case Asset::ShaderParamTypes::Vec2:
+                expectedType = Shader::ShaderValueType::Float2;
+                break;
+            case Asset::ShaderParamTypes::Vec3:
+                expectedType = Shader::ShaderValueType::Float3;
+                break;
+            case Asset::ShaderParamTypes::Vec4:
+                expectedType = Shader::ShaderValueType::Float4;
+                break;
+            default:
+                break;
+            }
+            if (member.type != expectedType)
+            {
+                LOG_ERROR("ResourceManager", "Material parameter '{}' type does not match reflected Shader member", parameter.name);
+                return;
+            }
+
+            std::vector<float> values = parameter.defaultValues;
+            if (parameter.type == Asset::ShaderParamTypes::Float && material.floatParams.contains(parameter.name))
+                values = { material.floatParams.at(parameter.name) };
+            else if (material.vectorParams.contains(parameter.name))
+                values = material.vectorParams.at(parameter.name);
+
+            const size_t copySize = std::min<size_t>(member.size, values.size() * sizeof(float));
+            if (member.offset + copySize <= data.size() && copySize > 0)
+                std::memcpy(data.data() + member.offset, values.data(), copySize);
         }
     } // namespace
 
@@ -126,6 +257,11 @@ namespace ChikaEngine::Resource
         Render::BufferHandle vbo = m_rhi.CreateBuffer(vDesc);
         Render::BufferHandle ibo = m_rhi.CreateBuffer(iDesc);
 
+        // 资源名称使用资产路径作为稳定上下文，便于验证层错误直接定位到源资产。
+        const std::string meshDebugName = data->path.empty() ? "Mesh.Unnamed" : "Mesh." + data->path;
+        m_rhi.SetDebugName(vbo, meshDebugName + ".VertexBuffer");
+        m_rhi.SetDebugName(ibo, meshDebugName + ".IndexBuffer");
+
         Render::BufferDesc stagingVDesc{
             .size = vSize,
             .usage = Render::RHI_BufferUsage::Staging,
@@ -139,14 +275,16 @@ namespace ChikaEngine::Resource
 
         Render::BufferHandle stagingV = m_rhi.CreateBuffer(stagingVDesc);
         Render::BufferHandle stagingI = m_rhi.CreateBuffer(stagingIDesc);
+        m_rhi.SetDebugName(stagingV, meshDebugName + ".VertexStaging");
+        m_rhi.SetDebugName(stagingI, meshDebugName + ".IndexStaging");
 
         std::memcpy(m_rhi.GetMappedData(stagingV), vertices.data(), vSize);
         std::memcpy(m_rhi.GetMappedData(stagingI), indices.data(), iSize);
 
         {
             std::lock_guard<std::mutex> lock(m_uploadMutex);
-            m_pendingBufferUploads.push_back({ stagingV, vbo, vSize });
-            m_pendingBufferUploads.push_back({ stagingI, ibo, iSize });
+            m_pendingBufferUploads.push_back({ stagingV, vbo, vSize, Render::ResourceState::VertexBuffer });
+            m_pendingBufferUploads.push_back({ stagingI, ibo, iSize, Render::ResourceState::IndexBuffer });
         }
 
         // SubmitImmediate(
@@ -164,6 +302,7 @@ namespace ChikaEngine::Resource
             .indexBuffer = ibo,
             .indexCount = static_cast<uint32_t>(indices.size()),
             .isUint32 = true,
+            .bounds = data->bounds,
         };
 
         MeshHandle handle = m_meshes.Create(mesh);
@@ -182,12 +321,14 @@ namespace ChikaEngine::Resource
         Render::TextureDesc desc{
             .width = data->width,
             .height = data->height,
-            .format = Render::RHI_Format::RGBA8_UNorm,
+            .format = data->srgb ? Render::RHI_Format::RGBA8_SRGB : Render::RHI_Format::RGBA8_UNorm,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::Sampled,
         };
         Render::TextureHandle tex = m_rhi.CreateTexture(desc);
+        const std::string textureDebugName = data->path.empty() ? "Texture.Unnamed" : "Texture." + data->path;
+        m_rhi.SetDebugName(tex, textureDebugName);
 
         Render::BufferDesc stagingDesc{
             .size = imageSize,
@@ -195,11 +336,12 @@ namespace ChikaEngine::Resource
             .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
         };
         Render::BufferHandle staging = m_rhi.CreateBuffer(stagingDesc);
+        m_rhi.SetDebugName(staging, textureDebugName + ".Staging");
         std::memcpy(m_rhi.GetMappedData(staging), data->pixels.data(), imageSize);
 
         {
             std::lock_guard<std::mutex> lock(m_uploadMutex);
-            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height });
+            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height, desc.format });
         }
 
         // SubmitImmediate(
@@ -225,11 +367,19 @@ namespace ChikaEngine::Resource
 
         Asset::ShaderTemplateHandle tmplHandle = m_assetManager.LoadShaderTemplate(materialData->shaderTemplatePath);
         const Asset::ShaderTemplateData* tmplData = m_assetManager.GetShaderTemplate(tmplHandle);
+        if (!tmplData)
+            return MaterialHandle::Invalid();
 
         Asset::ShaderHandle vsAsset = m_assetManager.LoadShader(tmplData->vertexShaderPath);
         Asset::ShaderHandle fsAsset = m_assetManager.LoadShader(tmplData->fragmentShaderPath);
         const auto* vsSpirv = m_assetManager.GetShader(vsAsset);
         const auto* fsSpirv = m_assetManager.GetShader(fsAsset);
+        if (!vsSpirv || !fsSpirv)
+            return MaterialHandle::Invalid();
+
+        const auto forwardInterface = BuildProgramInterface(*vsSpirv, *fsSpirv);
+        if (!forwardInterface)
+            return MaterialHandle::Invalid();
 
         Render::ShaderHandle vs = m_rhi.CreateShader({
             .stage = Render::RHI_ShaderStage::Vertex,
@@ -243,125 +393,109 @@ namespace ChikaEngine::Resource
             .codeSize = fsSpirv->spirv.size(),
         });
 
-        Render::PipelineDesc pipelineDesc{ .vertexShader = vs, .fragmentShader = fs, .vertexLayout = BuildDefaultVertexLayout(), .depthTest = true, .depthWrite = true, .alphaBlendEnable = false };
-        pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::BGRA8_UNorm);
+        // Material 名称统一作为 Shader、Pipeline 和参数缓冲的前缀，方便在 GPU 捕获中按材质分组。
+        const std::string materialDebugName = materialData->name.empty() ? "Material.Unnamed" : "Material." + materialData->name;
+        m_rhi.SetDebugName(vs, materialDebugName + ".VertexShader");
+        m_rhi.SetDebugName(fs, materialDebugName + ".FragmentShader");
+
+        const bool transparent = materialData->variants.contains("transparent") && materialData->variants.at("transparent");
+        const bool masked = materialData->variants.contains("masked") && materialData->variants.at("masked");
+        Render::PipelineDesc pipelineDesc{
+            .vertexShader = vs,
+            .fragmentShader = fs,
+            .shaderInterface = *forwardInterface,
+            .vertexLayout = BuildReflectedVertexLayout(*forwardInterface),
+            .depthTest = true,
+            .depthWrite = !transparent,
+            .alphaBlendEnable = transparent,
+        };
+        // Forward Opaque/Transparent 都在线性 HDR Scene Color 中执行，显示转换由 Post Process 完成。
+        pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
         pipelineDesc.depthAttachmentFormat = Render::RHI_Format::D32_SFloat;
         Render::PipelineHandle forwardPipeline = m_rhi.CreateGraphicsPipeline(pipelineDesc);
+        m_rhi.SetDebugName(forwardPipeline, materialDebugName + ".ForwardPipeline");
 
-        Asset::ShaderHandle gbufferFsAsset = m_assetManager.LoadShader("Assets/Shaders/gbuffer.frag.spv");
+        const auto shadowInterface = BuildSingleStageInterface(*vsSpirv);
+        if (!shadowInterface)
+            return MaterialHandle::Invalid();
+        Render::PipelineDesc shadowPipelineDesc = pipelineDesc;
+        shadowPipelineDesc.fragmentShader = {};
+        shadowPipelineDesc.shaderInterface = *shadowInterface;
+        shadowPipelineDesc.colorAttachmentFormats.clear();
+        shadowPipelineDesc.alphaBlendEnable = false;
+        Render::PipelineHandle shadowPipeline = m_rhi.CreateGraphicsPipeline(shadowPipelineDesc);
+        m_rhi.SetDebugName(shadowPipeline, materialDebugName + ".ShadowPipeline");
+
+        Asset::ShaderHandle gbufferFsAsset = m_assetManager.LoadShader("Assets/Shaders/gbuffer.frag");
         const auto* gbufferFsSpirv = m_assetManager.GetShader(gbufferFsAsset);
+        if (!gbufferFsSpirv)
+            return MaterialHandle::Invalid();
+        const auto gbufferInterface = BuildProgramInterface(*vsSpirv, *gbufferFsSpirv);
+        if (!gbufferInterface)
+            return MaterialHandle::Invalid();
+
         Render::ShaderHandle gbufferFs = m_rhi.CreateShader({
             .stage = Render::RHI_ShaderStage::Fragment,
             .code = gbufferFsSpirv->spirv.data(),
             .codeSize = gbufferFsSpirv->spirv.size(),
         });
+        m_rhi.SetDebugName(gbufferFs, materialDebugName + ".GBufferFragmentShader");
 
         Render::PipelineDesc gbufferPipelineDesc = pipelineDesc;
         gbufferPipelineDesc.fragmentShader = gbufferFs;
+        gbufferPipelineDesc.shaderInterface = *gbufferInterface;
+        gbufferPipelineDesc.vertexLayout = BuildReflectedVertexLayout(*gbufferInterface);
         gbufferPipelineDesc.colorAttachmentFormats.clear();
         gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA8_UNorm);
         gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
-        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA8_UNorm);
+        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
+        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
         Render::PipelineHandle gbufferPipeline = m_rhi.CreateGraphicsPipeline(gbufferPipelineDesc);
+        m_rhi.SetDebugName(gbufferPipeline, materialDebugName + ".GBufferPipeline");
 
-        // ubo
-        std::vector<const Asset::ShaderParamDesc*> sortedParams;
-        sortedParams.reserve(tmplData->parameters.size());
-        for (const auto& [name, desc] : tmplData->parameters)
+        // Material UBO 的大小和成员偏移来自 Reflection，不再按参数名称重新计算布局。
+        const Shader::ShaderResourceBinding* materialResource = forwardInterface->FindResource("material");
+        if (!materialResource || materialResource->type != Shader::ShaderDescriptorType::UniformBuffer)
         {
-            sortedParams.push_back(&desc);
+            LOG_ERROR("ResourceManager", "Material '{}' shader does not expose reflected uniform buffer 'material'", materialData->name);
+            return MaterialHandle::Invalid();
         }
-
-        // 按照字典序排序 保证 ubo 布局一致
-        std::ranges::sort(sortedParams, [](const auto* a, const auto* b) { return a->name < b->name; });
-        std::vector<uint8_t> uboData;
-        uboData.reserve(256);
-        size_t currentOffset = 0;
-
-        for (const auto* param : sortedParams)
+        std::vector<uint8_t> uboData(materialResource->buffer.size, 0);
+        for (const auto& [name, parameter] : tmplData->parameters)
         {
-            size_t align = 4;
-            size_t size = 4;
-
-            switch (param->type)
+            const Shader::ShaderBufferMember* member = forwardInterface->FindBufferMember("material", name);
+            if (!member)
             {
-            case Asset::ShaderParamTypes::Float:
-                align = 4;
-                size = 4;
-                break;
-            case Asset::ShaderParamTypes::Vec2:
-                align = 8;
-                size = 8;
-                break;
-            case Asset::ShaderParamTypes::Vec3:
-                align = 16;
-                size = 12;
-                break;
-            case Asset::ShaderParamTypes::Vec4:
-                align = 16;
-                size = 16;
-                break;
-            default:
-                break;
+                LOG_ERROR("ResourceManager", "Material parameter '{}' is not present in reflected buffer 'material'", name);
+                continue;
             }
-
-            currentOffset = (currentOffset + align - 1) & ~(align - 1);
-            if (currentOffset + size > uboData.size())
-            {
-                uboData.resize(currentOffset + size + 64);
-            }
-
-            if (param->type == Asset::ShaderParamTypes::Float)
-            {
-                float val = param->defaultValues.empty() ? 0.0f : param->defaultValues[0];
-                if (materialData->floatParams.contains(param->name))
-                {
-                    val = materialData->floatParams.at(param->name);
-                }
-                std::memcpy(uboData.data() + currentOffset, &val, sizeof(float));
-            }
-            else
-            {
-                std::vector<float> val = param->defaultValues;
-                if (materialData->vectorParams.contains(param->name))
-                {
-                    val = materialData->vectorParams.at(param->name);
-                }
-
-                size_t numFloats = size / sizeof(float);
-                size_t copySize = std::min(val.size(), numFloats) * sizeof(float);
-                if (copySize > 0)
-                {
-                    std::memcpy(uboData.data() + currentOffset, val.data(), copySize);
-                }
-            }
-
-            currentOffset += size;
+            WriteMaterialParameter(uboData, *member, parameter, *materialData);
         }
-
-        currentOffset = (currentOffset + 15) & ~15;
 
         Render::BufferDesc uboDesc{
-            .size = std::max<uint64_t>(currentOffset, 16),
+            .size = std::max<uint64_t>(materialResource->buffer.size, 16),
             .usage = Render::RHI_BufferUsage::Uniform,
             .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
         };
 
         Render::BufferHandle uboHandle = m_rhi.CreateBuffer(uboDesc);
-        std::memcpy(m_rhi.GetMappedData(uboHandle), uboData.data(), currentOffset);
+        m_rhi.SetDebugName(uboHandle, materialDebugName + ".Parameters");
+        std::memcpy(m_rhi.GetMappedData(uboHandle), uboData.data(), uboData.size());
 
-        Render::ResourceBindingGroup bindings;
-        bindings.BindBuffer(0, uboHandle, 0, currentOffset);
+        std::vector<Render::ResourceBindingGroup> bindings;
+        const Render::ResourceBindingHandle materialBinding = Render::ResolveResourceBinding(*forwardInterface, "material");
+        Render::BindBuffer(bindings, materialBinding, uboHandle, 0, materialResource->buffer.size, Render::ResourceBindingLifetime::Persistent);
 
         for (const auto& [texName, texPath] : materialData->textureParams)
         {
             if (tmplData->textures.contains(texName))
             {
-                uint32_t slot = tmplData->textures.at(texName).slot;
                 Asset::TextureHandle tAsset = m_assetManager.LoadTexture(texPath);
 
                 TextureHandle tResource = UploadTexture(tAsset);
-                bindings.BindTexture(slot, GetTexture(tResource).texture);
+                const Render::ResourceBindingHandle textureBinding = Render::ResolveResourceBinding(*forwardInterface, texName);
+                if (!Render::BindTexture(bindings, textureBinding, GetTexture(tResource).texture, Render::ResourceBindingLifetime::Persistent))
+                    LOG_ERROR("ResourceManager", "Material texture '{}' is not present in reflected shader interface", texName);
             }
         }
 
@@ -369,11 +503,18 @@ namespace ChikaEngine::Resource
             .pipeline = forwardPipeline,
             .forwardPipeline = forwardPipeline,
             .gbufferPipeline = gbufferPipeline,
+            .shadowPipeline = shadowPipeline,
             .vertexShader = vs,
             .fragmentShader = fs,
             .gbufferFragmentShader = gbufferFs,
             .uboBuffer = uboHandle,
+            .forwardDrawBindings = ResolveMaterialDrawBindings(*forwardInterface),
+            .gbufferDrawBindings = ResolveMaterialDrawBindings(*gbufferInterface),
+            .shadowDrawBindings = ResolveMaterialDrawBindings(*shadowInterface),
             .bindings = bindings,
+            .shadowBindings = FilterBindingGroups(bindings, *shadowInterface),
+            .transparent = transparent,
+            .masked = masked,
         });
 
         m_materialCache[assetHandle] = handle;
@@ -426,6 +567,8 @@ namespace ChikaEngine::Resource
         m_rhi.DestroyPipeline(material->forwardPipeline);
         if (material->gbufferPipeline != material->forwardPipeline)
             m_rhi.DestroyPipeline(material->gbufferPipeline);
+        if (material->shadowPipeline != material->forwardPipeline && material->shadowPipeline != material->gbufferPipeline)
+            m_rhi.DestroyPipeline(material->shadowPipeline);
         m_rhi.DestroyShader(material->vertexShader);
         m_rhi.DestroyShader(material->fragmentShader);
         m_rhi.DestroyShader(material->gbufferFragmentShader);
@@ -466,41 +609,4 @@ namespace ChikaEngine::Resource
         return copy;
     }
 
-    Render::BufferHandle ResourceManager::UploadBoneMatrices(const std::vector<Math::Mat4>& matrices, Render::BufferHandle bufferHandle)
-    {
-        if (!bufferHandle.IsValid())
-        {
-            Render::BufferDesc boneDesc{
-                .size = 128 * sizeof(Math::Mat4),
-                .usage = Render::RHI_BufferUsage::Uniform,
-                .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
-            };
-            bufferHandle = m_rhi.CreateBuffer(boneDesc);
-        }
-
-        if (bufferHandle.IsValid())
-        {
-            auto* data = static_cast<Math::Mat4*>(m_rhi.GetMappedData(bufferHandle));
-            if (data)
-            {
-                // NOTE: 初始化数据, 后期拷贝的时候不会出现未定义数据
-                for (int i = 0; i < 128; ++i)
-                {
-                    data[i] = Math::Mat4::Identity();
-                }
-                size_t copyCount = std::min(matrices.size(), (size_t)128);
-                std::vector<Math::Mat4> transposed;
-                transposed.resize(copyCount);
-                for (size_t i = 0; i < copyCount; ++i)
-                {
-                    // 转制后的结果
-                    transposed[i] = matrices[i].Transposed();
-                }
-
-                std::memcpy(data, transposed.data(), copyCount * sizeof(Math::Mat4));
-            }
-        }
-
-        return bufferHandle;
-    }
 } // namespace ChikaEngine::Resource

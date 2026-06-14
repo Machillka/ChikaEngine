@@ -11,6 +11,10 @@
 
 #pragma once
 
+#include "ChikaEngine/RHIResourceHandle.hpp"
+#include "ChikaEngine/shader/ShaderInterface.hpp"
+
+#include <vector>
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
@@ -28,10 +32,20 @@ namespace ChikaEngine::Render
         VkShaderModule module;
     };
 
+    struct VulkanSampler
+    {
+        VkSampler sampler = VK_NULL_HANDLE;
+    };
+
     struct VulkanPipeline
     {
         VkPipeline pipeline;
         VkPipelineLayout layout;
+        VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        std::vector<VkDescriptorSetLayout> setLayouts;
+        std::vector<Shader::ShaderResourceBinding> resources;
+        std::vector<Shader::ShaderPushConstantRange> pushConstants;
+        uint64_t interfaceHash = 0;
     };
 
     struct VulkanTexture
@@ -44,8 +58,16 @@ namespace ChikaEngine::Render
         // 缓存大小 以推导分辨率
         uint32_t width = 0;
         uint32_t height = 0;
+        uint32_t mipLevels = 1;
+        uint32_t arrayLayers = 1;
 
         // 缓存 DescriptorSet 可以像 imgui 提供
         void* handle = nullptr;
+    };
+
+    struct VulkanTextureView
+    {
+        VkImageView view = VK_NULL_HANDLE;
+        TextureHandle texture;
     };
 } // namespace ChikaEngine::Render

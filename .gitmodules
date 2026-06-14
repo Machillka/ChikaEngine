@@ -37,3 +37,6 @@
 [submodule "engine/ThirdParty/tinygltf"]
 	path = engine/ThirdParty/tinygltf
 	url = https://github.com/syoyo/tinygltf.git
+[submodule "engine/ThirdParty/SPIRVReflect"]
+	path = engine/ThirdParty/SPIRVReflect
+	url = https://github.com/KhronosGroup/SPIRV-Reflect

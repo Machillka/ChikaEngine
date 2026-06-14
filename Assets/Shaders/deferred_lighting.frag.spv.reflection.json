@@ -1,0 +1,197 @@
+{
+  "entryPoint": "main",
+  "inputs": [
+    {
+      "location": 0,
+      "name": "inUV",
+      "type": 2
+    }
+  ],
+  "outputs": [
+    {
+      "location": 0,
+      "name": "outColor",
+      "type": 4
+    }
+  ],
+  "pushConstants": [],
+  "resources": [
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "cameraVP",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "lightVP",
+            "offset": 64,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "viewPos",
+            "offset": 128,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "frameOptions",
+            "offset": 144,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "shadowOptions",
+            "offset": 160,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "scene",
+        "size": 176
+      },
+      "name": "scene",
+      "set": 0,
+      "stages": 2,
+      "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 1,
+      "buffer": {
+        "members": [],
+        "name": "GBufferAlbedo",
+        "size": 0
+      },
+      "name": "GBufferAlbedo",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 2,
+      "buffer": {
+        "members": [],
+        "name": "GBufferNormal",
+        "size": 0
+      },
+      "name": "GBufferNormal",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 3,
+      "buffer": {
+        "members": [],
+        "name": "GBufferMaterial",
+        "size": 0
+      },
+      "name": "GBufferMaterial",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 4,
+      "buffer": {
+        "members": [],
+        "name": "GBufferPosition",
+        "size": 0
+      },
+      "name": "GBufferPosition",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 5,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.colorIntensity",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.directionType",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.positionRange",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.spotAngles",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "lights",
+        "size": 0
+      },
+      "name": "lights",
+      "set": 0,
+      "stages": 2,
+      "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 6,
+      "buffer": {
+        "members": [],
+        "name": "shadowMap",
+        "size": 0
+      },
+      "name": "shadowMap",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    }
+  ],
+  "stableHash": 2711113716074314902,
+  "stage": 2,
+  "version": 1
+}

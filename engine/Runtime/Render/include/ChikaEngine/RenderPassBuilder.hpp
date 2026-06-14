@@ -15,9 +15,13 @@ namespace ChikaEngine::Render
         RGPassBuilder(class RGPass* pass, RenderGraph* graph) : m_pass(pass), m_graph(graph) {}
 
         RGTextureHandle CreateTexture(const std::string& name, const TextureDesc& desc);
-        void ReadTexture(RGTextureHandle handle, ResourceState state = ResourceState::ShaderResource);
+        RGBufferHandle CreateBuffer(const std::string& name, const BufferDesc& desc);
+        void ReadTexture(RGTextureHandle handle, ResourceState state = ResourceState::ShaderResource, const TextureSubresourceRange& range = {});
+        void WriteTexture(RGTextureHandle handle, ResourceState state, const TextureSubresourceRange& range = {});
         void WriteColor(RGTextureHandle handle, LoadOp loadOp = LoadOp::Clear, const float clearColor[4] = nullptr);
         void WriteDepth(RGTextureHandle handle, LoadOp loadOp = LoadOp::Clear);
+        void ReadBuffer(RGBufferHandle handle, ResourceState state, const BufferRange& range = {});
+        void WriteBuffer(RGBufferHandle handle, ResourceState state, const BufferRange& range = {});
 
       private:
         class RGPass* m_pass;

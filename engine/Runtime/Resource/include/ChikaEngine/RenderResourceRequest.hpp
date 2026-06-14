@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 namespace ChikaEngine::Resource
 {
@@ -19,6 +20,7 @@ namespace ChikaEngine::Resource
         Render::BufferHandle staging;
         Render::BufferHandle dst;
         uint64_t size;
+        Render::ResourceState finalState = Render::ResourceState::StorageRead;
     };
 
     struct TextureUploadRequest
@@ -27,5 +29,6 @@ namespace ChikaEngine::Resource
         Render::TextureHandle dst;
         uint32_t width;
         uint32_t height;
+        Render::RHI_Format format = Render::RHI_Format::RGBA8_UNorm;
     };
 } // namespace ChikaEngine::Resource

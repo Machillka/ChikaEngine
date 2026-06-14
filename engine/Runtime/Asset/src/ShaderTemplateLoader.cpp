@@ -68,7 +68,8 @@ namespace ChikaEngine::Asset
         {
             for (auto& [texName, desc] : j["textures"].items())
             {
-                tmpl->textures[texName] = { texName, desc["slot"].get<uint32_t>() };
+                // Texture 的 set/binding 由 Shader Reflection 提供，模板只保留编辑器可见参数名称。
+                tmpl->textures[texName] = { texName };
             }
         }
         return tmpl;

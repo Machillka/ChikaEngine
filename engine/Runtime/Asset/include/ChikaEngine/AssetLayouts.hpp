@@ -11,6 +11,8 @@
 #pragma once
 
 #include "AssetAnimation.hpp"
+#include "ChikaEngine/math/Bounds.hpp"
+#include "ChikaEngine/shader/ShaderInterface.hpp"
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -39,7 +41,6 @@ namespace ChikaEngine::Asset
     struct ShaderTextureDesc
     {
         std::string name;
-        uint32_t slot = 0;
     };
 
     // Shader 模板
@@ -63,6 +64,8 @@ namespace ChikaEngine::Asset
         uint32_t width = 0;
         uint32_t height = 0;
         uint32_t channels = 4;
+        /** @brief 颜色纹理默认按 sRGB 采样；未来由 meta/import settings 覆盖法线等线性数据。 */
+        bool srgb = true;
 
         std::vector<uint8_t> pixels;
     };
@@ -84,6 +87,7 @@ namespace ChikaEngine::Asset
 
         std::vector<VertexData> vertices;
         std::vector<uint32_t> indices;
+        Math::Bounds bounds;
 
         // 针对蒙皮网络的数据
         // FIXME: 上层做 MeshRender 和 SkeletonRender, 底层数据分离
@@ -95,6 +99,8 @@ namespace ChikaEngine::Asset
     {
         std::string path;
         std::vector<uint8_t> spirv;
+        Shader::ShaderReflectionData reflection;
+        bool hasReflection = false;
     };
 
     struct MaterialData
