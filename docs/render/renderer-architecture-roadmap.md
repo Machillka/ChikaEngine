@@ -12,7 +12,7 @@
   - `engine/Runtime/Framework/src/subsystem/RenderSubSystem.cpp`
   - `Assets/Shaders/`
   - `Assets/Materials/`
-- Status: Planned
+- Status: Phase 0-4 Complete; Phase 5+ Planned
 
 ## Goal
 
@@ -880,6 +880,8 @@ Set 3: Pass-local Resources
 ---
 
 ## Phase 4：扩展 RenderGraph 与 RHI
+
+> Implementation status (2026-06-14): Complete. See `renderer-step-4.1-buffer-resource.dev.md` through `renderer-step-4.7-advanced-rhi.dev.md`.
 
 ### Step 4.1：RenderGraph 支持 Buffer Resource
 

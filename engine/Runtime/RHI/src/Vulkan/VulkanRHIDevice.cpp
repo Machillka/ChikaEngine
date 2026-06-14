@@ -79,6 +79,7 @@ namespace ChikaEngine::Render
                 HashCombine(hash, texture.binding);
                 HashCombine(hash, texture.arrayElement);
                 HashCombine(hash, texture.tex.raw_value);
+                HashCombine(hash, texture.view.raw_value);
             }
             for (const auto& sampler : group.samplers)
             {
@@ -204,6 +205,7 @@ namespace ChikaEngine::Render
             vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
             vkDestroyCommandPool(m_device, m_commandPools[i], nullptr);
             vkDestroyDescriptorPool(m_device, m_descriptorPools[i], nullptr);
+            vkDestroyQueryPool(m_device, m_timestampQueryPools[i], nullptr);
         }
 
         if (imguiPool != VK_NULL_HANDLE)
@@ -217,6 +219,12 @@ namespace ChikaEngine::Render
         vkDestroySampler(m_device, m_defaultSampler, nullptr);
 
         m_buffers.ForEach([&](auto h, VulkanBuffer& vb) { vmaDestroyBuffer(m_allocator, vb.buffer, vb.allocation); });
+        m_textureViews.ForEach(
+            [&](auto, VulkanTextureView& view)
+            {
+                if (view.view)
+                    vkDestroyImageView(m_device, view.view, nullptr);
+            });
         m_textures.ForEach(
             [&](auto h, VulkanTexture& tex)
             {
@@ -238,6 +246,12 @@ namespace ChikaEngine::Render
                 if (pso.pipeline)
                     vkDestroyPipeline(m_device, pso.pipeline, nullptr);
             });
+        m_samplers.ForEach(
+            [&](auto, VulkanSampler& sampler)
+            {
+                if (sampler.sampler)
+                    vkDestroySampler(m_device, sampler.sampler, nullptr);
+            });
         for (const auto& [hash, layout] : m_pipelineLayoutCache)
             vkDestroyPipelineLayout(m_device, layout, nullptr);
         for (const auto& [hash, layout] : m_descriptorSetLayoutCache)
@@ -255,6 +269,8 @@ namespace ChikaEngine::Render
         m_textures.Clear();
         m_shaders.Clear();
         m_pipelines.Clear();
+        m_samplers.Clear();
+        m_textureViews.Clear();
         m_pipelineLayoutCache.clear();
         m_descriptorSetLayoutCache.clear();
         m_persistentDescriptorSetCache.clear();
@@ -273,6 +289,25 @@ namespace ChikaEngine::Render
         m_frameStatistics.Reset();
         m_frameSkipped = false;
         vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+
+        m_passGpuTimings.clear();
+        const auto& completedScopes = m_timestampScopes[m_currentFrame];
+        if (!completedScopes.empty())
+        {
+            std::vector<uint64_t> timestamps(completedScopes.size() * 2u);
+            const VkResult timestampResult = vkGetQueryPoolResults(m_device, m_timestampQueryPools[m_currentFrame], 0, static_cast<uint32_t>(timestamps.size()), timestamps.size() * sizeof(uint64_t), timestamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+            if (timestampResult == VK_SUCCESS)
+            {
+                for (size_t index = 0; index < completedScopes.size(); ++index)
+                {
+                    const uint64_t begin = timestamps[index * 2u];
+                    const uint64_t end = timestamps[index * 2u + 1u];
+                    m_passGpuTimings.push_back({ completedScopes[index].name, static_cast<double>(end - begin) * m_timestampPeriodNs / 1'000'000.0 });
+                }
+            }
+        }
+        m_timestampScopes[m_currentFrame].clear();
+        m_timestampQueriesReset = false;
 
         VkResult res = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex);
 
@@ -330,16 +365,10 @@ namespace ChikaEngine::Render
         // Present
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        if (m_pendingCmds[m_currentFrame].empty())
-        {
-            presentInfo.waitSemaphoreCount = 0;
-            presentInfo.pWaitSemaphores = nullptr;
-        }
-        else
-        {
-            presentInfo.waitSemaphoreCount = 1;
-            presentInfo.pWaitSemaphores = &m_renderFinishedSemaphores[m_currentImageIndex];
-        }
+        // Queue Submit 始终等待 imageAvailable 并 signal renderFinished，即使本帧没有命令。
+        // Present 必须消费该 signal，否则下一次复用 binary semaphore 会触发重复 signal。
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = &m_renderFinishedSemaphores[m_currentImageIndex];
         // presentInfo.waitSemaphoreCount = 1;
         // presentInfo.pWaitSemaphores = &m_renderFinishedSemaphores[m_currentFrame];
         presentInfo.swapchainCount = 1;
@@ -376,32 +405,24 @@ namespace ChikaEngine::Render
         bInfo.size = desc.size;
         bInfo.usage = 0;
 
-        switch (desc.usage)
-        {
-        case RHI_BufferUsage::Vertex:
-            bInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            break;
-        case RHI_BufferUsage::Index:
-            bInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            break;
-        case RHI_BufferUsage::Uniform:
-            bInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            break;
-        case RHI_BufferUsage::Storage:
-            bInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            break;
-        case RHI_BufferUsage::Staging:
-            bInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-            break;
-        case RHI_BufferUsage::TransferDst:
-            bInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            break;
-        default:
-            LOG_ERROR("Vulkan", "Unknown RHI_BufferUsage: {}", (int)desc.usage);
-            bInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT; // 降级处理
+        if ((desc.usage & RHI_BufferUsage::Vertex) != RHI_BufferUsage::None)
+            bInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        if ((desc.usage & RHI_BufferUsage::Index) != RHI_BufferUsage::None)
+            bInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        if ((desc.usage & RHI_BufferUsage::Uniform) != RHI_BufferUsage::None)
+            bInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        if ((desc.usage & RHI_BufferUsage::Storage) != RHI_BufferUsage::None)
+            bInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        if ((desc.usage & RHI_BufferUsage::TransferSrc) != RHI_BufferUsage::None)
+            bInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        if ((desc.usage & RHI_BufferUsage::TransferDst) != RHI_BufferUsage::None)
+            bInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        if ((desc.usage & RHI_BufferUsage::Indirect) != RHI_BufferUsage::None)
+            bInfo.usage |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
 
-            break;
-        }
+        // GPU-only resources commonly receive initial data through a Copy Pass.
+        if (desc.memoryUsage == MemoryUsage::GPU_Only)
+            bInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
         if (bInfo.usage == 0)
         {
@@ -435,7 +456,7 @@ namespace ChikaEngine::Render
         iInfo.mipLevels = desc.mipLevels;
         iInfo.arrayLayers = desc.arrayLayers;
         iInfo.format = vkFmt;
-        iInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        iInfo.samples = ToVkSampleCount(desc.sampleCount);
 
         iInfo.usage = ToVkUsage(desc.usage, desc.format);
 
@@ -446,6 +467,8 @@ namespace ChikaEngine::Render
         vt.format = vkFmt;
         vt.width = desc.width;
         vt.height = desc.height;
+        vt.mipLevels = desc.mipLevels;
+        vt.arrayLayers = desc.arrayLayers;
         vt.handle = nullptr;
         VK_CHECK(vmaCreateImage(m_allocator, &iInfo, &aInfo, &vt.image, &vt.allocation, nullptr), "VMA image alloc failed");
 
@@ -454,11 +477,60 @@ namespace ChikaEngine::Render
         vInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         vInfo.format = vkFmt;
         vInfo.subresourceRange.aspectMask = (desc.format == RHI_Format::D32_SFloat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-        vInfo.subresourceRange.levelCount = 1;
-        vInfo.subresourceRange.layerCount = 1;
+        vInfo.subresourceRange.levelCount = desc.mipLevels;
+        vInfo.subresourceRange.layerCount = desc.arrayLayers;
         VK_CHECK(vkCreateImageView(m_device, &vInfo, nullptr, &vt.view), "Failed to create Image View");
 
         return m_textures.Create(vt);
+    }
+
+    /**
+     * @brief 创建可独立绑定到 Reflection Sampler Descriptor 的 Vulkan Sampler。
+     */
+    SamplerHandle VulkanRHIDevice::CreateSampler(const SamplerDesc& desc)
+    {
+        VkSamplerCreateInfo info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+        info.minFilter = ToVkFilter(desc.minFilter);
+        info.magFilter = ToVkFilter(desc.magFilter);
+        info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        info.addressModeU = ToVkAddressMode(desc.addressU);
+        info.addressModeV = ToVkAddressMode(desc.addressV);
+        info.addressModeW = ToVkAddressMode(desc.addressW);
+        info.anisotropyEnable = desc.anisotropyEnable ? VK_TRUE : VK_FALSE;
+        info.maxAnisotropy = desc.maxAnisotropy;
+        info.maxLod = VK_LOD_CLAMP_NONE;
+        VulkanSampler sampler;
+        VK_CHECK(vkCreateSampler(m_device, &info, nullptr, &sampler.sampler), "Failed to create Sampler");
+        return m_samplers.Create(sampler);
+    }
+
+    /**
+     * @brief 创建可绑定指定 mip/layer 范围的 Vulkan Image View。
+     */
+    TextureViewHandle VulkanRHIDevice::CreateTextureView(const TextureViewDesc& desc)
+    {
+        VulkanTexture* texture = m_textures.Get(desc.texture);
+        if (!texture)
+            return TextureViewHandle::Invalid();
+        const uint32_t mipCount = desc.range.mipLevelCount == 0 ? texture->mipLevels - desc.range.baseMipLevel : desc.range.mipLevelCount;
+        const uint32_t layerCount = desc.range.arrayLayerCount == 0 ? texture->arrayLayers - desc.range.baseArrayLayer : desc.range.arrayLayerCount;
+
+        VkImageViewCreateInfo info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+        info.image = texture->image;
+        info.viewType = layerCount > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+        info.format = texture->format;
+        const bool isDepth = texture->format == VK_FORMAT_D32_SFLOAT || texture->format == VK_FORMAT_D24_UNORM_S8_UINT;
+        info.subresourceRange.aspectMask = isDepth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT)
+            info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        info.subresourceRange.baseMipLevel = desc.range.baseMipLevel;
+        info.subresourceRange.levelCount = mipCount;
+        info.subresourceRange.baseArrayLayer = desc.range.baseArrayLayer;
+        info.subresourceRange.layerCount = layerCount;
+
+        VulkanTextureView view{ .texture = desc.texture };
+        VK_CHECK(vkCreateImageView(m_device, &info, nullptr, &view.view), "Failed to create Texture View");
+        return m_textureViews.Create(view);
     }
 
     ShaderHandle VulkanRHIDevice::CreateShader(const ShaderDesc& desc)
@@ -475,8 +547,10 @@ namespace ChikaEngine::Render
     {
         VulkanShader* vs = m_shaders.Get(desc.vertexShader);
         VulkanShader* fs = m_shaders.Get(desc.fragmentShader);
-        if (!vs || !fs)
-            throw std::runtime_error("Graphics Pipeline references an invalid Shader Handle");
+        if (!vs)
+            throw std::runtime_error("Graphics Pipeline references an invalid Vertex Shader Handle");
+        if (desc.fragmentShader.IsValid() && !fs)
+            throw std::runtime_error("Graphics Pipeline references an invalid Fragment Shader Handle");
         if (!desc.shaderInterface.fragmentOutputs.empty() && desc.shaderInterface.fragmentOutputs.size() != desc.colorAttachmentFormats.size())
             throw std::runtime_error("Fragment output count does not match graphics pipeline color attachments");
         for (const auto& output : desc.shaderInterface.fragmentOutputs)
@@ -494,10 +568,13 @@ namespace ChikaEngine::Render
         shaderStages[0].module = vs->module;
         shaderStages[0].pName = "main";
 
-        shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        shaderStages[1].module = fs->module;
-        shaderStages[1].pName = "main";
+        if (fs)
+        {
+            shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+            shaderStages[1].module = fs->module;
+            shaderStages[1].pName = "main";
+        }
 
         VkVertexInputBindingDescription bindingDesc{};
         bindingDesc.binding = 0;
@@ -578,7 +655,7 @@ namespace ChikaEngine::Render
 
         VkGraphicsPipelineCreateInfo pipelineInfo{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.pNext = &renderingInfo;
-        pipelineInfo.stageCount = 2;
+        pipelineInfo.stageCount = fs ? 2u : 1u;
         pipelineInfo.pStages = shaderStages;
         pipelineInfo.pVertexInputState = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -594,6 +671,30 @@ namespace ChikaEngine::Render
         VK_CHECK(vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineInfo, nullptr, &pso.pipeline), "Failed to create Graphics Pipeline");
 
         return m_pipelines.Create(pso);
+    }
+
+    /**
+     * @brief 按 Compute Shader Reflection 创建 Pipeline Layout 与 Vulkan Compute Pipeline。
+     */
+    PipelineHandle VulkanRHIDevice::CreateComputePipeline(const ComputePipelineDesc& desc)
+    {
+        VulkanShader* computeShader = m_shaders.Get(desc.computeShader);
+        if (!computeShader)
+            throw std::runtime_error("Compute Pipeline references an invalid Shader Handle");
+
+        VulkanPipeline pipeline = CreatePipelineLayout(desc.shaderInterface);
+        pipeline.bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+
+        VkPipelineShaderStageCreateInfo stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+        stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        stage.module = computeShader->module;
+        stage.pName = "main";
+
+        VkComputePipelineCreateInfo createInfo{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+        createInfo.stage = stage;
+        createInfo.layout = pipeline.layout;
+        VK_CHECK(vkCreateComputePipelines(m_device, m_pipelineCache, 1, &createInfo, nullptr, &pipeline.pipeline), "Failed to create Compute Pipeline");
+        return m_pipelines.Create(pipeline);
     }
 
     void* VulkanRHIDevice::GetMappedData(BufferHandle handle)
@@ -627,6 +728,20 @@ namespace ChikaEngine::Render
         SetVulkanObjectName(VK_OBJECT_TYPE_IMAGE, ToDebugObjectHandle(texture->image), name);
         const std::string viewName = std::string(name) + ".View";
         SetVulkanObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, ToDebugObjectHandle(texture->view), viewName);
+    }
+
+    void VulkanRHIDevice::SetDebugName(SamplerHandle handle, std::string_view name)
+    {
+        const VulkanSampler* sampler = m_samplers.Get(handle);
+        if (sampler)
+            SetVulkanObjectName(VK_OBJECT_TYPE_SAMPLER, ToDebugObjectHandle(sampler->sampler), name);
+    }
+
+    void VulkanRHIDevice::SetDebugName(TextureViewHandle handle, std::string_view name)
+    {
+        const VulkanTextureView* view = m_textureViews.Get(handle);
+        if (view)
+            SetVulkanObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, ToDebugObjectHandle(view->view), name);
     }
 
     /**
@@ -702,6 +817,29 @@ namespace ChikaEngine::Render
     void VulkanRHIDevice::RecordDescriptorUpdates(uint32_t descriptorCount)
     {
         m_frameStatistics.descriptorUpdateCount += descriptorCount;
+    }
+
+    /**
+     * @brief 每帧仅在第一个 Command Buffer 中重置 Query Pool。
+     */
+    void VulkanRHIDevice::PrepareTimestampQueries(VkCommandBuffer commandBuffer)
+    {
+        if (m_timestampQueriesReset)
+            return;
+        vkCmdResetQueryPool(commandBuffer, m_timestampQueryPools[m_currentFrame], 0, MAX_TIMESTAMP_QUERIES);
+        m_timestampQueriesReset = true;
+    }
+
+    /**
+     * @brief 为一个 Pass 分配连续 begin/end Timestamp Query。
+     */
+    uint32_t VulkanRHIDevice::AllocateTimestampScope(std::string_view name)
+    {
+        const uint32_t beginQuery = static_cast<uint32_t>(m_timestampScopes[m_currentFrame].size() * 2u);
+        if (beginQuery + 1u >= MAX_TIMESTAMP_QUERIES)
+            return UINT32_MAX;
+        m_timestampScopes[m_currentFrame].push_back({ std::string(name), beginQuery, beginQuery + 1u });
+        return beginQuery;
     }
 
     IRHICommandList* VulkanRHIDevice::AllocateCommandList()
@@ -1126,7 +1264,15 @@ namespace ChikaEngine::Render
             vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]);
             // vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]);
             vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]);
+            VkQueryPoolCreateInfo queryInfo{ VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
+            queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+            queryInfo.queryCount = MAX_TIMESTAMP_QUERIES;
+            VK_CHECK(vkCreateQueryPool(m_device, &queryInfo, nullptr, &m_timestampQueryPools[i]), "Failed to create timestamp query pool");
         }
+
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
+        m_timestampPeriodNs = properties.limits.timestampPeriod;
 
         m_renderFinishedSemaphores.resize(m_imageCount);
         for (uint32_t i = 0; i < m_imageCount; ++i)
@@ -1157,6 +1303,18 @@ namespace ChikaEngine::Render
     {
         std::lock_guard<std::mutex> lock(m_deletionMutex);
         m_pipelineDeletionQueue.push_back({ m_absoluteFrame, handle.raw_value });
+    }
+
+    void VulkanRHIDevice::DestroySampler(SamplerHandle handle)
+    {
+        std::lock_guard<std::mutex> lock(m_deletionMutex);
+        m_samplerDeletionQueue.push_back({ m_absoluteFrame, handle.raw_value });
+    }
+
+    void VulkanRHIDevice::DestroyTextureView(TextureViewHandle handle)
+    {
+        std::lock_guard<std::mutex> lock(m_deletionMutex);
+        m_textureViewDeletionQueue.push_back({ m_absoluteFrame, handle.raw_value });
     }
 
     void VulkanRHIDevice::FlushDeletionQueue()
@@ -1251,6 +1409,46 @@ namespace ChikaEngine::Render
                     }
                     m_pipelines.Destroy(handle);
                     it = m_pipelineDeletionQueue.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+        {
+            auto it = m_samplerDeletionQueue.begin();
+            while (it != m_samplerDeletionQueue.end())
+            {
+                if (m_absoluteFrame > it->frameIndex + MAX_FRAMES_IN_FLIGHT)
+                {
+                    SamplerHandle handle{ it->handleRaw };
+                    VulkanSampler* sampler = m_samplers.Get(handle);
+                    if (sampler && sampler->sampler)
+                        vkDestroySampler(m_device, sampler->sampler, nullptr);
+                    m_samplers.Destroy(handle);
+                    it = m_samplerDeletionQueue.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+        {
+            auto it = m_textureViewDeletionQueue.begin();
+            while (it != m_textureViewDeletionQueue.end())
+            {
+                if (m_absoluteFrame > it->frameIndex + MAX_FRAMES_IN_FLIGHT)
+                {
+                    TextureViewHandle handle{ it->handleRaw };
+                    VulkanTextureView* view = m_textureViews.Get(handle);
+                    if (view && view->view)
+                        vkDestroyImageView(m_device, view->view, nullptr);
+                    m_textureViews.Destroy(handle);
+                    it = m_textureViewDeletionQueue.erase(it);
                 }
                 else
                 {

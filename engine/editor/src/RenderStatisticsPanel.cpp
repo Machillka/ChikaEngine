@@ -50,6 +50,43 @@ namespace ChikaEngine::Editor
         ImGui::Text("Packets / Batches: %u / %u", statistics.packetCount, statistics.batchCount);
         ImGui::Text("Instanced Batches: %u", statistics.instancedBatchCount);
         ImGui::Separator();
+        const auto& graph = _context->renderer->GetRenderGraphDebugSnapshot();
+        if (!graph.compileErrors.empty() && ImGui::CollapsingHeader("Compile Errors", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            for (const std::string& error : graph.compileErrors)
+                ImGui::TextWrapped("%s", error.c_str());
+        }
+        if (ImGui::CollapsingHeader("Pass DAG", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            for (const auto& pass : graph.passes)
+            {
+                ImGui::BulletText("%s  CPU %.3f ms  GPU %.3f ms", pass.name.c_str(), pass.cpuTimeMs, pass.gpuTimeMs);
+                if (!pass.dependencies.empty())
+                {
+                    ImGui::Indent();
+                    ImGui::TextDisabled("Depends on:");
+                    ImGui::SameLine();
+                    for (size_t index = 0; index < pass.dependencies.size(); ++index)
+                    {
+                        if (index > 0)
+                            ImGui::SameLine(0.0f, 4.0f);
+                        ImGui::TextDisabled("%s%s", index > 0 ? "," : "", pass.dependencies[index].c_str());
+                    }
+                    ImGui::Unindent();
+                }
+            }
+        }
+        if (ImGui::CollapsingHeader("Resource Lifetimes"))
+        {
+            for (const auto& resource : graph.resources)
+                ImGui::BulletText("%s [%s] %u..%u%s", resource.name.c_str(), resource.kind.c_str(), resource.firstUsePass, resource.lastUsePass, resource.imported ? " imported" : "");
+        }
+        if (ImGui::CollapsingHeader("Barriers"))
+        {
+            for (const auto& barrier : graph.barriers)
+                ImGui::BulletText("%s: %s (%u -> %u)", barrier.pass.c_str(), barrier.resource.c_str(), static_cast<uint32_t>(barrier.before), static_cast<uint32_t>(barrier.after));
+        }
+        ImGui::Separator();
         ImGui::TextDisabled("ImGui backend draw calls are excluded.");
         ImGui::End();
     }

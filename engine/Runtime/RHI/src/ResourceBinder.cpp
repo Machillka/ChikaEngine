@@ -49,6 +49,14 @@ namespace ChikaEngine::Render
         return group && group->BindTexture(binding, texture, arrayElement);
     }
 
+    bool BindTextureView(std::vector<ResourceBindingGroup>& groups, const ResourceBindingHandle& binding, TextureViewHandle view, ResourceBindingLifetime lifetime, uint32_t arrayElement)
+    {
+        if (!binding.IsValid())
+            return false;
+        ResourceBindingGroup* group = FindOrCreateGroup(groups, binding.set, lifetime);
+        return group && group->BindTextureView(binding, view, arrayElement);
+    }
+
     /**
      * @brief 使用已解析地址把 Buffer 写入目标 Descriptor Set 组。
      */

@@ -2,6 +2,7 @@
 #include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RenderDebugVisualization.hpp"
 #include "ChikaEngine/RenderPassBuilder.hpp"
+#include "ChikaEngine/RenderPipelinePasses.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
@@ -117,7 +118,6 @@ namespace ChikaEngine::Render
         };
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_rhi->SetDebugName(m_depthTexture, "Renderer.SceneDepth");
-        m_rgDepth = m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc);
 
         // Shadow
         Render::TextureDesc shadowDepthDesc{
@@ -130,19 +130,6 @@ namespace ChikaEngine::Render
         };
         m_shadowDepthTexture = m_rhi->CreateTexture(shadowDepthDesc);
         m_rhi->SetDebugName(m_shadowDepthTexture, "Renderer.ShadowDepth");
-        m_rgShadowDepth = m_renderGraph->ImportTexture("ShadowDepth", m_shadowDepthTexture, shadowDepthDesc);
-
-        Render::TextureDesc shadowColorDesc{
-            .width = m_settings->shadowResolution,
-            .height = m_settings->shadowResolution,
-            .format = Render::RHI_Format::BGRA8_UNorm,
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .usage = Render::RHI_TextureUsage::ColorAttachment,
-        };
-        m_shadowColorTexture = m_rhi->CreateTexture(shadowColorDesc);
-        m_rhi->SetDebugName(m_shadowColorTexture, "Renderer.ShadowColorDummy");
-        m_rgShadowColor = m_renderGraph->ImportTexture("ShadowColorDummy", m_shadowColorTexture, shadowColorDesc);
 
         CreateDeferredResources();
 
@@ -154,7 +141,6 @@ namespace ChikaEngine::Render
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::ColorAttachment,
         };
-        m_rgSwapchain = m_renderGraph->ImportTexture("Swapchain", TextureHandle{}, swapDesc);
     }
 
     void RenderPipeline::SubmitSnapshot(std::shared_ptr<const RenderWorldSnapshot> snapshot)
@@ -170,6 +156,7 @@ namespace ChikaEngine::Render
     void RenderPipeline::BuildRenderGraph()
     {
         m_renderGraph->Clear();
+        m_graphBlackboard.Clear();
 
         Render::TextureDesc offscreenDesc{
             .width = m_viewportWidth,
@@ -179,7 +166,7 @@ namespace ChikaEngine::Render
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
         };
-        m_rgOffscreen = m_renderGraph->ImportTexture("OffscreenColor", m_offscreenColor, offscreenDesc);
+        m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::SceneColor), m_renderGraph->ImportTexture("OffscreenColor", m_offscreenColor, offscreenDesc, ResourceState::Undefined, ResourceState::ShaderResource));
 
         Render::TextureDesc depthDesc{
             .width = m_viewportWidth,
@@ -189,7 +176,7 @@ namespace ChikaEngine::Render
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
         };
-        m_rgDepth = m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc);
+        m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::SceneDepth), m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc, ResourceState::Undefined, ResourceState::DepthWrite));
 
         Render::TextureDesc shadowDepthDesc{
             .width = m_settings->shadowResolution,
@@ -199,17 +186,7 @@ namespace ChikaEngine::Render
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::DepthStencilAttachment | Render::RHI_TextureUsage::Sampled,
         };
-        m_rgShadowDepth = m_renderGraph->ImportTexture("ShadowDepth", m_shadowDepthTexture, shadowDepthDesc);
-
-        Render::TextureDesc shadowColorDesc{
-            .width = m_settings->shadowResolution,
-            .height = m_settings->shadowResolution,
-            .format = Render::RHI_Format::BGRA8_UNorm,
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .usage = Render::RHI_TextureUsage::ColorAttachment,
-        };
-        m_rgShadowColor = m_renderGraph->ImportTexture("ShadowColorDummy", m_shadowColorTexture, shadowColorDesc);
+        m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::ShadowDepth), m_renderGraph->ImportTexture("ShadowDepth", m_shadowDepthTexture, shadowDepthDesc, ResourceState::Undefined, ResourceState::ShaderResource));
 
         Render::TextureDesc swapDesc{
             .width = m_width,
@@ -221,7 +198,7 @@ namespace ChikaEngine::Render
         };
 
         // 每一帧获取最新的 Backbuffer 导入
-        m_rgSwapchain = m_renderGraph->ImportTexture("Swapchain", m_rhi->GetActiveSwapchainTexture(), swapDesc);
+        m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::Swapchain), m_renderGraph->ImportTexture("Swapchain", m_rhi->GetActiveSwapchainTexture(), swapDesc, ResourceState::Undefined, ResourceState::Present));
 
         AddUploadPasses();
         AddShadowPass();
@@ -237,7 +214,7 @@ namespace ChikaEngine::Render
         }
         AddImGuiPass();
 
-        m_renderGraph->AddPresentPass("Present", m_rgSwapchain);
+        m_renderGraph->AddPresentPass("Present", m_graphBlackboard.GetTexture(RenderGraphSemantic::Swapchain));
 
         m_renderGraph->Compile();
     }
@@ -250,80 +227,80 @@ namespace ChikaEngine::Render
         if (bufferJobs.empty() && textureJobs.empty() && m_dummyTextureTransitioned)
             return;
 
-        m_renderGraph->AddUploadPass("Upload Resources",
-                                     [this, bufferJobs, textureJobs](IRHICommandList* cmd, RenderGraph* graph)
-                                     {
-                                         if (!m_dummyTextureTransitioned)
-                                         {
-                                             cmd->InsertTextureBarrier(m_dummyTexture, ResourceState::Undefined, ResourceState::ShaderResource);
-                                             m_dummyTextureTransitioned = true;
-                                         }
-                                         // Buffer 上传：只需要 CopyBuffer
-                                         for (const auto& job : bufferJobs)
-                                         {
-                                             cmd->CopyBuffer(job.staging, job.dst, job.size);
-                                         }
-
-                                         // Texture 上传：需要 barrier + CopyBufferToTexture + barrier
-                                         for (const auto& job : textureJobs)
-                                         {
-                                             cmd->InsertTextureBarrier(job.dst, ResourceState::Undefined, ResourceState::TransferDst);
-                                             cmd->CopyBufferToTexture(job.staging, job.dst, job.width, job.height);
-                                             cmd->InsertTextureBarrier(job.dst, ResourceState::TransferDst, ResourceState::ShaderResource);
-                                         }
-                                     });
+        m_renderGraph->AddCopyPass(
+            "Upload Resources",
+            [&](RGPassBuilder& builder)
+            {
+                for (size_t index = 0; index < bufferJobs.size(); ++index)
+                {
+                    const auto& job = bufferJobs[index];
+                    const BufferDesc stagingDesc{ .size = job.size, .usage = RHI_BufferUsage::TransferSrc, .memoryUsage = MemoryUsage::CPU_To_GPU };
+                    const BufferDesc destinationDesc{ .size = job.size, .usage = RHI_BufferUsage::TransferDst, .memoryUsage = MemoryUsage::GPU_Only };
+                    const RGBufferHandle staging = m_renderGraph->ImportBuffer("Upload.Buffer.Staging." + std::to_string(index), job.staging, stagingDesc, ResourceState::CopySrc, ResourceState::CopySrc);
+                    const RGBufferHandle destination = m_renderGraph->ImportBuffer("Upload.Buffer.Destination." + std::to_string(index), job.dst, destinationDesc, ResourceState::Undefined, job.finalState);
+                    builder.ReadBuffer(staging, ResourceState::CopySrc, { 0, job.size });
+                    builder.WriteBuffer(destination, ResourceState::CopyDst, { 0, job.size });
+                }
+                for (size_t index = 0; index < textureJobs.size(); ++index)
+                {
+                    const auto& job = textureJobs[index];
+                    const BufferDesc stagingDesc{
+                        .size = static_cast<uint64_t>(job.width) * job.height * 4u,
+                        .usage = RHI_BufferUsage::TransferSrc,
+                        .memoryUsage = MemoryUsage::CPU_To_GPU,
+                    };
+                    const TextureDesc destinationDesc{
+                        .width = job.width,
+                        .height = job.height,
+                        .format = RHI_Format::RGBA8_UNorm,
+                        .usage = RHI_TextureUsage::Sampled,
+                    };
+                    const RGBufferHandle staging = m_renderGraph->ImportBuffer("Upload.Texture.Staging." + std::to_string(index), job.staging, stagingDesc, ResourceState::CopySrc, ResourceState::CopySrc);
+                    const RGTextureHandle destination = m_renderGraph->ImportTexture("Upload.Texture.Destination." + std::to_string(index), job.dst, destinationDesc, ResourceState::Undefined, ResourceState::ShaderResource);
+                    builder.ReadBuffer(staging, ResourceState::CopySrc, { 0, stagingDesc.size });
+                    builder.WriteTexture(destination, ResourceState::CopyDst);
+                }
+            },
+            [this, bufferJobs, textureJobs](IRHICommandList* cmd, RenderGraph*)
+            {
+                if (!m_dummyTextureTransitioned)
+                {
+                    cmd->InsertTextureBarrier(m_dummyTexture, ResourceState::Undefined, ResourceState::ShaderResource);
+                    m_dummyTextureTransitioned = true;
+                }
+                for (size_t index = 0; index < bufferJobs.size(); ++index)
+                    cmd->CopyBuffer(bufferJobs[index].staging, bufferJobs[index].dst, bufferJobs[index].size);
+                for (size_t index = 0; index < textureJobs.size(); ++index)
+                    cmd->CopyBufferToTexture(textureJobs[index].staging, textureJobs[index].dst, textureJobs[index].width, textureJobs[index].height);
+            });
     }
 
     void RenderPipeline::AddShadowPass()
     {
-        m_renderGraph->AddPass(
-            "Shadow Pass",
-            [&](RGPassBuilder& builder)
-            {
-                const float clearColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-                builder.WriteColor(m_rgShadowColor, LoadOp::Clear, clearColor);
-                builder.WriteDepth(m_rgShadowDepth, LoadOp::Clear);
-            },
-            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawRenderQueue(cmd, m_renderQueues.shadow); });
+        PassModules::AddShadow(*m_renderGraph, m_graphBlackboard, [this](IRHICommandList* cmd, RenderGraph*) { DrawRenderQueue(cmd, m_renderQueues.shadow); });
     }
 
     void RenderPipeline::AddMainScenePass()
     {
-        m_renderGraph->AddPass(
-            "Main Scene Pass",
-            [&](RGPassBuilder& builder)
-            {
-                builder.ReadTexture(m_rgShadowDepth, ResourceState::ShaderResource);
-                const float clearColor[4] = { 0.1f, 0.2f, 0.3f, 1.0f };
-                // builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
-                // builder.WriteDepth(m_rgDepth, LoadOp::Clear);
-                builder.WriteColor(m_rgOffscreen, LoadOp::Clear, clearColor);
-                builder.WriteDepth(m_rgDepth, LoadOp::Clear);
-            },
-            [this](IRHICommandList* cmd, RenderGraph* graph)
-            {
-                DrawRenderQueue(cmd, m_renderQueues.forwardOpaque);
-                DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
-            });
+        PassModules::AddForward(*m_renderGraph,
+                                m_graphBlackboard,
+                                [this](IRHICommandList* cmd, RenderGraph*)
+                                {
+                                    DrawRenderQueue(cmd, m_renderQueues.forwardOpaque);
+                                    DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
+                                });
     }
     void RenderPipeline::AddImGuiPass()
     {
-        m_renderGraph->AddPass(
-            "ImGui UI Pass",
-            [&](RGPassBuilder& builder)
-            {
-                builder.ReadTexture(m_rgOffscreen, ResourceState::ShaderResource);
-
-                const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-                builder.WriteColor(m_rgSwapchain, LoadOp::Clear, clearColor);
-            },
-            [this](IRHICommandList* cmd, RenderGraph* graph)
-            {
-                if (m_imguiDrawData)
-                {
-                    cmd->DrawImGui(m_imguiDrawData);
-                }
-            });
+        PassModules::AddUI(*m_renderGraph,
+                           m_graphBlackboard,
+                           [this](IRHICommandList* cmd, RenderGraph* graph)
+                           {
+                               if (m_imguiDrawData)
+                               {
+                                   cmd->DrawImGui(m_imguiDrawData);
+                               }
+                           });
     }
 
     void RenderPipeline::AddGBufferPass()
@@ -340,53 +317,36 @@ namespace ChikaEngine::Render
         gbufferNormalDesc.format = Render::RHI_Format::RGBA16_Float;
         Render::TextureDesc gbufferMaterialDesc = gbufferAlbedoDesc;
 
-        m_rgGBufferAlbedo = m_renderGraph->_RegisterTexture("GBuffer.Albedo", gbufferAlbedoDesc);
-        m_rgGBufferNormal = m_renderGraph->_RegisterTexture("GBuffer.Normal", gbufferNormalDesc);
-        m_rgGBufferMaterial = m_renderGraph->_RegisterTexture("GBuffer.Material", gbufferMaterialDesc);
-
-        m_renderGraph->AddPass(
-            "Deferred GBuffer Pass",
-            [&](RGPassBuilder& builder)
-            {
-                const float clearColor[4] = { 0.02f, 0.02f, 0.02f, 1.0f };
-                builder.WriteColor(m_rgGBufferAlbedo, LoadOp::Clear, clearColor);
-                builder.WriteColor(m_rgGBufferNormal, LoadOp::Clear, clearColor);
-                builder.WriteColor(m_rgGBufferMaterial, LoadOp::Clear, clearColor);
-                builder.WriteDepth(m_rgDepth, LoadOp::Clear);
-            },
-            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawRenderQueue(cmd, m_renderQueues.gbufferOpaque); });
+        PassModules::AddGBuffer(*m_renderGraph,
+                                m_graphBlackboard,
+                                {
+                                    .albedo = gbufferAlbedoDesc,
+                                    .normal = gbufferNormalDesc,
+                                    .material = gbufferMaterialDesc,
+                                },
+                                [this](IRHICommandList* cmd, RenderGraph*) { DrawRenderQueue(cmd, m_renderQueues.gbufferOpaque); });
     }
 
     void RenderPipeline::AddDeferredLightingPass()
     {
-        m_renderGraph->AddPass(
-            "Deferred Lighting Pass",
-            [&](RGPassBuilder& builder)
-            {
-                builder.ReadTexture(m_rgGBufferAlbedo, ResourceState::ShaderResource);
-                builder.ReadTexture(m_rgGBufferNormal, ResourceState::ShaderResource);
-                builder.ReadTexture(m_rgGBufferMaterial, ResourceState::ShaderResource);
-                builder.ReadTexture(m_rgShadowDepth, ResourceState::ShaderResource);
+        PassModules::AddDeferredLighting(*m_renderGraph,
+                                         m_graphBlackboard,
+                                         [this](IRHICommandList* cmd, RenderGraph* graph)
+                                         {
+                                             if (!m_deferredLightingPipeline.IsValid())
+                                                 return;
 
-                const float clearColor[4] = { 0.03f, 0.03f, 0.03f, 1.0f };
-                builder.WriteColor(m_rgOffscreen, LoadOp::Clear, clearColor);
-            },
-            [this](IRHICommandList* cmd, RenderGraph* graph)
-            {
-                if (!m_deferredLightingPipeline.IsValid())
-                    return;
+                                             std::vector<Render::ResourceBindingGroup> bindings;
+                                             Render::BindBuffer(bindings, m_deferredSceneBinding, m_sceneUBO, 0, sizeof(SceneData));
+                                             Render::BindTexture(bindings, m_deferredAlbedoBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::GBufferAlbedo)));
+                                             Render::BindTexture(bindings, m_deferredNormalBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::GBufferNormal)));
+                                             Render::BindTexture(bindings, m_deferredMaterialBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::GBufferMaterial)));
 
-                std::vector<Render::ResourceBindingGroup> bindings;
-                Render::BindBuffer(bindings, m_deferredSceneBinding, m_sceneUBO, 0, sizeof(SceneData));
-                Render::BindTexture(bindings, m_deferredAlbedoBinding, graph->GetPhysicalTexture(m_rgGBufferAlbedo));
-                Render::BindTexture(bindings, m_deferredNormalBinding, graph->GetPhysicalTexture(m_rgGBufferNormal));
-                Render::BindTexture(bindings, m_deferredMaterialBinding, graph->GetPhysicalTexture(m_rgGBufferMaterial));
-
-                cmd->BindPipeline(m_deferredLightingPipeline);
-                for (const auto& group : bindings)
-                    cmd->BindResources(group);
-                cmd->Draw(3, 1);
-            });
+                                             cmd->BindPipeline(m_deferredLightingPipeline);
+                                             for (const auto& group : bindings)
+                                                 cmd->BindResources(group);
+                                             cmd->Draw(3, 1);
+                                         });
     }
 
     /**
@@ -399,15 +359,7 @@ namespace ChikaEngine::Render
         if (m_renderQueues.forwardTransparent.packets.empty())
             return;
 
-        m_renderGraph->AddPass(
-            "Forward Transparent Pass",
-            [&](RGPassBuilder& builder)
-            {
-                builder.ReadTexture(m_rgShadowDepth, ResourceState::ShaderResource);
-                builder.WriteColor(m_rgOffscreen, LoadOp::Load);
-                builder.WriteDepth(m_rgDepth, LoadOp::Load);
-            },
-            [this](IRHICommandList* cmd, RenderGraph* graph) { DrawRenderQueue(cmd, m_renderQueues.forwardTransparent); });
+        PassModules::AddTransparent(*m_renderGraph, m_graphBlackboard, [this](IRHICommandList* cmd, RenderGraph*) { DrawRenderQueue(cmd, m_renderQueues.forwardTransparent); });
     }
 
     void RenderPipeline::DrawRenderQueue(IRHICommandList* cmd, const RenderQueue& queue)
@@ -439,7 +391,7 @@ namespace ChikaEngine::Render
 
             const bool shadowPass = batch.pass == RenderPassClass::Shadow;
             const bool gbufferPass = batch.pass == RenderPassClass::GBufferOpaque;
-            const Resource::MaterialDrawBindings& drawBindings = gbufferPass ? material.gbufferDrawBindings : material.forwardDrawBindings;
+            const Resource::MaterialDrawBindings& drawBindings = shadowPass ? material.shadowDrawBindings : (gbufferPass ? material.gbufferDrawBindings : material.forwardDrawBindings);
             PC pc{};
             pc.isShadowPass = shadowPass ? 1 : 0;
             pc.renderMode = gbufferPass ? 1 : 0;
@@ -470,7 +422,7 @@ namespace ChikaEngine::Render
             if (batch.material != boundMaterial || boneBuffer != boundBoneBuffer)
             {
                 const DynamicBuffer& instances = m_instanceBuffers[m_instanceBufferIndex];
-                auto bindings = material.bindings;
+                auto bindings = shadowPass ? material.shadowBindings : material.bindings;
                 Render::BindBuffer(bindings, drawBindings.scene, m_sceneUBO, 0, sizeof(SceneData));
                 Render::BindTexture(bindings, drawBindings.shadowMap, shadowPass ? m_dummyTexture : m_shadowDepthTexture);
                 Render::BindBuffer(bindings, drawBindings.instances, instances.handle, 0, instances.size);
@@ -804,7 +756,6 @@ namespace ChikaEngine::Render
         destroyTexture(m_depthTexture);
         destroyTexture(m_dummyTexture);
         destroyTexture(m_shadowDepthTexture);
-        destroyTexture(m_shadowColorTexture);
         for (DynamicBuffer& allocation : m_instanceBuffers)
         {
             destroyBuffer(allocation.handle);
@@ -874,10 +825,6 @@ namespace ChikaEngine::Render
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_rhi->SetDebugName(m_depthTexture, "Renderer.SceneDepth");
 
-        // 通知 RenderGraph 更新物理句柄
-        m_renderGraph->UpdateImportedTexture(m_rgOffscreen, m_offscreenColor);
-        m_renderGraph->UpdateImportedTexture(m_rgDepth, m_depthTexture);
-
         LOG_INFO("Renderer", "Successfully resized to {}x{}", m_viewportWidth, m_viewportHeight);
     }
 
@@ -920,6 +867,11 @@ namespace ChikaEngine::Render
     const RenderFrameStatistics& RenderPipeline::GetFrameStatistics() const
     {
         return m_frameStatistics;
+    }
+
+    const RenderGraphDebugSnapshot& RenderPipeline::GetRenderGraphDebugSnapshot() const
+    {
+        return m_renderGraph->GetDebugSnapshot();
     }
 
     void RenderPipeline::AppendDebugGizmos() const

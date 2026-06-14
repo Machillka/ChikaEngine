@@ -31,16 +31,33 @@ namespace ChikaEngine::Render
         RGBA32_SInt,
     };
 
-    // TODO: 实现 位运算
     enum class RHI_BufferUsage : uint32_t
     {
-        Vertex,
-        Index,
-        Uniform,
-        Storage,
-        Staging,
-        TransferDst
+        None = 0,
+        Vertex = 1 << 0,
+        Index = 1 << 1,
+        Uniform = 1 << 2,
+        Storage = 1 << 3,
+        TransferSrc = 1 << 4,
+        TransferDst = 1 << 5,
+        Indirect = 1 << 6,
+        Staging = TransferSrc,
     };
+    inline RHI_BufferUsage operator|(RHI_BufferUsage a, RHI_BufferUsage b)
+    {
+        return static_cast<RHI_BufferUsage>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+    }
+
+    inline RHI_BufferUsage operator&(RHI_BufferUsage a, RHI_BufferUsage b)
+    {
+        return static_cast<RHI_BufferUsage>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+    }
+
+    inline RHI_BufferUsage& operator|=(RHI_BufferUsage& a, RHI_BufferUsage b)
+    {
+        a = a | b;
+        return a;
+    }
 
     enum class RHI_TextureUsage : uint32_t
     {
@@ -92,9 +109,19 @@ namespace ChikaEngine::Render
     {
         Undefined,
         RenderTarget,
+        DepthRead,
         DepthWrite,
         ShaderResource,
-        TransferDst,
+        StorageRead,
+        StorageWrite,
+        CopySrc,
+        CopyDst,
+        VertexBuffer,
+        IndexBuffer,
+        UniformBuffer,
+        IndirectArgument,
+        TransferSrc = CopySrc,
+        TransferDst = CopyDst,
         Present
     };
 
@@ -138,6 +165,33 @@ namespace ChikaEngine::Render
         Always,
     };
 
+    enum class FilterMode : uint32_t
+    {
+        Nearest,
+        Linear,
+    };
+
+    enum class AddressMode : uint32_t
+    {
+        Repeat,
+        ClampToEdge,
+        ClampToBorder,
+    };
+
+    /**
+     * @brief 描述独立 Sampler；Texture View 与采样行为不再绑定。
+     */
+    struct SamplerDesc
+    {
+        FilterMode minFilter = FilterMode::Linear;
+        FilterMode magFilter = FilterMode::Linear;
+        AddressMode addressU = AddressMode::Repeat;
+        AddressMode addressV = AddressMode::Repeat;
+        AddressMode addressW = AddressMode::Repeat;
+        bool anisotropyEnable = false;
+        float maxAnisotropy = 1.0f;
+    };
+
     struct BufferDesc
     {
         uint64_t size = 0;
@@ -152,7 +206,41 @@ namespace ChikaEngine::Render
         RHI_Format format = RHI_Format::RGBA8_UNorm;
         uint32_t mipLevels = 1;
         uint32_t arrayLayers = 1;
+        uint32_t sampleCount = 1;
         RHI_TextureUsage usage = RHI_TextureUsage::Sampled;
+    };
+
+    /**
+     * @brief 指定 Texture Barrier 影响的 mip/layer 范围。
+     *
+     * count 为 0 时表示从 base 开始覆盖资源剩余范围，由后端按实际资源描述解析。
+     */
+    struct TextureSubresourceRange
+    {
+        uint32_t baseMipLevel = 0;
+        uint32_t mipLevelCount = 0;
+        uint32_t baseArrayLayer = 0;
+        uint32_t arrayLayerCount = 0;
+    };
+
+    /**
+     * @brief 描述 Texture 的可绑定子资源视图。
+     */
+    struct TextureViewDesc
+    {
+        TextureHandle texture;
+        TextureSubresourceRange range;
+    };
+
+    /**
+     * @brief 指定 Buffer Barrier 影响的字节范围。
+     *
+     * size 为 UINT64_MAX 时表示从 offset 到 Buffer 末尾。
+     */
+    struct BufferRange
+    {
+        uint64_t offset = 0;
+        uint64_t size = UINT64_MAX;
     };
 
     struct VertexAttribute
@@ -200,6 +288,15 @@ namespace ChikaEngine::Render
 
         std::vector<RHI_Format> colorAttachmentFormats;
         RHI_Format depthAttachmentFormat = RHI_Format::D32_SFloat;
+    };
+
+    /**
+     * @brief 描述 Compute Pipeline；布局完全由 Compute Shader Reflection 提供。
+     */
+    struct ComputePipelineDesc
+    {
+        ShaderHandle computeShader;
+        Shader::ShaderProgramInterface shaderInterface;
     };
 
     struct ShaderDesc

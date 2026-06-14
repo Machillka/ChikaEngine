@@ -61,6 +61,7 @@ namespace ChikaEngine::Render
             Shader::ShaderDescriptorType type = Shader::ShaderDescriptorType::CombinedImageSampler;
             uint32_t arrayElement = 0;
             TextureHandle tex;
+            TextureViewHandle view;
         };
         struct BufferBind
         {
@@ -94,7 +95,19 @@ namespace ChikaEngine::Render
             const bool isTexture = resource.type == Shader::ShaderDescriptorType::CombinedImageSampler || resource.type == Shader::ShaderDescriptorType::SampledImage || resource.type == Shader::ShaderDescriptorType::StorageImage;
             if (!resource.IsValid() || resource.set != set || !isTexture || arrayElement >= resource.arrayCount)
                 return false;
-            textures.push_back({ resource.name, resource.binding, resource.type, arrayElement, texture });
+            textures.push_back({ resource.name, resource.binding, resource.type, arrayElement, texture, {} });
+            return true;
+        }
+
+        /**
+         * @brief 使用显式 Texture View 绑定指定 mip/layer 子资源。
+         */
+        bool BindTextureView(const ResourceBindingHandle& resource, TextureViewHandle view, uint32_t arrayElement = 0)
+        {
+            const bool isTexture = resource.type == Shader::ShaderDescriptorType::CombinedImageSampler || resource.type == Shader::ShaderDescriptorType::SampledImage || resource.type == Shader::ShaderDescriptorType::StorageImage;
+            if (!resource.IsValid() || resource.set != set || !isTexture || arrayElement >= resource.arrayCount)
+                return false;
+            textures.push_back({ resource.name, resource.binding, resource.type, arrayElement, {}, view });
             return true;
         }
 
@@ -133,6 +146,7 @@ namespace ChikaEngine::Render
      * @brief 使用已解析 Handle 写入对应 Set 的资源组。
      */
     bool BindTexture(std::vector<ResourceBindingGroup>& groups, const ResourceBindingHandle& binding, TextureHandle texture, ResourceBindingLifetime lifetime = ResourceBindingLifetime::Transient, uint32_t arrayElement = 0);
+    bool BindTextureView(std::vector<ResourceBindingGroup>& groups, const ResourceBindingHandle& binding, TextureViewHandle view, ResourceBindingLifetime lifetime = ResourceBindingLifetime::Transient, uint32_t arrayElement = 0);
     bool BindBuffer(std::vector<ResourceBindingGroup>& groups, const ResourceBindingHandle& binding, BufferHandle buffer, uint64_t offset, uint64_t size, ResourceBindingLifetime lifetime = ResourceBindingLifetime::Transient, uint32_t arrayElement = 0);
     bool BindSampler(std::vector<ResourceBindingGroup>& groups, const ResourceBindingHandle& binding, SamplerHandle sampler = {}, ResourceBindingLifetime lifetime = ResourceBindingLifetime::Persistent, uint32_t arrayElement = 0);
 

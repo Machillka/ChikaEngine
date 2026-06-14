@@ -103,7 +103,7 @@ namespace ChikaEngine::Render
             if (!object->proxy.mesh.IsValid() || !object->proxy.material.IsValid())
                 continue;
             const Resource::MaterialGPU& material = resources.GetMaterial(object->proxy.material);
-            AppendPacket(queues.shadow, *object, RenderPassClass::Shadow, material.forwardPipeline, 0.0f);
+            AppendPacket(queues.shadow, *object, RenderPassClass::Shadow, material.shadowPipeline, 0.0f);
         }
 
         SortAndBuildRenderBatches(queues.shadow, false);

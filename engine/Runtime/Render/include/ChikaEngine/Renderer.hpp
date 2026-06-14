@@ -79,6 +79,11 @@ namespace ChikaEngine::Render
         {
             return m_pipeline.GetFrameStatistics();
         }
+        /** @brief 暴露只读 RenderGraph 诊断快照给编辑器工具。 */
+        const RenderGraphDebugSnapshot& GetRenderGraphDebugSnapshot() const
+        {
+            return m_pipeline.GetRenderGraphDebugSnapshot();
+        }
         /** @brief 追加当前 RenderWorld 的编辑器调试线框，不影响正式渲染提交。 */
         void AppendDebugGizmos() const
         {

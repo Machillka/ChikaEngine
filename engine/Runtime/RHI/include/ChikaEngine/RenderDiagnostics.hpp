@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace ChikaEngine::Render
 {
@@ -32,5 +34,11 @@ namespace ChikaEngine::Render
         {
             *this = {};
         }
+    };
+
+    struct RenderPassGpuTiming
+    {
+        std::string name;
+        double gpuTimeMs = 0.0;
     };
 } // namespace ChikaEngine::Render

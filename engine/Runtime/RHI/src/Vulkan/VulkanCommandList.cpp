@@ -16,6 +16,7 @@ namespace ChikaEngine::Render
         VkCommandBufferBeginInfo info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
         info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         vkBeginCommandBuffer(m_cmd, &info);
+        m_device->PrepareTimestampQueries(m_cmd);
     }
 
     void VulkanCommandList::End()
@@ -63,6 +64,29 @@ namespace ChikaEngine::Render
         const auto endLabel = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetDeviceProcAddr(m_device->GetRawDevice(), "vkCmdEndDebugUtilsLabelEXT"));
         if (endLabel)
             endLabel(m_cmd);
+    }
+
+    /**
+     * @brief 在 Pass 开始位置写入 Vulkan Timestamp，并保存对应结束 Query。
+     */
+    void VulkanCommandList::BeginTimestampScope(std::string_view name)
+    {
+        const uint32_t beginQuery = m_device->AllocateTimestampScope(name);
+        if (beginQuery == UINT32_MAX)
+            return;
+        vkCmdWriteTimestamp(m_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_device->m_timestampQueryPools[m_device->m_currentFrame], beginQuery);
+        m_timestampEndQueries.push_back(beginQuery + 1);
+    }
+
+    /**
+     * @brief 在 Pass 结束位置写入 Vulkan Timestamp。
+     */
+    void VulkanCommandList::EndTimestampScope()
+    {
+        if (m_timestampEndQueries.empty())
+            return;
+        vkCmdWriteTimestamp(m_cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_device->m_timestampQueryPools[m_device->m_currentFrame], m_timestampEndQueries.back());
+        m_timestampEndQueries.pop_back();
     }
 
     // TODO[x]: 加入分辨率推导
@@ -192,7 +216,7 @@ namespace ChikaEngine::Render
                 const bool storageImage = binding.type == Shader::ShaderDescriptorType::StorageImage;
                 iInfos[i] = {
                     binding.type == Shader::ShaderDescriptorType::CombinedImageSampler ? m_device->GetDefaultSampler() : VK_NULL_HANDLE,
-                    texture->view,
+                    binding.view.IsValid() ? m_device->GetVkTextureView(binding.view) : texture->view,
                     storageImage ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 };
                 VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
@@ -208,7 +232,7 @@ namespace ChikaEngine::Render
             for (size_t i = 0; i < group.samplers.size(); ++i)
             {
                 const auto& binding = group.samplers[i];
-                samplerInfos[i] = { m_device->GetDefaultSampler(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED };
+                samplerInfos[i] = { m_device->GetVkSampler(binding.sampler), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED };
                 VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
                 write.dstSet = vkSet;
                 write.dstBinding = binding.binding;
@@ -223,13 +247,13 @@ namespace ChikaEngine::Render
             m_device->RecordDescriptorUpdates(static_cast<uint32_t>(writes.size()));
         }
 
-        vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->layout, group.set, 1, &vkSet, 0, nullptr);
+        vkCmdBindDescriptorSets(m_cmd, m_currentPSO->bindPoint, m_currentPSO->layout, group.set, 1, &vkSet, 0, nullptr);
     }
 
     void VulkanCommandList::BindPipeline(PipelineHandle pipeline)
     {
         m_currentPSO = m_device->GetVkPipeline(pipeline);
-        vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPSO->pipeline);
+        vkCmdBindPipeline(m_cmd, m_currentPSO->bindPoint, m_currentPSO->pipeline);
         m_device->RecordPipelineBind();
     }
 
@@ -268,6 +292,32 @@ namespace ChikaEngine::Render
     {
         vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
         m_device->RecordDraw(instanceCount);
+    }
+
+    /**
+     * @brief 使用 GPU Buffer 中的 VkDrawIndirectCommand 录制间接绘制。
+     */
+    void VulkanCommandList::DrawIndirect(BufferHandle arguments, uint64_t offset, uint32_t drawCount, uint32_t stride)
+    {
+        vkCmdDrawIndirect(m_cmd, m_device->GetVkBuffer(arguments)->buffer, offset, drawCount, stride);
+        m_device->RecordDraw(drawCount);
+    }
+
+    /**
+     * @brief 使用 GPU Buffer 中的 VkDrawIndexedIndirectCommand 录制索引间接绘制。
+     */
+    void VulkanCommandList::DrawIndexedIndirect(BufferHandle arguments, uint64_t offset, uint32_t drawCount, uint32_t stride)
+    {
+        vkCmdDrawIndexedIndirect(m_cmd, m_device->GetVkBuffer(arguments)->buffer, offset, drawCount, stride);
+        m_device->RecordDraw(drawCount);
+    }
+
+    /**
+     * @brief 录制 Compute Dispatch，Pipeline 类型由当前绑定点约束。
+     */
+    void VulkanCommandList::Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
+    {
+        vkCmdDispatch(m_cmd, groupCountX, groupCountY, groupCountZ);
     }
 
     void VulkanCommandList::CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size)
@@ -313,7 +363,7 @@ namespace ChikaEngine::Render
         vkCmdCopyBufferToImage(m_cmd, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     }
 
-    void VulkanCommandList::InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after)
+    void VulkanCommandList::InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after, const TextureSubresourceRange& range)
     {
         if (after == ResourceState::Undefined)
             return;
@@ -348,12 +398,39 @@ namespace ChikaEngine::Render
             barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         }
 
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.baseMipLevel = range.baseMipLevel;
+        barrier.subresourceRange.levelCount = range.mipLevelCount == 0 ? vkTex->mipLevels - range.baseMipLevel : range.mipLevelCount;
+        barrier.subresourceRange.baseArrayLayer = range.baseArrayLayer;
+        barrier.subresourceRange.layerCount = range.arrayLayerCount == 0 ? vkTex->arrayLayers - range.baseArrayLayer : range.arrayLayerCount;
 
         vkCmdPipelineBarrier(m_cmd, srcS, dstS, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
+
+    /**
+     * @brief 插入 Buffer Memory Barrier，连接 Copy、Compute 与 Graphics 访问。
+     */
+    void VulkanCommandList::InsertBufferBarrier(BufferHandle buffer, ResourceState before, ResourceState after, const BufferRange& range)
+    {
+        VulkanBuffer* vkBuffer = m_device->GetVkBuffer(buffer);
+        if (!vkBuffer || after == ResourceState::Undefined)
+            return;
+
+        VkAccessFlags srcAccess = 0;
+        VkAccessFlags dstAccess = 0;
+        VkPipelineStageFlags srcStage = 0;
+        VkPipelineStageFlags dstStage = 0;
+        GetVkBufferStateInfo(before, srcAccess, srcStage);
+        GetVkBufferStateInfo(after, dstAccess, dstStage);
+
+        VkBufferMemoryBarrier barrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        barrier.srcAccessMask = srcAccess;
+        barrier.dstAccessMask = dstAccess;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.buffer = vkBuffer->buffer;
+        barrier.offset = range.offset;
+        barrier.size = range.size == UINT64_MAX ? VK_WHOLE_SIZE : range.size;
+        vkCmdPipelineBarrier(m_cmd, srcStage, dstStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
     }
 
 } // namespace ChikaEngine::Render

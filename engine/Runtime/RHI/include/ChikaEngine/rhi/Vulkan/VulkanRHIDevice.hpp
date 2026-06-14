@@ -34,8 +34,11 @@ namespace ChikaEngine::Render
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         TextureHandle CreateTexture(const TextureDesc& desc) override;
+        SamplerHandle CreateSampler(const SamplerDesc& desc) override;
+        TextureViewHandle CreateTextureView(const TextureViewDesc& desc) override;
         ShaderHandle CreateShader(const ShaderDesc& desc) override;
         PipelineHandle CreateGraphicsPipeline(const PipelineDesc& desc) override;
+        PipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) override;
 
         void* GetMappedData(BufferHandle handle) override;
 
@@ -43,9 +46,15 @@ namespace ChikaEngine::Render
         void SetDebugName(TextureHandle handle, std::string_view name) override;
         void SetDebugName(ShaderHandle handle, std::string_view name) override;
         void SetDebugName(PipelineHandle handle, std::string_view name) override;
+        void SetDebugName(SamplerHandle handle, std::string_view name) override;
+        void SetDebugName(TextureViewHandle handle, std::string_view name) override;
         const RenderFrameStatistics& GetFrameStatistics() const override
         {
             return m_frameStatistics;
+        }
+        const std::vector<RenderPassGpuTiming>& GetPassGpuTimings() const override
+        {
+            return m_passGpuTimings;
         }
 
         IRHICommandList* AllocateCommandList() override;
@@ -53,6 +62,8 @@ namespace ChikaEngine::Render
         void DestroyTexture(TextureHandle handle) override;
         void DestroyShader(ShaderHandle handle) override;
         void DestroyPipeline(PipelineHandle handle) override;
+        void DestroySampler(SamplerHandle handle) override;
+        void DestroyTextureView(TextureViewHandle handle) override;
 
         void* GetImGuiTextureHandle(TextureHandle handle) override;
         TextureHandle GetActiveSwapchainTexture() override;
@@ -94,6 +105,16 @@ namespace ChikaEngine::Render
         {
             return m_defaultSampler;
         }
+        VkSampler GetVkSampler(SamplerHandle handle) const
+        {
+            const VulkanSampler* sampler = m_samplers.Get(handle);
+            return sampler ? sampler->sampler : m_defaultSampler;
+        }
+        VkImageView GetVkTextureView(TextureViewHandle handle) const
+        {
+            const VulkanTextureView* view = m_textureViews.Get(handle);
+            return view ? view->view : VK_NULL_HANDLE;
+        }
 
       public:
         VkDescriptorPool imguiPool = VK_NULL_HANDLE;
@@ -130,6 +151,8 @@ namespace ChikaEngine::Render
          * @brief 记录实际写入 Descriptor 的数量，而不是仅统计 Descriptor Set 数量。
          */
         void RecordDescriptorUpdates(uint32_t descriptorCount);
+        void PrepareTimestampQueries(VkCommandBuffer commandBuffer);
+        uint32_t AllocateTimestampScope(std::string_view name);
 
         void CreateInstance();
         void CreateSurface();
@@ -184,11 +207,23 @@ namespace ChikaEngine::Render
         VkSampler m_defaultSampler = VK_NULL_HANDLE;
         bool m_enableValidation = true;
         RenderFrameStatistics m_frameStatistics;
+        std::vector<RenderPassGpuTiming> m_passGpuTimings;
 
         uint32_t m_currentFrame = 0;
         uint64_t m_absoluteFrame = 0;
         VkCommandPool m_commandPools[MAX_FRAMES_IN_FLIGHT];
         VkDescriptorPool m_descriptorPools[MAX_FRAMES_IN_FLIGHT];
+        VkQueryPool m_timestampQueryPools[MAX_FRAMES_IN_FLIGHT]{};
+        bool m_timestampQueriesReset = false;
+        static constexpr uint32_t MAX_TIMESTAMP_QUERIES = 512;
+        struct TimestampScope
+        {
+            std::string name;
+            uint32_t beginQuery = 0;
+            uint32_t endQuery = 0;
+        };
+        std::vector<TimestampScope> m_timestampScopes[MAX_FRAMES_IN_FLIGHT];
+        float m_timestampPeriodNs = 1.0f;
         VkDescriptorPool m_persistentDescriptorPool = VK_NULL_HANDLE;
         std::unordered_map<uint64_t, VkDescriptorSetLayout> m_descriptorSetLayoutCache;
         std::unordered_map<uint64_t, VkPipelineLayout> m_pipelineLayoutCache;
@@ -227,6 +262,8 @@ namespace ChikaEngine::Render
         Core::SlotMap<TextureHandle, VulkanTexture> m_textures;
         Core::SlotMap<ShaderHandle, VulkanShader> m_shaders;
         Core::SlotMap<PipelineHandle, VulkanPipeline> m_pipelines;
+        Core::SlotMap<SamplerHandle, VulkanSampler> m_samplers;
+        Core::SlotMap<TextureViewHandle, VulkanTextureView> m_textureViews;
 
         struct PendingDeletion
         {
@@ -240,5 +277,7 @@ namespace ChikaEngine::Render
         std::vector<PendingDeletion> m_textureDeletionQueue;
         std::vector<PendingDeletion> m_shaderDeletionQueue;
         std::vector<PendingDeletion> m_pipelineDeletionQueue;
+        std::vector<PendingDeletion> m_samplerDeletionQueue;
+        std::vector<PendingDeletion> m_textureViewDeletionQueue;
     };
 } // namespace ChikaEngine::Render

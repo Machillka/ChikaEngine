@@ -51,9 +51,12 @@ namespace
         void SetDebugName(std::string_view name) override;
         void BeginDebugLabel(std::string_view name, const float color[4]) override;
         void EndDebugLabel() override {}
-        void BeginRendering(const std::vector<ChikaEngine::Render::RenderingAttachment>&, const ChikaEngine::Render::RenderingAttachment*) override {}
+        void BeginTimestampScope(std::string_view) override {}
+        void EndTimestampScope() override {}
+        void BeginRendering(const std::vector<ChikaEngine::Render::RenderingAttachment>& colors, const ChikaEngine::Render::RenderingAttachment* depth) override;
         void EndRendering() override {}
-        void InsertTextureBarrier(ChikaEngine::Render::TextureHandle, ChikaEngine::Render::ResourceState, ChikaEngine::Render::ResourceState) override {}
+        void InsertTextureBarrier(ChikaEngine::Render::TextureHandle, ChikaEngine::Render::ResourceState, ChikaEngine::Render::ResourceState, const ChikaEngine::Render::TextureSubresourceRange&) override;
+        void InsertBufferBarrier(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::ResourceState, ChikaEngine::Render::ResourceState, const ChikaEngine::Render::BufferRange&) override;
         void BindPipeline(ChikaEngine::Render::PipelineHandle) override;
         void BindResources(const ChikaEngine::Render::ResourceBindingGroup& group) override;
         void BindVertexBuffer(ChikaEngine::Render::BufferHandle, uint64_t) override {}
@@ -63,6 +66,9 @@ namespace
         void CopyBufferToTexture(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::TextureHandle, uint32_t, uint32_t) override {}
         void Draw(uint32_t, uint32_t instanceCount, uint32_t, uint32_t) override;
         void DrawIndexed(uint32_t, uint32_t instanceCount, uint32_t, int32_t, uint32_t) override;
+        void DrawIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t) override;
+        void DrawIndexedIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t) override;
+        void Dispatch(uint32_t, uint32_t, uint32_t) override;
         void DrawImGui(void*) override {}
 
       private:
@@ -93,11 +99,23 @@ namespace
         {
             return ChikaEngine::Render::TextureHandle::FromParts(nextHandle++, 1);
         }
+        ChikaEngine::Render::SamplerHandle CreateSampler(const ChikaEngine::Render::SamplerDesc&) override
+        {
+            return ChikaEngine::Render::SamplerHandle::FromParts(nextHandle++, 1);
+        }
+        ChikaEngine::Render::TextureViewHandle CreateTextureView(const ChikaEngine::Render::TextureViewDesc&) override
+        {
+            return ChikaEngine::Render::TextureViewHandle::FromParts(nextHandle++, 1);
+        }
         ChikaEngine::Render::ShaderHandle CreateShader(const ChikaEngine::Render::ShaderDesc&) override
         {
             return ChikaEngine::Render::ShaderHandle::FromParts(nextHandle++, 1);
         }
         ChikaEngine::Render::PipelineHandle CreateGraphicsPipeline(const ChikaEngine::Render::PipelineDesc&) override
+        {
+            return ChikaEngine::Render::PipelineHandle::FromParts(nextHandle++, 1);
+        }
+        ChikaEngine::Render::PipelineHandle CreateComputePipeline(const ChikaEngine::Render::ComputePipelineDesc&) override
         {
             return ChikaEngine::Render::PipelineHandle::FromParts(nextHandle++, 1);
         }
@@ -122,9 +140,21 @@ namespace
         {
             resourceNames.emplace_back(name);
         }
+        void SetDebugName(ChikaEngine::Render::SamplerHandle, std::string_view name) override
+        {
+            resourceNames.emplace_back(name);
+        }
+        void SetDebugName(ChikaEngine::Render::TextureViewHandle, std::string_view name) override
+        {
+            resourceNames.emplace_back(name);
+        }
         const ChikaEngine::Render::RenderFrameStatistics& GetFrameStatistics() const override
         {
             return statistics;
+        }
+        const std::vector<ChikaEngine::Render::RenderPassGpuTiming>& GetPassGpuTimings() const override
+        {
+            return gpuTimings;
         }
 
         ChikaEngine::Render::IRHICommandList* AllocateCommandList() override
@@ -139,6 +169,8 @@ namespace
         void DestroyTexture(ChikaEngine::Render::TextureHandle) override {}
         void DestroyShader(ChikaEngine::Render::ShaderHandle) override {}
         void DestroyPipeline(ChikaEngine::Render::PipelineHandle) override {}
+        void DestroySampler(ChikaEngine::Render::SamplerHandle) override {}
+        void DestroyTextureView(ChikaEngine::Render::TextureViewHandle) override {}
         ChikaEngine::Render::TextureHandle GetActiveSwapchainTexture() override
         {
             return {};
@@ -153,9 +185,15 @@ namespace
 
         uint32_t nextHandle = 0;
         ChikaEngine::Render::RenderFrameStatistics statistics;
+        std::vector<ChikaEngine::Render::RenderPassGpuTiming> gpuTimings;
         std::string commandListName;
         std::vector<std::string> labels;
         std::vector<std::string> resourceNames;
+        uint32_t textureBarrierCount = 0;
+        uint32_t bufferBarrierCount = 0;
+        uint32_t dispatchCount = 0;
+        std::vector<uint32_t> renderingColorCounts;
+        std::vector<bool> renderingHasDepth;
         std::unique_ptr<ChikaEngine::Render::IRHICommandList> submittedCommandList;
     };
 
@@ -176,6 +214,25 @@ namespace
     }
 
     /**
+     * @brief 保存 Graphics Pass Attachment 形状，用于验证 Depth-only Pass。
+     */
+    void MockCommandList::BeginRendering(const std::vector<ChikaEngine::Render::RenderingAttachment>& colors, const ChikaEngine::Render::RenderingAttachment* depth)
+    {
+        m_device.renderingColorCounts.push_back(static_cast<uint32_t>(colors.size()));
+        m_device.renderingHasDepth.push_back(depth != nullptr);
+    }
+
+    void MockCommandList::InsertTextureBarrier(ChikaEngine::Render::TextureHandle, ChikaEngine::Render::ResourceState, ChikaEngine::Render::ResourceState, const ChikaEngine::Render::TextureSubresourceRange&)
+    {
+        ++m_device.textureBarrierCount;
+    }
+
+    void MockCommandList::InsertBufferBarrier(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::ResourceState, ChikaEngine::Render::ResourceState, const ChikaEngine::Render::BufferRange&)
+    {
+        ++m_device.bufferBarrierCount;
+    }
+
+    /**
      * @brief 模拟 Pipeline Bind 统计，用于验证统计结构可以由 RHI 命令层累加。
      */
     void MockCommandList::BindPipeline(ChikaEngine::Render::PipelineHandle)
@@ -189,6 +246,27 @@ namespace
     void MockCommandList::BindResources(const ChikaEngine::Render::ResourceBindingGroup& group)
     {
         m_device.statistics.descriptorUpdateCount += static_cast<uint32_t>(group.buffers.size() + group.textures.size() + group.samplers.size());
+    }
+
+    /**
+     * @brief 将间接绘制按 drawCount 计入 Mock 统计。
+     */
+    void MockCommandList::DrawIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t)
+    {
+        m_device.statistics.drawCallCount += drawCount;
+    }
+
+    /**
+     * @brief 将索引间接绘制按 drawCount 计入 Mock 统计。
+     */
+    void MockCommandList::DrawIndexedIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t)
+    {
+        m_device.statistics.drawCallCount += drawCount;
+    }
+
+    void MockCommandList::Dispatch(uint32_t, uint32_t, uint32_t)
+    {
+        ++m_device.dispatchCount;
     }
 
     /**
@@ -384,22 +462,32 @@ namespace
 
         const BufferHandle buffer = device.CreateBuffer({ .size = 64 });
         const TextureHandle texture = device.CreateTexture({ .width = 1, .height = 1 });
+        const TextureViewHandle textureView = device.CreateTextureView({ .texture = texture });
+        const SamplerHandle sampler = device.CreateSampler({});
         const PipelineHandle pipeline = device.CreateGraphicsPipeline({});
         device.SetDebugName(buffer, "Baseline.Buffer");
         device.SetDebugName(texture, "Baseline.Texture");
+        device.SetDebugName(textureView, "Baseline.TextureView");
+        device.SetDebugName(sampler, "Baseline.Sampler");
         device.SetDebugName(pipeline, "Baseline.Pipeline");
 
         const Shader::ShaderProgramInterface interface{
             .resources = {
                 { .name = "Buffer", .set = 0, .binding = 0, .type = Shader::ShaderDescriptorType::UniformBuffer, .arrayCount = 1 },
                 { .name = "Texture", .set = 0, .binding = 1, .type = Shader::ShaderDescriptorType::CombinedImageSampler, .arrayCount = 1 },
+                { .name = "TextureArray", .set = 0, .binding = 2, .type = Shader::ShaderDescriptorType::SampledImage, .arrayCount = 2 },
+                { .name = "Sampler", .set = 0, .binding = 3, .type = Shader::ShaderDescriptorType::Sampler, .arrayCount = 1 },
             },
         };
         const ResourceBindingHandle bufferBinding = ResolveResourceBinding(interface, "Buffer");
         const ResourceBindingHandle textureBinding = ResolveResourceBinding(interface, "Texture");
+        const ResourceBindingHandle textureArrayBinding = ResolveResourceBinding(interface, "TextureArray");
+        const ResourceBindingHandle samplerBinding = ResolveResourceBinding(interface, "Sampler");
         ResourceBindingGroup bindings{ .set = 0 };
         bindings.BindBuffer(bufferBinding, buffer, 0, 64);
         bindings.BindTexture(textureBinding, texture);
+        bindings.BindTextureView(textureArrayBinding, textureView, 1);
+        bindings.BindSampler(samplerBinding, sampler);
 
         Check(bufferBinding.IsValid(), "resource binding resolves once from shader interface");
         Check(!ResolveResourceBinding(interface, "Missing").IsValid(), "missing resource resolves to invalid binding");
@@ -415,8 +503,8 @@ namespace
         Check(statistics.drawCallCount == 2, "RHI statistics count draw calls");
         Check(statistics.instanceCount == 5, "RHI statistics sum instances");
         Check(statistics.pipelineBindCount == 1, "RHI statistics count pipeline binds");
-        Check(statistics.descriptorUpdateCount == 2, "RHI statistics count descriptor writes");
-        Check(device.resourceNames == std::vector<std::string>({ "Baseline.Buffer", "Baseline.Texture", "Baseline.Pipeline" }), "RHI resources accept debug names");
+        Check(statistics.descriptorUpdateCount == 4, "RHI statistics count descriptor writes");
+        Check(device.resourceNames == std::vector<std::string>({ "Baseline.Buffer", "Baseline.Texture", "Baseline.TextureView", "Baseline.Sampler", "Baseline.Pipeline" }), "RHI resources accept debug names");
     }
 
     /**
@@ -459,6 +547,117 @@ namespace
         Check(graph.GetLastExecutedPassCount() == 3, "render graph reports executed pass count");
         Check(device.commandListName == "RenderGraph.Frame", "render graph names frame command list");
         Check(device.labels == compiledNames, "render graph debug labels follow compiled pass order");
+        Check(!graph.GetDebugSnapshot().dump.empty(), "render graph exposes a graph dump");
+    }
+
+    /**
+     * @brief 验证 Copy/Compute/Graphics Buffer 依赖、Buffer Barrier 与 Dispatch 路径。
+     */
+    void TestRenderGraphBufferAndComputePath()
+    {
+        using namespace ChikaEngine::Render;
+
+        MockRHIDevice device;
+        RenderGraph graph(&device);
+        const BufferDesc bufferDesc{
+            .size = 256,
+            .usage = RHI_BufferUsage::Storage | RHI_BufferUsage::TransferDst,
+        };
+        const TextureDesc colorDesc{
+            .width = 16,
+            .height = 16,
+            .usage = RHI_TextureUsage::ColorAttachment,
+        };
+        const RGBufferHandle copied = graph._RegisterBuffer("Copied", bufferDesc);
+        const RGBufferHandle computed = graph._RegisterBuffer("Computed", bufferDesc);
+        const RGTextureHandle output = graph.ImportTexture("Output", device.CreateTexture(colorDesc), colorDesc);
+
+        graph.AddCopyPass("Copy", [&](RGPassBuilder& builder) { builder.WriteBuffer(copied, ResourceState::CopyDst); }, [](IRHICommandList*, RenderGraph*) {});
+        graph.AddComputePass(
+            "Compute",
+            [&](RGPassBuilder& builder)
+            {
+                builder.ReadBuffer(copied, ResourceState::StorageRead);
+                builder.WriteBuffer(computed, ResourceState::StorageWrite);
+            },
+            [](IRHICommandList* commandList, RenderGraph*) { commandList->Dispatch(1, 1, 1); });
+        graph.AddPass(
+            "Graphics",
+            [&](RGPassBuilder& builder)
+            {
+                builder.ReadBuffer(computed, ResourceState::StorageRead);
+                builder.WriteColor(output);
+            },
+            [](IRHICommandList*, RenderGraph*) {});
+        graph.AddPresentPass("Present", output);
+
+        Check(graph.Compile(), "render graph compiles Copy/Compute/Graphics buffer chain");
+        Check(graph.GetCompiledPassNames() == std::vector<std::string>({ "Copy", "Compute", "Graphics", "Present" }), "buffer dependencies preserve pass order");
+        graph.Execute();
+        Check(device.bufferBarrierCount >= 4, "render graph inserts buffer barriers");
+        Check(device.dispatchCount == 1, "compute pass dispatches once");
+    }
+
+    /**
+     * @brief 验证 Copy Pass 的普通 Texture 写入不会被误判为 Color Attachment。
+     */
+    void TestRenderGraphTextureCopyPath()
+    {
+        using namespace ChikaEngine::Render;
+
+        MockRHIDevice device;
+        RenderGraph graph(&device);
+        const TextureDesc textureDesc{
+            .width = 16,
+            .height = 16,
+            .usage = RHI_TextureUsage::Sampled,
+        };
+        const RGTextureHandle uploaded = graph.ImportTexture("UploadedTexture", device.CreateTexture(textureDesc), textureDesc, ResourceState::Undefined, ResourceState::ShaderResource);
+        graph.AddCopyPass("Texture Upload", [&](RGPassBuilder& builder) { builder.WriteTexture(uploaded, ResourceState::CopyDst); }, [](IRHICommandList*, RenderGraph*) {});
+
+        Check(graph.Compile(), "render graph accepts a Copy Pass writing a texture");
+        graph.Execute();
+        Check(device.renderingColorCounts.empty(), "texture copy does not begin graphics rendering");
+        Check(device.textureBarrierCount == 2, "texture copy transitions to CopyDst and final ShaderResource");
+    }
+
+    /**
+     * @brief 验证 Depth-only Pass 不创建 Color Attachment。
+     */
+    void TestRenderGraphDepthOnlyPass()
+    {
+        using namespace ChikaEngine::Render;
+
+        MockRHIDevice device;
+        RenderGraph graph(&device);
+        const TextureDesc depthDesc{
+            .width = 16,
+            .height = 16,
+            .format = RHI_Format::D32_SFloat,
+            .usage = RHI_TextureUsage::DepthStencilAttachment | RHI_TextureUsage::Sampled,
+        };
+        const RGTextureHandle depth = graph._RegisterTexture("ShadowDepth", depthDesc);
+        graph.AddPass("Shadow", [&](RGPassBuilder& builder) { builder.WriteDepth(depth); }, [](IRHICommandList*, RenderGraph*) {});
+        graph.AddCopyPass("Consume", [&](RGPassBuilder& builder) { builder.ReadTexture(depth); }, [](IRHICommandList*, RenderGraph*) {});
+
+        Check(graph.Compile(), "render graph compiles depth-only pass");
+        graph.Execute();
+        Check(!device.renderingColorCounts.empty() && device.renderingColorCounts.front() == 0 && device.renderingHasDepth.front(), "depth-only pass begins rendering without color attachment");
+    }
+
+    /**
+     * @brief 验证非法 transient read-before-write 在 Compile 阶段失败。
+     */
+    void TestRenderGraphCompileValidation()
+    {
+        using namespace ChikaEngine::Render;
+
+        MockRHIDevice device;
+        RenderGraph graph(&device);
+        const RGBufferHandle missingProducer = graph._RegisterBuffer("MissingProducer", { .size = 16, .usage = RHI_BufferUsage::Storage });
+        graph.AddCopyPass("InvalidRead", [&](RGPassBuilder& builder) { builder.ReadBuffer(missingProducer, ResourceState::StorageRead); }, [](IRHICommandList*, RenderGraph*) {});
+        Check(!graph.Compile(), "render graph rejects transient read-before-write");
+        Check(!graph.GetCompileErrors().empty(), "render graph exposes compile errors");
     }
 } // namespace
 
@@ -472,6 +671,10 @@ int main()
     TestRenderDebugVisualization();
     TestRHIStatisticsAndNames();
     TestRenderGraphCompileAndExecuteOrder();
+    TestRenderGraphBufferAndComputePath();
+    TestRenderGraphTextureCopyPath();
+    TestRenderGraphDepthOnlyPass();
+    TestRenderGraphCompileValidation();
 
     if (g_failures != 0)
         std::cerr << g_failures << " render baseline test(s) failed\n";

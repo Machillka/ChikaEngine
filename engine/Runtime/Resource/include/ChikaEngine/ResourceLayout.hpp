@@ -52,13 +52,16 @@ namespace ChikaEngine::Resource
         Render::PipelineHandle pipeline;
         Render::PipelineHandle forwardPipeline;
         Render::PipelineHandle gbufferPipeline;
+        Render::PipelineHandle shadowPipeline;
         Render::ShaderHandle vertexShader;
         Render::ShaderHandle fragmentShader;
         Render::ShaderHandle gbufferFragmentShader;
         Render::BufferHandle uboBuffer;
         MaterialDrawBindings forwardDrawBindings;
         MaterialDrawBindings gbufferDrawBindings;
+        MaterialDrawBindings shadowDrawBindings;
         std::vector<Render::ResourceBindingGroup> bindings;
+        std::vector<Render::ResourceBindingGroup> shadowBindings;
         bool transparent = false;
         bool masked = false;
     };

@@ -165,13 +165,37 @@ namespace ChikaEngine::Render
             stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
             break;
 
+        case ResourceState::DepthRead:
+            layout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL;
+            access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
+            stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            break;
+
         case ResourceState::ShaderResource:
             layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             access = VK_ACCESS_SHADER_READ_BIT;
-            stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             break;
 
-        case ResourceState::TransferDst:
+        case ResourceState::StorageRead:
+            layout = VK_IMAGE_LAYOUT_GENERAL;
+            access = VK_ACCESS_SHADER_READ_BIT;
+            stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            break;
+
+        case ResourceState::StorageWrite:
+            layout = VK_IMAGE_LAYOUT_GENERAL;
+            access = VK_ACCESS_SHADER_WRITE_BIT;
+            stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            break;
+
+        case ResourceState::CopySrc:
+            layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            access = VK_ACCESS_TRANSFER_READ_BIT;
+            stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            break;
+
+        case ResourceState::CopyDst:
             layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             access = VK_ACCESS_TRANSFER_WRITE_BIT;
             stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -187,6 +211,88 @@ namespace ChikaEngine::Render
             layout = VK_IMAGE_LAYOUT_UNDEFINED;
             access = 0;
             stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            break;
+        }
+    }
+
+    static VkFilter ToVkFilter(FilterMode mode)
+    {
+        return mode == FilterMode::Nearest ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
+    }
+
+    static VkSamplerAddressMode ToVkAddressMode(AddressMode mode)
+    {
+        switch (mode)
+        {
+        case AddressMode::ClampToEdge:
+            return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        case AddressMode::ClampToBorder:
+            return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        case AddressMode::Repeat:
+        default:
+            return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        }
+    }
+
+    static VkSampleCountFlagBits ToVkSampleCount(uint32_t sampleCount)
+    {
+        switch (sampleCount)
+        {
+        case 2:
+            return VK_SAMPLE_COUNT_2_BIT;
+        case 4:
+            return VK_SAMPLE_COUNT_4_BIT;
+        case 8:
+            return VK_SAMPLE_COUNT_8_BIT;
+        case 1:
+        default:
+            return VK_SAMPLE_COUNT_1_BIT;
+        }
+    }
+
+    /**
+     * @brief 将后端无关 Buffer State 转换为 Vulkan Access/Stage。
+     */
+    static void GetVkBufferStateInfo(ResourceState state, VkAccessFlags& access, VkPipelineStageFlags& stage)
+    {
+        switch (state)
+        {
+        case ResourceState::CopySrc:
+            access = VK_ACCESS_TRANSFER_READ_BIT;
+            stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            break;
+        case ResourceState::CopyDst:
+            access = VK_ACCESS_TRANSFER_WRITE_BIT;
+            stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            break;
+        case ResourceState::VertexBuffer:
+            access = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+            stage = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+            break;
+        case ResourceState::IndexBuffer:
+            access = VK_ACCESS_INDEX_READ_BIT;
+            stage = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+            break;
+        case ResourceState::UniformBuffer:
+            access = VK_ACCESS_UNIFORM_READ_BIT;
+            stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            break;
+        case ResourceState::StorageRead:
+            access = VK_ACCESS_SHADER_READ_BIT;
+            stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            break;
+        case ResourceState::StorageWrite:
+            access = VK_ACCESS_SHADER_WRITE_BIT;
+            stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            break;
+        case ResourceState::IndirectArgument:
+            access = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+            stage = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+            break;
+        case ResourceState::Undefined:
+        default:
+            access = 0;
+            stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             break;
         }
     }

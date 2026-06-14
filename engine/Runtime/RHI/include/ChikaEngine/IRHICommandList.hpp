@@ -42,12 +42,23 @@ namespace ChikaEngine::Render
          */
         virtual void BeginDebugLabel(std::string_view name, const float color[4]) = 0;
         virtual void EndDebugLabel() = 0;
+        /** @brief 开始一个 GPU Timestamp 区间；结果由设备在 Fence 完成后读取。 */
+        virtual void BeginTimestampScope(std::string_view name) = 0;
+        /** @brief 结束最近开始的 GPU Timestamp 区间。 */
+        virtual void EndTimestampScope() = 0;
 
         virtual void BeginRendering(const std::vector<RenderingAttachment>& colors, const RenderingAttachment* depth) = 0;
         virtual void EndRendering() = 0;
 
-        // 上层构建图的时候调用
-        virtual void InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after) = 0;
+        /**
+         * @brief 为 Texture 指定范围插入状态转换。
+         */
+        virtual void InsertTextureBarrier(TextureHandle tex, ResourceState before, ResourceState after, const TextureSubresourceRange& range = {}) = 0;
+
+        /**
+         * @brief 为 Buffer 指定范围插入状态转换。
+         */
+        virtual void InsertBufferBarrier(BufferHandle buffer, ResourceState before, ResourceState after, const BufferRange& range = {}) = 0;
 
         virtual void BindPipeline(PipelineHandle pipeline) = 0;
         virtual void BindResources(const ResourceBindingGroup& group) = 0;
@@ -62,6 +73,13 @@ namespace ChikaEngine::Render
         // 绘制命令
         virtual void Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex = 0, uint32_t firstInstance = 0) = 0;
         virtual void DrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex = 0, int32_t vertexOffset = 0, uint32_t firstInstance = 0) = 0;
+        virtual void DrawIndirect(BufferHandle arguments, uint64_t offset, uint32_t drawCount, uint32_t stride) = 0;
+        virtual void DrawIndexedIndirect(BufferHandle arguments, uint64_t offset, uint32_t drawCount, uint32_t stride) = 0;
+
+        /**
+         * @brief 提交 Compute 工作组；调用前必须绑定 Compute Pipeline。
+         */
+        virtual void Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) = 0;
 
         // imgui 特化
         virtual void DrawImGui(void* drawData) = 0;

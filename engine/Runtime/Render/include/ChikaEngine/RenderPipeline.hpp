@@ -4,6 +4,7 @@
 #include "ChikaEngine/IRHIDevice.hpp"
 #include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RenderGraph.hpp"
+#include "ChikaEngine/RenderGraphBlackboard.hpp"
 #include "ChikaEngine/RenderQueue.hpp"
 #include "ChikaEngine/RenderSettings.hpp"
 #include "ChikaEngine/RenderWorld.hpp"
@@ -68,6 +69,8 @@ namespace ChikaEngine::Render
         uint32_t GetViewportHeight() const;
         TextureHandle GetOffscreenTexture() const;
         const RenderFrameStatistics& GetFrameStatistics() const;
+        /** @brief 返回最近一帧 RenderGraph DAG、生命周期、Barrier 和耗时快照。 */
+        const RenderGraphDebugSnapshot& GetRenderGraphDebugSnapshot() const;
         /** @brief 按当前调试设置从只读 Snapshot 追加编辑器 Gizmo。 */
         void AppendDebugGizmos() const;
 
@@ -125,21 +128,13 @@ namespace ChikaEngine::Render
         TextureHandle m_depthTexture;
         TextureHandle m_dummyTexture;
         TextureHandle m_shadowDepthTexture;
-        TextureHandle m_shadowColorTexture;
         BufferHandle m_sceneUBO;
         BufferHandle m_dummyBoneUBO;
         ShaderHandle m_deferredLightingVertexShader;
         ShaderHandle m_deferredLightingFragmentShader;
         PipelineHandle m_deferredLightingPipeline;
 
-        RGTextureHandle m_rgOffscreen;
-        RGTextureHandle m_rgSwapchain;
-        RGTextureHandle m_rgDepth;
-        RGTextureHandle m_rgGBufferAlbedo;
-        RGTextureHandle m_rgGBufferNormal;
-        RGTextureHandle m_rgGBufferMaterial;
-        RGTextureHandle m_rgShadowDepth;
-        RGTextureHandle m_rgShadowColor;
+        RenderGraphBlackboard m_graphBlackboard;
 
         Shader::ShaderProgramInterface m_deferredLightingInterface;
         ResourceBindingHandle m_deferredSceneBinding;

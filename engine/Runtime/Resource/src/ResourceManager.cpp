@@ -88,6 +88,44 @@ namespace ChikaEngine::Resource
         }
 
         /**
+         * @brief 从单个 Shader Stage Reflection 构建 Depth-only 等单 Stage Pipeline 接口。
+         */
+        std::optional<Shader::ShaderProgramInterface> BuildSingleStageInterface(const Asset::ShaderData& shader)
+        {
+            if (!shader.hasReflection)
+            {
+                LOG_ERROR("ResourceManager", "Shader reflection sidecar is missing");
+                return std::nullopt;
+            }
+            const std::array stages{ shader.reflection };
+            Shader::ShaderProgramBuildResult result = Shader::BuildShaderProgramInterface(stages);
+            for (const std::string& error : result.errors)
+                LOG_ERROR("ResourceManager", "Shader interface conflict: {}", error);
+            if (!result.success)
+                return std::nullopt;
+            return std::move(result.interface);
+        }
+
+        /**
+         * @brief 过滤绑定组，只保留目标 Pipeline Reflection 实际声明的 Descriptor。
+         */
+        std::vector<Render::ResourceBindingGroup> FilterBindingGroups(const std::vector<Render::ResourceBindingGroup>& groups, const Shader::ShaderProgramInterface& interface)
+        {
+            const auto hasResource = [&](uint32_t set, uint32_t binding, Shader::ShaderDescriptorType type) { return std::ranges::any_of(interface.resources, [&](const Shader::ShaderResourceBinding& resource) { return resource.set == set && resource.binding == binding && resource.type == type; }); };
+            std::vector<Render::ResourceBindingGroup> result;
+            for (const Render::ResourceBindingGroup& source : groups)
+            {
+                Render::ResourceBindingGroup filtered{ .set = source.set, .lifetime = source.lifetime };
+                std::ranges::copy_if(source.textures, std::back_inserter(filtered.textures), [&](const auto& binding) { return hasResource(source.set, binding.binding, binding.type); });
+                std::ranges::copy_if(source.buffers, std::back_inserter(filtered.buffers), [&](const auto& binding) { return hasResource(source.set, binding.binding, binding.type); });
+                std::ranges::copy_if(source.samplers, std::back_inserter(filtered.samplers), [&](const auto& binding) { return hasResource(source.set, binding.binding, Shader::ShaderDescriptorType::Sampler); });
+                if (!filtered.textures.empty() || !filtered.buffers.empty() || !filtered.samplers.empty())
+                    result.push_back(std::move(filtered));
+            }
+            return result;
+        }
+
+        /**
          * @brief 在材质创建阶段解析逐 Draw 动态资源，避免 Renderer 热路径查询 Reflection 名称。
          */
         MaterialDrawBindings ResolveMaterialDrawBindings(const Shader::ShaderProgramInterface& interface)
@@ -244,8 +282,8 @@ namespace ChikaEngine::Resource
 
         {
             std::lock_guard<std::mutex> lock(m_uploadMutex);
-            m_pendingBufferUploads.push_back({ stagingV, vbo, vSize });
-            m_pendingBufferUploads.push_back({ stagingI, ibo, iSize });
+            m_pendingBufferUploads.push_back({ stagingV, vbo, vSize, Render::ResourceState::VertexBuffer });
+            m_pendingBufferUploads.push_back({ stagingI, ibo, iSize, Render::ResourceState::IndexBuffer });
         }
 
         // SubmitImmediate(
@@ -375,6 +413,17 @@ namespace ChikaEngine::Resource
         Render::PipelineHandle forwardPipeline = m_rhi.CreateGraphicsPipeline(pipelineDesc);
         m_rhi.SetDebugName(forwardPipeline, materialDebugName + ".ForwardPipeline");
 
+        const auto shadowInterface = BuildSingleStageInterface(*vsSpirv);
+        if (!shadowInterface)
+            return MaterialHandle::Invalid();
+        Render::PipelineDesc shadowPipelineDesc = pipelineDesc;
+        shadowPipelineDesc.fragmentShader = {};
+        shadowPipelineDesc.shaderInterface = *shadowInterface;
+        shadowPipelineDesc.colorAttachmentFormats.clear();
+        shadowPipelineDesc.alphaBlendEnable = false;
+        Render::PipelineHandle shadowPipeline = m_rhi.CreateGraphicsPipeline(shadowPipelineDesc);
+        m_rhi.SetDebugName(shadowPipeline, materialDebugName + ".ShadowPipeline");
+
         Asset::ShaderHandle gbufferFsAsset = m_assetManager.LoadShader("Assets/Shaders/gbuffer.frag");
         const auto* gbufferFsSpirv = m_assetManager.GetShader(gbufferFsAsset);
         if (!gbufferFsSpirv)
@@ -451,13 +500,16 @@ namespace ChikaEngine::Resource
             .pipeline = forwardPipeline,
             .forwardPipeline = forwardPipeline,
             .gbufferPipeline = gbufferPipeline,
+            .shadowPipeline = shadowPipeline,
             .vertexShader = vs,
             .fragmentShader = fs,
             .gbufferFragmentShader = gbufferFs,
             .uboBuffer = uboHandle,
             .forwardDrawBindings = ResolveMaterialDrawBindings(*forwardInterface),
             .gbufferDrawBindings = ResolveMaterialDrawBindings(*gbufferInterface),
+            .shadowDrawBindings = ResolveMaterialDrawBindings(*shadowInterface),
             .bindings = bindings,
+            .shadowBindings = FilterBindingGroups(bindings, *shadowInterface),
             .transparent = transparent,
             .masked = masked,
         });
@@ -512,6 +564,8 @@ namespace ChikaEngine::Resource
         m_rhi.DestroyPipeline(material->forwardPipeline);
         if (material->gbufferPipeline != material->forwardPipeline)
             m_rhi.DestroyPipeline(material->gbufferPipeline);
+        if (material->shadowPipeline != material->forwardPipeline && material->shadowPipeline != material->gbufferPipeline)
+            m_rhi.DestroyPipeline(material->shadowPipeline);
         m_rhi.DestroyShader(material->vertexShader);
         m_rhi.DestroyShader(material->fragmentShader);
         m_rhi.DestroyShader(material->gbufferFragmentShader);
