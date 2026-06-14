@@ -74,6 +74,31 @@ namespace ChikaEngine::Render
         {
             return m_settings.pipelineMode;
         }
+        /** @brief 返回当前渲染质量配置的只读快照，供 Editor 展示。 */
+        const RenderSettings& GetSettings() const
+        {
+            return m_settings;
+        }
+        /** @brief 更新线性 HDR 曝光值；实际 UBO 在下一帧统一写入。 */
+        void SetExposure(float exposure)
+        {
+            m_settings.postProcess.exposure = exposure;
+        }
+        /** @brief 开关轻量 Bloom Composite。 */
+        void SetBloomEnabled(bool enabled)
+        {
+            m_settings.postProcess.bloomEnabled = enabled;
+        }
+        /** @brief 开关输出阶段 FXAA。 */
+        void SetFXAAEnabled(bool enabled)
+        {
+            m_settings.postProcess.fxaaEnabled = enabled;
+        }
+        /** @brief 设置环境光强度，作为正式 IBL 资源接入前的统一入口。 */
+        void SetAmbientIntensity(float intensity)
+        {
+            m_settings.ambientIntensity = intensity;
+        }
 
         const RenderFrameStatistics& GetFrameStatistics() const
         {

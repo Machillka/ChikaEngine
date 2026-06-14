@@ -29,5 +29,6 @@ namespace ChikaEngine::Resource
         Render::TextureHandle dst;
         uint32_t width;
         uint32_t height;
+        Render::RHI_Format format = Render::RHI_Format::RGBA8_UNorm;
     };
 } // namespace ChikaEngine::Resource

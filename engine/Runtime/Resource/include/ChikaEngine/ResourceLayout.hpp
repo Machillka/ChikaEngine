@@ -45,6 +45,7 @@ namespace ChikaEngine::Resource
         Render::ResourceBindingHandle shadowMap;
         Render::ResourceBindingHandle bones;
         Render::ResourceBindingHandle instances;
+        Render::ResourceBindingHandle lights;
     };
 
     struct MaterialGPU

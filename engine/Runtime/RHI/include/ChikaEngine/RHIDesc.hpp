@@ -20,6 +20,7 @@ namespace ChikaEngine::Render
     {
         Unknown = 0,
         RGBA8_UNorm,
+        RGBA8_SRGB,
         BGRA8_UNorm,
         RGBA16_Float,
         RGBA32_Float,

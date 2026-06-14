@@ -12,7 +12,7 @@
   - `engine/Runtime/Framework/src/subsystem/RenderSubSystem.cpp`
   - `Assets/Shaders/`
   - `Assets/Materials/`
-- Status: Phase 0-4 Complete; Phase 5+ Planned
+- Status: Phase 0-4 Complete; Phase 5 Foundation Complete, Advanced Increments Planned
 
 ## Goal
 
@@ -1068,6 +1068,18 @@ Set 3: Pass-local Resources
 ---
 
 ## Phase 5：实现成熟渲染功能
+
+> Implementation status (2026-06-15): Foundation complete. HDR、PBR、多光源正确性路径、透明、PCF 阴影、后处理与回归边界已经实现；完整 IBL、Clustered Light Culling、CSM/Shadow Atlas 和高级后处理仍按各步骤 Pending 项继续推进。
+
+- Step 5.1：`docs/render/renderer-step-5.1-hdr-color-space.dev.md`
+- Step 5.2：`docs/render/renderer-step-5.2-metallic-roughness-pbr.dev.md`
+- Step 5.3：`docs/render/renderer-step-5.3-ibl-boundary.dev.md`
+- Step 5.4：`docs/render/renderer-step-5.4-multi-light.dev.md`
+- Step 5.5：`docs/render/renderer-step-5.5-transparent.dev.md`
+- Step 5.6：`docs/render/renderer-step-5.6-shadow-system.dev.md`
+- Step 5.7：`docs/render/renderer-step-5.7-post-process-stack.dev.md`
+- Step 5.8：`docs/render/renderer-step-5.8-render-regression.dev.md`
+- Feature Matrix：`docs/render/renderer-phase-5-feature-matrix.md`
 
 ### Step 5.1：建立 HDR 与颜色空间基础
 

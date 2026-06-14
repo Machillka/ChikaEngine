@@ -15,7 +15,7 @@ namespace ChikaEngine::Render::PassModules
             {
                 builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::ShadowDepth));
                 const float clearColor[4] = { 0.1f, 0.2f, 0.3f, 1.0f };
-                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::SceneColor), LoadOp::Clear, clearColor);
+                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::HDRSceneColor), LoadOp::Clear, clearColor);
                 builder.WriteDepth(blackboard.GetTexture(RenderGraphSemantic::SceneDepth), LoadOp::Clear);
             },
             std::move(execute));
@@ -26,6 +26,7 @@ namespace ChikaEngine::Render::PassModules
         blackboard.SetTexture(std::string(RenderGraphSemantic::GBufferAlbedo), graph._RegisterTexture(std::string(RenderGraphSemantic::GBufferAlbedo), descriptions.albedo));
         blackboard.SetTexture(std::string(RenderGraphSemantic::GBufferNormal), graph._RegisterTexture(std::string(RenderGraphSemantic::GBufferNormal), descriptions.normal));
         blackboard.SetTexture(std::string(RenderGraphSemantic::GBufferMaterial), graph._RegisterTexture(std::string(RenderGraphSemantic::GBufferMaterial), descriptions.material));
+        blackboard.SetTexture(std::string(RenderGraphSemantic::GBufferPosition), graph._RegisterTexture(std::string(RenderGraphSemantic::GBufferPosition), descriptions.position));
         graph.AddPass(
             "Deferred GBuffer Pass",
             [&](RGPassBuilder& builder)
@@ -34,6 +35,7 @@ namespace ChikaEngine::Render::PassModules
                 builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::GBufferAlbedo), LoadOp::Clear, clearColor);
                 builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::GBufferNormal), LoadOp::Clear, clearColor);
                 builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::GBufferMaterial), LoadOp::Clear, clearColor);
+                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::GBufferPosition), LoadOp::Clear, clearColor);
                 builder.WriteDepth(blackboard.GetTexture(RenderGraphSemantic::SceneDepth), LoadOp::Clear);
             },
             std::move(execute));
@@ -48,9 +50,10 @@ namespace ChikaEngine::Render::PassModules
                 builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::GBufferAlbedo));
                 builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::GBufferNormal));
                 builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::GBufferMaterial));
+                builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::GBufferPosition));
                 builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::ShadowDepth));
                 const float clearColor[4] = { 0.03f, 0.03f, 0.03f, 1.0f };
-                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::SceneColor), LoadOp::Clear, clearColor);
+                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::HDRSceneColor), LoadOp::Clear, clearColor);
             },
             std::move(execute));
     }
@@ -62,8 +65,21 @@ namespace ChikaEngine::Render::PassModules
             [&](RGPassBuilder& builder)
             {
                 builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::ShadowDepth));
-                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::SceneColor), LoadOp::Load);
+                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::HDRSceneColor), LoadOp::Load);
                 builder.WriteDepth(blackboard.GetTexture(RenderGraphSemantic::SceneDepth), LoadOp::Load);
+            },
+            std::move(execute));
+    }
+
+    void AddPostProcess(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute)
+    {
+        graph.AddPass(
+            "Post Process Composite",
+            [&](RGPassBuilder& builder)
+            {
+                builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::HDRSceneColor));
+                const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+                builder.WriteColor(blackboard.GetTexture(RenderGraphSemantic::SceneColor), LoadOp::Clear, clearColor);
             },
             std::move(execute));
     }

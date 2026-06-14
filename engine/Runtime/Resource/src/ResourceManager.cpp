@@ -135,6 +135,7 @@ namespace ChikaEngine::Resource
                 .shadowMap = Render::ResolveResourceBinding(interface, "shadowMap"),
                 .bones = Render::ResolveResourceBinding(interface, "uboBones"),
                 .instances = Render::ResolveResourceBinding(interface, "instances"),
+                .lights = Render::ResolveResourceBinding(interface, "lights"),
             };
         }
 
@@ -320,7 +321,7 @@ namespace ChikaEngine::Resource
         Render::TextureDesc desc{
             .width = data->width,
             .height = data->height,
-            .format = Render::RHI_Format::RGBA8_UNorm,
+            .format = data->srgb ? Render::RHI_Format::RGBA8_SRGB : Render::RHI_Format::RGBA8_UNorm,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::Sampled,
@@ -340,7 +341,7 @@ namespace ChikaEngine::Resource
 
         {
             std::lock_guard<std::mutex> lock(m_uploadMutex);
-            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height });
+            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height, desc.format });
         }
 
         // SubmitImmediate(
@@ -408,7 +409,8 @@ namespace ChikaEngine::Resource
             .depthWrite = !transparent,
             .alphaBlendEnable = transparent,
         };
-        pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::BGRA8_UNorm);
+        // Forward Opaque/Transparent 都在线性 HDR Scene Color 中执行，显示转换由 Post Process 完成。
+        pipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
         pipelineDesc.depthAttachmentFormat = Render::RHI_Format::D32_SFloat;
         Render::PipelineHandle forwardPipeline = m_rhi.CreateGraphicsPipeline(pipelineDesc);
         m_rhi.SetDebugName(forwardPipeline, materialDebugName + ".ForwardPipeline");
@@ -446,7 +448,8 @@ namespace ChikaEngine::Resource
         gbufferPipelineDesc.colorAttachmentFormats.clear();
         gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA8_UNorm);
         gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
-        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA8_UNorm);
+        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
+        gbufferPipelineDesc.colorAttachmentFormats.push_back(Render::RHI_Format::RGBA16_Float);
         Render::PipelineHandle gbufferPipeline = m_rhi.CreateGraphicsPipeline(gbufferPipelineDesc);
         m_rhi.SetDebugName(gbufferPipeline, materialDebugName + ".GBufferPipeline");
 

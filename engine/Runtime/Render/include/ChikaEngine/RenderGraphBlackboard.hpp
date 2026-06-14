@@ -55,6 +55,7 @@ namespace ChikaEngine::Render
 
     namespace RenderGraphSemantic
     {
+        inline constexpr std::string_view HDRSceneColor = "SceneColor.HDR";
         inline constexpr std::string_view SceneColor = "SceneColor";
         inline constexpr std::string_view SceneDepth = "SceneDepth";
         inline constexpr std::string_view ShadowDepth = "ShadowDepth";
@@ -62,5 +63,6 @@ namespace ChikaEngine::Render
         inline constexpr std::string_view GBufferAlbedo = "GBuffer.Albedo";
         inline constexpr std::string_view GBufferNormal = "GBuffer.Normal";
         inline constexpr std::string_view GBufferMaterial = "GBuffer.Material";
+        inline constexpr std::string_view GBufferPosition = "GBuffer.Position";
     } // namespace RenderGraphSemantic
 } // namespace ChikaEngine::Render

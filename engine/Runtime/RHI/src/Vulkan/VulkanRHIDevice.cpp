@@ -106,6 +106,7 @@ namespace ChikaEngine::Render
             case RHI_Format::RGBA32_SInt:
                 return Shader::ShaderValueType::Int4;
             case RHI_Format::RGBA8_UNorm:
+            case RHI_Format::RGBA8_SRGB:
             case RHI_Format::BGRA8_UNorm:
             case RHI_Format::RGBA16_Float:
             case RHI_Format::RGBA32_Float:

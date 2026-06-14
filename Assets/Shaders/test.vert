@@ -10,15 +10,12 @@ layout(location = 0) out vec3 outWorldPos;
 layout(location = 1) out vec3 outNormal;
 layout(location = 2) out vec2 outUV;
 
-layout(set = 1, binding = 0) uniform MaterialData {
-    vec4 BaseColor;
-} material;
-
 layout(set = 0, binding = 0) uniform SceneData {
     mat4 cameraVP;
     mat4 lightVP;
-    vec4 lightDir;
     vec4 viewPos;
+    vec4 frameOptions;
+    vec4 shadowOptions;
 } scene;
 
 layout(set = 2, binding = 1, std430) readonly buffer InstanceData {

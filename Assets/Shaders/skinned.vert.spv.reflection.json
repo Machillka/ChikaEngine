@@ -131,7 +131,7 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "lightDir",
+            "name": "viewPos",
             "offset": 128,
             "size": 16,
             "type": 4
@@ -140,14 +140,23 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "viewPos",
+            "name": "frameOptions",
             "offset": 144,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "shadowOptions",
+            "offset": 160,
             "size": 16,
             "type": 4
           }
         ],
         "name": "scene",
-        "size": 160
+        "size": 176
       },
       "name": "scene",
       "set": 0,
@@ -201,7 +210,7 @@
       "type": 1
     }
   ],
-  "stableHash": 16704275728412091895,
+  "stableHash": 5029421709168810580,
   "stage": 1,
   "version": 1
 }

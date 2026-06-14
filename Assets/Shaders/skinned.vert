@@ -12,8 +12,9 @@ layout(location = 4) in vec4 inBoneWeights;
 layout(set = 0, binding = 0) uniform SceneData {
     mat4 cameraVP;
     mat4 lightVP;
-    vec4 lightDir;
     vec4 viewPos;
+    vec4 frameOptions;
+    vec4 shadowOptions;
 } scene;
 
 layout(set = 2, binding = 0, std430) readonly buffer BoneData {

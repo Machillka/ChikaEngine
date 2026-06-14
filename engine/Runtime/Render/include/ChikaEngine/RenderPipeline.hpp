@@ -20,8 +20,33 @@ namespace ChikaEngine::Render
     {
         Math::Mat4 cameraVP;
         Math::Mat4 lightVP;
-        float lightDir[4];
         float viewPos[4];
+        /** @brief x=ambientIntensity, y=lightCount, z=shadowDepthBias, w=shadowNormalBias。 */
+        float frameOptions[4];
+        /** @brief x/y=shadow texel size, z=PCF radius, w reserved。 */
+        float shadowOptions[4];
+    };
+
+    /**
+     * @brief 与 Shader std430 LightData 保持一致的多光源 GPU 表示。
+     */
+    struct LightGPU
+    {
+        float positionRange[4];
+        float directionType[4];
+        float colorIntensity[4];
+        float spotAngles[4];
+    };
+
+    /**
+     * @brief 保存 HDR 输出阶段的帧级参数。
+     */
+    struct PostProcessData
+    {
+        /** @brief x=exposure, y=bloomThreshold, z=bloomIntensity, w=toneMappingEnabled。 */
+        float toneMapping[4];
+        /** @brief x/y=inverse resolution, z=bloomEnabled, w=fxaaEnabled。 */
+        float imageOptions[4];
     };
 
     struct PC
@@ -80,6 +105,7 @@ namespace ChikaEngine::Render
         void AddGBufferPass();
         void AddDeferredLightingPass();
         void AddTransparentPass();
+        void AddPostProcessPass();
         void AddUploadPasses();
         void AddShadowPass();
         void AddImGuiPass();
@@ -91,6 +117,12 @@ namespace ChikaEngine::Render
         void PrepareSnapshotResources();
         void PrepareRenderQueues();
         void PrepareInstanceData();
+        /** @brief 从 Snapshot 上传帧级多光源数据，至少保留一个合法 Dummy 元素。 */
+        void PrepareLightData();
+        /** @brief 更新独立后处理 UBO，使效果配置不污染场景/材质数据。 */
+        void UpdatePostProcessData();
+        /** @brief 创建由 Fullscreen Vertex Shader 驱动的 Tone Mapping/Post Process Pipeline。 */
+        void CreatePostProcessResources();
         /** @brief 释放由 Pipeline 创建、因此必须由 Pipeline 回收的 RHI 资源。 */
         void DestroyOwnedResources();
 
@@ -125,14 +157,20 @@ namespace ChikaEngine::Render
         void* m_imguiDrawData = nullptr;
 
         TextureHandle m_offscreenColor;
+        TextureHandle m_hdrSceneColor;
         TextureHandle m_depthTexture;
         TextureHandle m_dummyTexture;
         TextureHandle m_shadowDepthTexture;
         BufferHandle m_sceneUBO;
+        BufferHandle m_lightBuffer;
+        BufferHandle m_postProcessUBO;
         BufferHandle m_dummyBoneUBO;
         ShaderHandle m_deferredLightingVertexShader;
         ShaderHandle m_deferredLightingFragmentShader;
         PipelineHandle m_deferredLightingPipeline;
+        ShaderHandle m_postProcessVertexShader;
+        ShaderHandle m_postProcessFragmentShader;
+        PipelineHandle m_postProcessPipeline;
 
         RenderGraphBlackboard m_graphBlackboard;
 
@@ -141,6 +179,12 @@ namespace ChikaEngine::Render
         ResourceBindingHandle m_deferredAlbedoBinding;
         ResourceBindingHandle m_deferredNormalBinding;
         ResourceBindingHandle m_deferredMaterialBinding;
+        ResourceBindingHandle m_deferredPositionBinding;
+        ResourceBindingHandle m_deferredLightsBinding;
+        ResourceBindingHandle m_deferredShadowBinding;
+        Shader::ShaderProgramInterface m_postProcessInterface;
+        ResourceBindingHandle m_postProcessSceneColorBinding;
+        ResourceBindingHandle m_postProcessDataBinding;
         RenderFrameStatistics m_frameStatistics;
         float m_time = 0.0f;
     };

@@ -4,6 +4,8 @@
 #include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RenderGraph.hpp"
 #include "ChikaEngine/RenderQueue.hpp"
+#include "ChikaEngine/RenderPipeline.hpp"
+#include "ChikaEngine/RenderPipelinePasses.hpp"
 #include "ChikaEngine/RenderVisibility.hpp"
 #include "ChikaEngine/RenderWorld.hpp"
 #include "ChikaEngine/Renderer.hpp"
@@ -309,6 +311,22 @@ namespace
     }
 
     /**
+     * @brief 验证 Phase 5 帧级 GPU 数据布局和质量设置具有稳定默认契约。
+     */
+    void TestPhase5RenderFeatureContracts()
+    {
+        using namespace ChikaEngine::Render;
+
+        const RenderSettings settings;
+        Check(sizeof(SceneData) == 176, "scene data matches shader std140 layout");
+        Check(sizeof(LightGPU) == 64, "light data matches shader std430 layout");
+        Check(sizeof(PostProcessData) == 32, "post process data matches shader std140 layout");
+        Check(settings.postProcess.toneMappingEnabled && settings.postProcess.fxaaEnabled, "HDR output defaults to tone mapping and FXAA");
+        Check(settings.shadows.resolution == 2048 && settings.shadows.pcfRadius == 1, "shadow quality defaults are explicit");
+        Check(RHI_Format::RGBA8_SRGB != RHI_Format::RGBA8_UNorm, "sRGB and linear texture formats are distinct");
+    }
+
+    /**
      * @brief 验证 RenderWorld 稳定句柄、增量更新和不可变 Snapshot 边界。
      */
     void TestRenderWorldLifecycleAndSnapshot()
@@ -331,8 +349,11 @@ namespace
         RenderView primaryView{ .primary = true };
         world.CreateView(primaryView);
         world.CreateLight({});
+        world.CreateLight({ .type = RenderLightType::Point, .position = { 2.0f, 3.0f, 4.0f }, .color = { 1.0f, 0.2f, 0.1f }, .intensity = 4.0f, .range = 8.0f, .castsShadow = false });
+        world.CreateLight({ .type = RenderLightType::Spot, .innerConeCos = 0.95f, .outerConeCos = 0.75f, .castsShadow = false });
         const auto snapshot = world.CreateSnapshot();
-        Check(snapshot->objects.size() == 1 && snapshot->lights.size() == 1, "render world snapshot copies objects and lights");
+        Check(snapshot->objects.size() == 1 && snapshot->lights.size() == 3, "render world snapshot copies objects and multiple light types");
+        Check(snapshot->lights[2].proxy.outerConeCos == 0.75f, "spot light cone settings survive snapshot");
         Check(snapshot->viewFamily.GetPrimaryView() != nullptr, "view family exposes primary view");
 
         Check(world.DestroyObject(object), "render world destroys proxy");
@@ -659,11 +680,43 @@ namespace
         Check(!graph.Compile(), "render graph rejects transient read-before-write");
         Check(!graph.GetCompileErrors().empty(), "render graph exposes compile errors");
     }
+
+    /**
+     * @brief 验证 HDR Scene Color 必须经过 Post Process 才能到达 LDR 输出和 Present。
+     */
+    void TestPostProcessGraphPath()
+    {
+        using namespace ChikaEngine::Render;
+
+        MockRHIDevice device;
+        RenderGraph graph(&device);
+        RenderGraphBlackboard blackboard;
+        const TextureDesc hdrDesc{
+            .width = 16,
+            .height = 16,
+            .format = RHI_Format::RGBA16_Float,
+            .usage = RHI_TextureUsage::ColorAttachment | RHI_TextureUsage::Sampled,
+        };
+        TextureDesc ldrDesc = hdrDesc;
+        ldrDesc.format = RHI_Format::RGBA8_UNorm;
+        const RGTextureHandle hdr = graph.ImportTexture("HDR", device.CreateTexture(hdrDesc), hdrDesc);
+        const RGTextureHandle ldr = graph.ImportTexture("LDR", device.CreateTexture(ldrDesc), ldrDesc);
+        blackboard.SetTexture(std::string(RenderGraphSemantic::HDRSceneColor), hdr);
+        blackboard.SetTexture(std::string(RenderGraphSemantic::SceneColor), ldr);
+
+        graph.AddPass("HDR Scene", [&](RGPassBuilder& builder) { builder.WriteColor(hdr); }, [](IRHICommandList*, RenderGraph*) {});
+        PassModules::AddPostProcess(graph, blackboard, [](IRHICommandList* commandList, RenderGraph*) { commandList->Draw(3, 1); });
+        graph.AddPresentPass("Present", ldr);
+
+        Check(graph.Compile(), "post process graph compiles");
+        Check(graph.GetCompiledPassNames() == std::vector<std::string>({ "HDR Scene", "Post Process Composite", "Present" }), "post process remains between HDR scene and LDR present");
+    }
 } // namespace
 
 int main()
 {
     TestFrameStatisticsReset();
+    TestPhase5RenderFeatureContracts();
     TestRenderWorldLifecycleAndSnapshot();
     TestBoundsTransform();
     TestFrustumVisibility();
@@ -675,6 +728,7 @@ int main()
     TestRenderGraphTextureCopyPath();
     TestRenderGraphDepthOnlyPass();
     TestRenderGraphCompileValidation();
+    TestPostProcessGraphPath();
 
     if (g_failures != 0)
         std::cerr << g_failures << " render baseline test(s) failed\n";

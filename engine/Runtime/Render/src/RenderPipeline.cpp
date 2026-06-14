@@ -15,6 +15,11 @@
 
 namespace ChikaEngine::Render
 {
+    namespace
+    {
+        constexpr uint32_t MAX_RENDER_LIGHTS = 128;
+    }
+
     RenderPipeline::~RenderPipeline()
     {
         Shutdown();
@@ -53,20 +58,39 @@ namespace ChikaEngine::Render
                 sceneData->cameraVP = Math::Mat4::Identity().Transposed();
                 sceneData->lightVP = Math::Mat4::Identity().Transposed();
 
-                Math::Vector3 defaultLightDir(0.5f, -1.0f, 0.3f);
-                Math::Vector3 n = defaultLightDir.Normalized();
-                sceneData->lightDir[0] = n.x;
-                sceneData->lightDir[1] = n.y;
-                sceneData->lightDir[2] = n.z;
-                sceneData->lightDir[3] = 0.0f;
-
                 // 默认摄像机位置在原点
                 sceneData->viewPos[0] = 0.0f;
                 sceneData->viewPos[1] = 0.0f;
                 sceneData->viewPos[2] = 0.0f;
                 sceneData->viewPos[3] = 1.0f;
+                sceneData->frameOptions[0] = m_settings->ambientIntensity;
+                sceneData->frameOptions[1] = 0.0f;
+                sceneData->frameOptions[2] = m_settings->shadows.depthBias;
+                sceneData->frameOptions[3] = m_settings->shadows.normalBias;
+                sceneData->shadowOptions[0] = 1.0f / static_cast<float>(m_settings->shadows.resolution);
+                sceneData->shadowOptions[1] = sceneData->shadowOptions[0];
+                sceneData->shadowOptions[2] = static_cast<float>(m_settings->shadows.pcfRadius);
+                sceneData->shadowOptions[3] = 0.0f;
             }
         }
+
+        // Light Buffer 使用固定上限建立稳定 Descriptor；当前 Shader 正确遍历全部有效光源。
+        m_lightBuffer = m_rhi->CreateBuffer({
+            .size = sizeof(LightGPU) * MAX_RENDER_LIGHTS,
+            .usage = Render::RHI_BufferUsage::Storage,
+            .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
+        });
+        m_rhi->SetDebugName(m_lightBuffer, "Renderer.LightData");
+        if (void* mapped = m_rhi->GetMappedData(m_lightBuffer))
+            std::memset(mapped, 0, sizeof(LightGPU) * MAX_RENDER_LIGHTS);
+
+        m_postProcessUBO = m_rhi->CreateBuffer({
+            .size = sizeof(PostProcessData),
+            .usage = Render::RHI_BufferUsage::Uniform,
+            .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
+        });
+        m_rhi->SetDebugName(m_postProcessUBO, "Renderer.PostProcessData");
+        UpdatePostProcessData();
 
         // bone 的 ubo
         BufferDesc dummyBoneDesc{
@@ -86,13 +110,18 @@ namespace ChikaEngine::Render
         TextureDesc colorDesc{
             .width = m_viewportWidth,
             .height = m_viewportHeight,
-            .format = Render::RHI_Format::BGRA8_UNorm,
+            .format = Render::RHI_Format::RGBA8_UNorm,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
         };
         m_offscreenColor = m_rhi->CreateTexture(colorDesc);
         m_rhi->SetDebugName(m_offscreenColor, "Renderer.OffscreenColor");
+
+        // 场景始终在线性 HDR 目标中渲染，最终由 Post Process 输出到 LDR Viewport Texture。
+        colorDesc.format = Render::RHI_Format::RGBA16_Float;
+        m_hdrSceneColor = m_rhi->CreateTexture(colorDesc);
+        m_rhi->SetDebugName(m_hdrSceneColor, "Renderer.HDRSceneColor");
 
         // 深度 dump texture
         TextureDesc dummyDesc{
@@ -121,8 +150,8 @@ namespace ChikaEngine::Render
 
         // Shadow
         Render::TextureDesc shadowDepthDesc{
-            .width = m_settings->shadowResolution,
-            .height = m_settings->shadowResolution,
+            .width = m_settings->shadows.resolution,
+            .height = m_settings->shadows.resolution,
             .format = Render::RHI_Format::D32_SFloat,
             .mipLevels = 1,
             .arrayLayers = 1,
@@ -132,11 +161,12 @@ namespace ChikaEngine::Render
         m_rhi->SetDebugName(m_shadowDepthTexture, "Renderer.ShadowDepth");
 
         CreateDeferredResources();
+        CreatePostProcessResources();
 
         Render::TextureDesc swapDesc{
             .width = m_width,
             .height = m_height,
-            .format = Render::RHI_Format::BGRA8_UNorm,
+            .format = Render::RHI_Format::RGBA8_UNorm,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::ColorAttachment,
@@ -161,12 +191,14 @@ namespace ChikaEngine::Render
         Render::TextureDesc offscreenDesc{
             .width = m_viewportWidth,
             .height = m_viewportHeight,
-            .format = Render::RHI_Format::BGRA8_UNorm,
+            .format = Render::RHI_Format::RGBA8_UNorm,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
         };
         m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::SceneColor), m_renderGraph->ImportTexture("OffscreenColor", m_offscreenColor, offscreenDesc, ResourceState::Undefined, ResourceState::ShaderResource));
+        offscreenDesc.format = RHI_Format::RGBA16_Float;
+        m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::HDRSceneColor), m_renderGraph->ImportTexture("HDRSceneColor", m_hdrSceneColor, offscreenDesc, ResourceState::Undefined, ResourceState::ShaderResource));
 
         Render::TextureDesc depthDesc{
             .width = m_viewportWidth,
@@ -179,8 +211,8 @@ namespace ChikaEngine::Render
         m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::SceneDepth), m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc, ResourceState::Undefined, ResourceState::DepthWrite));
 
         Render::TextureDesc shadowDepthDesc{
-            .width = m_settings->shadowResolution,
-            .height = m_settings->shadowResolution,
+            .width = m_settings->shadows.resolution,
+            .height = m_settings->shadows.resolution,
             .format = Render::RHI_Format::D32_SFloat,
             .mipLevels = 1,
             .arrayLayers = 1,
@@ -212,6 +244,7 @@ namespace ChikaEngine::Render
         {
             AddMainScenePass();
         }
+        AddPostProcessPass();
         AddImGuiPass();
 
         m_renderGraph->AddPresentPass("Present", m_graphBlackboard.GetTexture(RenderGraphSemantic::Swapchain));
@@ -252,7 +285,7 @@ namespace ChikaEngine::Render
                     const TextureDesc destinationDesc{
                         .width = job.width,
                         .height = job.height,
-                        .format = RHI_Format::RGBA8_UNorm,
+                        .format = job.format,
                         .usage = RHI_TextureUsage::Sampled,
                     };
                     const RGBufferHandle staging = m_renderGraph->ImportBuffer("Upload.Texture.Staging." + std::to_string(index), job.staging, stagingDesc, ResourceState::CopySrc, ResourceState::CopySrc);
@@ -316,6 +349,8 @@ namespace ChikaEngine::Render
         Render::TextureDesc gbufferNormalDesc = gbufferAlbedoDesc;
         gbufferNormalDesc.format = Render::RHI_Format::RGBA16_Float;
         Render::TextureDesc gbufferMaterialDesc = gbufferAlbedoDesc;
+        gbufferMaterialDesc.format = Render::RHI_Format::RGBA16_Float;
+        Render::TextureDesc gbufferPositionDesc = gbufferNormalDesc;
 
         PassModules::AddGBuffer(*m_renderGraph,
                                 m_graphBlackboard,
@@ -323,6 +358,7 @@ namespace ChikaEngine::Render
                                     .albedo = gbufferAlbedoDesc,
                                     .normal = gbufferNormalDesc,
                                     .material = gbufferMaterialDesc,
+                                    .position = gbufferPositionDesc,
                                 },
                                 [this](IRHICommandList* cmd, RenderGraph*) { DrawRenderQueue(cmd, m_renderQueues.gbufferOpaque); });
     }
@@ -341,6 +377,9 @@ namespace ChikaEngine::Render
                                              Render::BindTexture(bindings, m_deferredAlbedoBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::GBufferAlbedo)));
                                              Render::BindTexture(bindings, m_deferredNormalBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::GBufferNormal)));
                                              Render::BindTexture(bindings, m_deferredMaterialBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::GBufferMaterial)));
+                                             Render::BindTexture(bindings, m_deferredPositionBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::GBufferPosition)));
+                                             Render::BindBuffer(bindings, m_deferredLightsBinding, m_lightBuffer, 0, sizeof(LightGPU) * MAX_RENDER_LIGHTS);
+                                             Render::BindTexture(bindings, m_deferredShadowBinding, m_shadowDepthTexture);
 
                                              cmd->BindPipeline(m_deferredLightingPipeline);
                                              for (const auto& group : bindings)
@@ -352,7 +391,7 @@ namespace ChikaEngine::Render
     /**
      * @brief 在 Deferred Lighting 后按远到近提交透明 Queue。
      *
-     * 透明对象不写入 GBuffer；独立 Pass 保留已有颜色和深度，为 Phase 6 的正式透明材质路径提供边界。
+     * 透明对象不写入 GBuffer；独立 Pass 保留已有 HDR 颜色和深度，并在 Tone Mapping 前完成混合。
      */
     void RenderPipeline::AddTransparentPass()
     {
@@ -360,6 +399,27 @@ namespace ChikaEngine::Render
             return;
 
         PassModules::AddTransparent(*m_renderGraph, m_graphBlackboard, [this](IRHICommandList* cmd, RenderGraph*) { DrawRenderQueue(cmd, m_renderQueues.forwardTransparent); });
+    }
+
+    /**
+     * @brief 在所有 HDR 几何与透明 Pass 完成后执行统一显示输出。
+     */
+    void RenderPipeline::AddPostProcessPass()
+    {
+        PassModules::AddPostProcess(*m_renderGraph,
+                                    m_graphBlackboard,
+                                    [this](IRHICommandList* cmd, RenderGraph* graph)
+                                    {
+                                        if (!m_postProcessPipeline.IsValid())
+                                            return;
+                                        std::vector<ResourceBindingGroup> bindings;
+                                        BindTexture(bindings, m_postProcessSceneColorBinding, graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::HDRSceneColor)));
+                                        BindBuffer(bindings, m_postProcessDataBinding, m_postProcessUBO, 0, sizeof(PostProcessData));
+                                        cmd->BindPipeline(m_postProcessPipeline);
+                                        for (const auto& group : bindings)
+                                            cmd->BindResources(group);
+                                        cmd->Draw(3, 1);
+                                    });
     }
 
     void RenderPipeline::DrawRenderQueue(IRHICommandList* cmd, const RenderQueue& queue)
@@ -427,6 +487,7 @@ namespace ChikaEngine::Render
                 Render::BindTexture(bindings, drawBindings.shadowMap, shadowPass ? m_dummyTexture : m_shadowDepthTexture);
                 Render::BindBuffer(bindings, drawBindings.instances, instances.handle, 0, instances.size);
                 Render::BindBuffer(bindings, drawBindings.bones, boneBuffer, 0, boneBufferSize);
+                Render::BindBuffer(bindings, drawBindings.lights, m_lightBuffer, 0, sizeof(LightGPU) * MAX_RENDER_LIGHTS);
                 for (const auto& group : bindings)
                     cmd->BindResources(group);
                 boundMaterial = batch.material;
@@ -461,6 +522,9 @@ namespace ChikaEngine::Render
         m_deferredAlbedoBinding = ResolveResourceBinding(m_deferredLightingInterface, "GBufferAlbedo");
         m_deferredNormalBinding = ResolveResourceBinding(m_deferredLightingInterface, "GBufferNormal");
         m_deferredMaterialBinding = ResolveResourceBinding(m_deferredLightingInterface, "GBufferMaterial");
+        m_deferredPositionBinding = ResolveResourceBinding(m_deferredLightingInterface, "GBufferPosition");
+        m_deferredLightsBinding = ResolveResourceBinding(m_deferredLightingInterface, "lights");
+        m_deferredShadowBinding = ResolveResourceBinding(m_deferredLightingInterface, "shadowMap");
 
         m_deferredLightingVertexShader = m_rhi->CreateShader({
             .stage = RHI_ShaderStage::Vertex,
@@ -482,12 +546,54 @@ namespace ChikaEngine::Render
             .depthWrite = false,
             .alphaBlendEnable = false,
         };
-        desc.colorAttachmentFormats.push_back(RHI_Format::BGRA8_UNorm);
+        desc.colorAttachmentFormats.push_back(RHI_Format::RGBA16_Float);
         desc.depthAttachmentFormat = RHI_Format::Unknown;
         m_deferredLightingPipeline = m_rhi->CreateGraphicsPipeline(desc);
         m_rhi->SetDebugName(m_deferredLightingVertexShader, "Renderer.DeferredLighting.VertexShader");
         m_rhi->SetDebugName(m_deferredLightingFragmentShader, "Renderer.DeferredLighting.FragmentShader");
         m_rhi->SetDebugName(m_deferredLightingPipeline, "Renderer.DeferredLighting.Pipeline");
+    }
+
+    /**
+     * @brief 创建独立 Post Process Pipeline，使 HDR 到显示输出的转换不进入材质 Shader。
+     */
+    void RenderPipeline::CreatePostProcessResources()
+    {
+        const Asset::ShaderHandle vertexAsset = m_assetMgr->LoadShader("Assets/Shaders/fullscreen.vert");
+        const Asset::ShaderHandle fragmentAsset = m_assetMgr->LoadShader("Assets/Shaders/post_process.frag");
+        const auto* vertex = m_assetMgr->GetShader(vertexAsset);
+        const auto* fragment = m_assetMgr->GetShader(fragmentAsset);
+        if (!vertex || !fragment || !vertex->hasReflection || !fragment->hasReflection)
+            return;
+
+        const std::array stages{ vertex->reflection, fragment->reflection };
+        Shader::ShaderProgramBuildResult interfaceResult = Shader::BuildShaderProgramInterface(stages);
+        if (!interfaceResult.success)
+        {
+            for (const std::string& error : interfaceResult.errors)
+                LOG_ERROR("Renderer", "Post process shader interface conflict: {}", error);
+            return;
+        }
+        m_postProcessInterface = std::move(interfaceResult.interface);
+        m_postProcessSceneColorBinding = ResolveResourceBinding(m_postProcessInterface, "HDRSceneColor");
+        m_postProcessDataBinding = ResolveResourceBinding(m_postProcessInterface, "postProcess");
+        m_postProcessVertexShader = m_rhi->CreateShader({ .stage = RHI_ShaderStage::Vertex, .code = vertex->spirv.data(), .codeSize = vertex->spirv.size() });
+        m_postProcessFragmentShader = m_rhi->CreateShader({ .stage = RHI_ShaderStage::Fragment, .code = fragment->spirv.data(), .codeSize = fragment->spirv.size() });
+
+        PipelineDesc desc{
+            .vertexShader = m_postProcessVertexShader,
+            .fragmentShader = m_postProcessFragmentShader,
+            .shaderInterface = m_postProcessInterface,
+            .vertexLayout = {},
+            .depthTest = false,
+            .depthWrite = false,
+        };
+        desc.colorAttachmentFormats.push_back(RHI_Format::RGBA8_UNorm);
+        desc.depthAttachmentFormat = RHI_Format::Unknown;
+        m_postProcessPipeline = m_rhi->CreateGraphicsPipeline(desc);
+        m_rhi->SetDebugName(m_postProcessVertexShader, "Renderer.PostProcess.VertexShader");
+        m_rhi->SetDebugName(m_postProcessFragmentShader, "Renderer.PostProcess.FragmentShader");
+        m_rhi->SetDebugName(m_postProcessPipeline, "Renderer.PostProcess.Pipeline");
     }
 
     void RenderPipeline::BeginFrame()
@@ -501,6 +607,8 @@ namespace ChikaEngine::Render
     {
         m_time += deltaTime;
         UpdateSceneDataFromSnapshot();
+        PrepareLightData();
+        UpdatePostProcessData();
         PrepareSnapshotResources();
         PrepareRenderQueues();
         PrepareInstanceData();
@@ -546,11 +654,70 @@ namespace ChikaEngine::Render
         {
             const RenderLightProxy& light = m_snapshot->lights.front().proxy;
             sceneData->lightVP = light.viewProjection.Transposed();
-            sceneData->lightDir[0] = light.direction.x;
-            sceneData->lightDir[1] = light.direction.y;
-            sceneData->lightDir[2] = light.direction.z;
-            sceneData->lightDir[3] = 0.0f;
         }
+        sceneData->frameOptions[0] = m_settings->ambientIntensity;
+        sceneData->frameOptions[1] = static_cast<float>(std::min<size_t>(m_snapshot->lights.size(), MAX_RENDER_LIGHTS));
+        sceneData->frameOptions[2] = m_settings->shadows.depthBias;
+        sceneData->frameOptions[3] = m_settings->shadows.normalBias;
+        sceneData->shadowOptions[0] = 1.0f / static_cast<float>(m_settings->shadows.resolution);
+        sceneData->shadowOptions[1] = sceneData->shadowOptions[0];
+        sceneData->shadowOptions[2] = static_cast<float>(m_settings->shadows.pcfRadius);
+        sceneData->shadowOptions[3] = 0.0f;
+    }
+
+    /**
+     * @brief 把 RenderWorld Light Proxy 转换成后端无关的帧级 GPU Light Buffer。
+     */
+    void RenderPipeline::PrepareLightData()
+    {
+        auto* mapped = static_cast<LightGPU*>(m_rhi->GetMappedData(m_lightBuffer));
+        if (!mapped)
+            return;
+        std::memset(mapped, 0, sizeof(LightGPU) * MAX_RENDER_LIGHTS);
+        if (!m_snapshot)
+            return;
+
+        const size_t lightCount = std::min<size_t>(m_snapshot->lights.size(), MAX_RENDER_LIGHTS);
+        for (size_t index = 0; index < lightCount; ++index)
+        {
+            const RenderLightProxy& source = m_snapshot->lights[index].proxy;
+            const Math::Vector3 direction = source.direction.Normalized();
+            LightGPU& target = mapped[index];
+            target.positionRange[0] = source.position.x;
+            target.positionRange[1] = source.position.y;
+            target.positionRange[2] = source.position.z;
+            target.positionRange[3] = source.range;
+            target.directionType[0] = direction.x;
+            target.directionType[1] = direction.y;
+            target.directionType[2] = direction.z;
+            target.directionType[3] = static_cast<float>(source.type);
+            target.colorIntensity[0] = source.color.x;
+            target.colorIntensity[1] = source.color.y;
+            target.colorIntensity[2] = source.color.z;
+            target.colorIntensity[3] = source.intensity;
+            target.spotAngles[0] = source.innerConeCos;
+            target.spotAngles[1] = source.outerConeCos;
+            target.spotAngles[2] = source.castsShadow ? 1.0f : 0.0f;
+        }
+    }
+
+    /**
+     * @brief 将 RenderSettings 的后处理配置写入 Reflection 驱动的独立 Frame UBO。
+     */
+    void RenderPipeline::UpdatePostProcessData()
+    {
+        auto* data = static_cast<PostProcessData*>(m_rhi->GetMappedData(m_postProcessUBO));
+        if (!data || !m_settings)
+            return;
+        const PostProcessSettings& settings = m_settings->postProcess;
+        data->toneMapping[0] = settings.exposure;
+        data->toneMapping[1] = settings.bloomThreshold;
+        data->toneMapping[2] = settings.bloomIntensity;
+        data->toneMapping[3] = settings.toneMappingEnabled ? 1.0f : 0.0f;
+        data->imageOptions[0] = 1.0f / static_cast<float>(std::max(1u, m_viewportWidth));
+        data->imageOptions[1] = 1.0f / static_cast<float>(std::max(1u, m_viewportHeight));
+        data->imageOptions[2] = settings.bloomEnabled ? 1.0f : 0.0f;
+        data->imageOptions[3] = settings.fxaaEnabled ? 1.0f : 0.0f;
     }
 
     void RenderPipeline::PrepareSnapshotResources()
@@ -748,11 +915,17 @@ namespace ChikaEngine::Render
         };
 
         destroyPipeline(m_deferredLightingPipeline);
+        destroyPipeline(m_postProcessPipeline);
         destroyShader(m_deferredLightingVertexShader);
         destroyShader(m_deferredLightingFragmentShader);
+        destroyShader(m_postProcessVertexShader);
+        destroyShader(m_postProcessFragmentShader);
         destroyBuffer(m_sceneUBO);
+        destroyBuffer(m_lightBuffer);
+        destroyBuffer(m_postProcessUBO);
         destroyBuffer(m_dummyBoneUBO);
         destroyTexture(m_offscreenColor);
+        destroyTexture(m_hdrSceneColor);
         destroyTexture(m_depthTexture);
         destroyTexture(m_dummyTexture);
         destroyTexture(m_shadowDepthTexture);
@@ -799,19 +972,23 @@ namespace ChikaEngine::Render
         m_isViewResizePending = false;
 
         m_rhi->DestroyTexture(m_offscreenColor);
+        m_rhi->DestroyTexture(m_hdrSceneColor);
         m_rhi->DestroyTexture(m_depthTexture);
 
         // 重建 Color
         TextureDesc colorDesc{
             .width = m_viewportWidth,
             .height = m_viewportHeight,
-            .format = Render::RHI_Format::BGRA8_UNorm,
+            .format = Render::RHI_Format::RGBA8_UNorm,
             .mipLevels = 1,
             .arrayLayers = 1,
             .usage = Render::RHI_TextureUsage::ColorAttachment | Render::RHI_TextureUsage::Sampled,
         };
         m_offscreenColor = m_rhi->CreateTexture(colorDesc);
         m_rhi->SetDebugName(m_offscreenColor, "Renderer.OffscreenColor");
+        colorDesc.format = Render::RHI_Format::RGBA16_Float;
+        m_hdrSceneColor = m_rhi->CreateTexture(colorDesc);
+        m_rhi->SetDebugName(m_hdrSceneColor, "Renderer.HDRSceneColor");
 
         // 重建 Depth
         TextureDesc depthDesc{

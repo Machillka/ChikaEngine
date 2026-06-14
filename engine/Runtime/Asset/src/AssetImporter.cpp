@@ -25,7 +25,7 @@ namespace ChikaEngine::Asset
                 }
 
                 std::optional<uint32_t> expectedSet;
-                if (resource.name == "scene" || resource.name == "shadowMap" || resource.name.starts_with("GBuffer"))
+                if (resource.name == "scene" || resource.name == "shadowMap" || resource.name == "lights" || resource.name == "postProcess" || resource.name == "HDRSceneColor" || resource.name.starts_with("GBuffer"))
                     expectedSet = 0;
                 else if (resource.name == "material" || resource.name == "Albedo")
                     expectedSet = 1;

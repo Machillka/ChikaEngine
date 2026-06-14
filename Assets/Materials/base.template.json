@@ -13,6 +13,39 @@
                 1.0,
                 1.0
             ]
+        },
+        "Emissive": {
+            "type": "vec4",
+            "default": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ]
+        },
+        "Metallic": {
+            "type": "float",
+            "default": [
+                0.0
+            ]
+        },
+        "Roughness": {
+            "type": "float",
+            "default": [
+                0.6
+            ]
+        },
+        "OcclusionStrength": {
+            "type": "float",
+            "default": [
+                1.0
+            ]
+        },
+        "NormalScale": {
+            "type": "float",
+            "default": [
+                1.0
+            ]
         }
     },
     "textures": {

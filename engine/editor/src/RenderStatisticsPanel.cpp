@@ -49,6 +49,23 @@ namespace ChikaEngine::Editor
         ImGui::Text("Visible / Culled: %u / %u", statistics.visibleObjectCount, statistics.culledObjectCount);
         ImGui::Text("Packets / Batches: %u / %u", statistics.packetCount, statistics.batchCount);
         ImGui::Text("Instanced Batches: %u", statistics.instancedBatchCount);
+        if (ImGui::CollapsingHeader("Render Quality", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            const auto& settings = _context->renderer->GetSettings();
+            float exposure = settings.postProcess.exposure;
+            float ambientIntensity = settings.ambientIntensity;
+            bool bloomEnabled = settings.postProcess.bloomEnabled;
+            bool fxaaEnabled = settings.postProcess.fxaaEnabled;
+            if (ImGui::SliderFloat("Exposure", &exposure, 0.05f, 4.0f))
+                _context->renderer->SetExposure(exposure);
+            if (ImGui::SliderFloat("Ambient Intensity", &ambientIntensity, 0.0f, 1.0f))
+                _context->renderer->SetAmbientIntensity(ambientIntensity);
+            if (ImGui::Checkbox("Bloom", &bloomEnabled))
+                _context->renderer->SetBloomEnabled(bloomEnabled);
+            if (ImGui::Checkbox("FXAA", &fxaaEnabled))
+                _context->renderer->SetFXAAEnabled(fxaaEnabled);
+            ImGui::TextDisabled("Shadow: %u px, PCF radius %u", settings.shadows.resolution, settings.shadows.pcfRadius);
+        }
         ImGui::Separator();
         const auto& graph = _context->renderer->GetRenderGraphDebugSnapshot();
         if (!graph.compileErrors.empty() && ImGui::CollapsingHeader("Compile Errors", ImGuiTreeNodeFlags_DefaultOpen))

@@ -85,6 +85,8 @@ namespace ChikaEngine::Render
         Math::Vector3 color{ 1.0f, 1.0f, 1.0f };
         float intensity = 1.0f;
         float range = 0.0f;
+        float innerConeCos = 0.9f;
+        float outerConeCos = 0.8f;
         Math::Mat4 viewProjection = Math::Mat4::Identity();
         uint32_t layerMask = 0xFFFFFFFFu;
         bool castsShadow = true;

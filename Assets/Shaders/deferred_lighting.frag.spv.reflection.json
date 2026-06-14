@@ -43,7 +43,7 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "lightDir",
+            "name": "viewPos",
             "offset": 128,
             "size": 16,
             "type": 4
@@ -52,14 +52,23 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "viewPos",
+            "name": "frameOptions",
             "offset": 144,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "shadowOptions",
+            "offset": 160,
             "size": 16,
             "type": 4
           }
         ],
         "name": "scene",
-        "size": 160
+        "size": 176
       },
       "name": "scene",
       "set": 0,
@@ -104,9 +113,85 @@
       "set": 0,
       "stages": 2,
       "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 4,
+      "buffer": {
+        "members": [],
+        "name": "GBufferPosition",
+        "size": 0
+      },
+      "name": "GBufferPosition",
+      "set": 0,
+      "stages": 2,
+      "type": 2
+    },
+    {
+      "arrayCount": 1,
+      "binding": 5,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.colorIntensity",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.directionType",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.positionRange",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "values.spotAngles",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          }
+        ],
+        "name": "lights",
+        "size": 0
+      },
+      "name": "lights",
+      "set": 0,
+      "stages": 2,
+      "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 6,
+      "buffer": {
+        "members": [],
+        "name": "shadowMap",
+        "size": 0
+      },
+      "name": "shadowMap",
+      "set": 0,
+      "stages": 2,
+      "type": 2
     }
   ],
-  "stableHash": 13736654997039263740,
+  "stableHash": 2711113716074314902,
   "stage": 2,
   "version": 1
 }

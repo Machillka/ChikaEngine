@@ -32,7 +32,7 @@ namespace ChikaEngine::Render
 
         bool Equal(const RenderLightProxy& lhs, const RenderLightProxy& rhs)
         {
-            return lhs.type == rhs.type && Equal(lhs.position, rhs.position) && Equal(lhs.direction, rhs.direction) && Equal(lhs.color, rhs.color) && lhs.intensity == rhs.intensity && lhs.range == rhs.range && Equal(lhs.viewProjection, rhs.viewProjection) && lhs.layerMask == rhs.layerMask && lhs.castsShadow == rhs.castsShadow;
+            return lhs.type == rhs.type && Equal(lhs.position, rhs.position) && Equal(lhs.direction, rhs.direction) && Equal(lhs.color, rhs.color) && lhs.intensity == rhs.intensity && lhs.range == rhs.range && lhs.innerConeCos == rhs.innerConeCos && lhs.outerConeCos == rhs.outerConeCos && Equal(lhs.viewProjection, rhs.viewProjection) && lhs.layerMask == rhs.layerMask && lhs.castsShadow == rhs.castsShadow;
         }
 
         bool Equal(const RenderView& lhs, const RenderView& rhs)

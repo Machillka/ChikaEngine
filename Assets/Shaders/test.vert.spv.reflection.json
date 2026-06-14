@@ -121,7 +121,7 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "lightDir",
+            "name": "viewPos",
             "offset": 128,
             "size": 16,
             "type": 4
@@ -130,40 +130,26 @@
             "arrayCount": 1,
             "arrayStride": 0,
             "matrixStride": 0,
-            "name": "viewPos",
+            "name": "frameOptions",
             "offset": 144,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "shadowOptions",
+            "offset": 160,
             "size": 16,
             "type": 4
           }
         ],
         "name": "scene",
-        "size": 160
+        "size": 176
       },
       "name": "scene",
       "set": 0,
-      "stages": 1,
-      "type": 0
-    },
-    {
-      "arrayCount": 1,
-      "binding": 0,
-      "buffer": {
-        "members": [
-          {
-            "arrayCount": 1,
-            "arrayStride": 0,
-            "matrixStride": 0,
-            "name": "BaseColor",
-            "offset": 0,
-            "size": 16,
-            "type": 4
-          }
-        ],
-        "name": "material",
-        "size": 16
-      },
-      "name": "material",
-      "set": 1,
       "stages": 1,
       "type": 0
     },
@@ -191,7 +177,7 @@
       "type": 1
     }
   ],
-  "stableHash": 17934845197523505495,
+  "stableHash": 15565470001683293035,
   "stage": 1,
   "version": 1
 }

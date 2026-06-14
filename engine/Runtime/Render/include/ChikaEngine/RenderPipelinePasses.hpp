@@ -10,6 +10,7 @@ namespace ChikaEngine::Render::PassModules
         TextureDesc albedo;
         TextureDesc normal;
         TextureDesc material;
+        TextureDesc position;
     };
 
     /** @brief 添加仅写深度的 Shadow Pass。 */
@@ -22,6 +23,8 @@ namespace ChikaEngine::Render::PassModules
     void AddDeferredLighting(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
     /** @brief 添加保留 Scene Color/Depth 的透明 Pass。 */
     void AddTransparent(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
+    /** @brief 将线性 HDR Scene Color 转换为供显示和编辑器 Viewport 使用的 LDR Scene Color。 */
+    void AddPostProcess(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
     /** @brief 添加最终 UI Composite Pass。 */
     void AddUI(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
 } // namespace ChikaEngine::Render::PassModules

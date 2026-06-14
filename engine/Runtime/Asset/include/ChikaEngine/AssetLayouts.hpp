@@ -64,6 +64,8 @@ namespace ChikaEngine::Asset
         uint32_t width = 0;
         uint32_t height = 0;
         uint32_t channels = 4;
+        /** @brief 颜色纹理默认按 sRGB 采样；未来由 meta/import settings 覆盖法线等线性数据。 */
+        bool srgb = true;
 
         std::vector<uint8_t> pixels;
     };

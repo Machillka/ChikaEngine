@@ -1,0 +1,7 @@
+{
+  "guid": "483a759898473ba5d0376df22dd196e8",
+  "imported": "Shaders/post_process.frag.spv",
+  "importer": "shader",
+  "type": "shader_source",
+  "version": 1
+}

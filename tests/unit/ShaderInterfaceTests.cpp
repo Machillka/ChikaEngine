@@ -142,18 +142,22 @@ namespace
         const Shader::ShaderReflectionData forwardFragment = load("Assets/Shaders/test.frag.spv.reflection.json");
         const Shader::ShaderReflectionData gbufferFragment = load("Assets/Shaders/gbuffer.frag.spv.reflection.json");
         const Shader::ShaderReflectionData deferredFragment = load("Assets/Shaders/deferred_lighting.frag.spv.reflection.json");
+        const Shader::ShaderReflectionData postProcessFragment = load("Assets/Shaders/post_process.frag.spv.reflection.json");
 
         const std::array staticForwardStages{ staticVertex, forwardFragment };
         const std::array skinnedForwardStages{ skinnedVertex, forwardFragment };
         const std::array staticGBufferStages{ staticVertex, gbufferFragment };
         const std::array deferredStages{ fullscreenVertex, deferredFragment };
+        const std::array postProcessStages{ fullscreenVertex, postProcessFragment };
         Check(Shader::BuildShaderProgramInterface(staticForwardStages).success, "static forward shader interface builds");
         Check(Shader::BuildShaderProgramInterface(skinnedForwardStages).success, "skinned forward shader interface builds");
         Check(Shader::BuildShaderProgramInterface(staticGBufferStages).success, "gbuffer shader interface builds");
         Check(Shader::BuildShaderProgramInterface(deferredStages).success, "deferred lighting shader interface builds");
+        Check(Shader::BuildShaderProgramInterface(postProcessStages).success, "post process shader interface builds");
         Check(staticVertex.inputs.size() == 3, "static vertex reflection removes unused skinned attributes");
         Check(skinnedVertex.inputs.size() == 5, "skinned vertex reflection keeps bone attributes");
-        Check(gbufferFragment.outputs.size() == 3, "gbuffer reflection exposes all attachments");
+        Check(gbufferFragment.outputs.size() == 4, "gbuffer reflection exposes PBR and world-position attachments");
+        Check(forwardFragment.resources.size() >= 4, "forward PBR reflection exposes scene, material, textures, and light buffer");
     }
 } // namespace
 
