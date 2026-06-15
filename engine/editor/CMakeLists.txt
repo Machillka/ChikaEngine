@@ -18,6 +18,7 @@ target_link_libraries(${TARGET_NAME}
     PRIVATE
         ChikaEngine
         ChikaRuntime
+        imgui
 )
 set_target_properties(${TARGET_NAME} PROPERTIES
     VS_DEBUGGING_WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"

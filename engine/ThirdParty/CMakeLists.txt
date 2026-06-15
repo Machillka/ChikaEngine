@@ -12,9 +12,11 @@ add_subdirectory(${THIRD_PARTY_PATH}/glfw)
 find_package(Vulkan REQUIRED)
 add_subdirectory(${THIRD_PARTY_PATH}/VulkanMemoryAllocator)
 
-# imgui
-find_package(OpenGL REQUIRED)
-include(${THIRD_PARTY_PATH}/imgui.cmake)
+# ImGui is an Editor-only dependency. Standalone Game builds do not configure
+# or inherit it through the shared runtime third-party interface.
+if(CHIKA_BUILD_EDITOR)
+    include(${THIRD_PARTY_PATH}/imgui.cmake)
+endif()
 
 # fmt
 set(FMT_DOC OFF CACHE BOOL "Generate fmt docs" FORCE)
@@ -76,7 +78,6 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     glfw
     Vulkan::Vulkan
     GPUOpen::VulkanMemoryAllocator
-    imgui
     fmt::fmt
     nlohmann_json
     tinyobjloader

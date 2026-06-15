@@ -65,10 +65,7 @@ namespace ChikaEngine::Render
         void DestroySampler(SamplerHandle handle) override;
         void DestroyTextureView(TextureViewHandle handle) override;
 
-        void* GetImGuiTextureHandle(TextureHandle handle) override;
         TextureHandle GetActiveSwapchainTexture() override;
-
-        void InitializeImgui() override;
 
         void WaitIdle() override;
 
@@ -101,6 +98,33 @@ namespace ChikaEngine::Render
         {
             return m_device;
         }
+        /** @brief 暴露 Vulkan 实例给明确依赖 Vulkan 的外部后端适配器。 */
+        VkInstance GetRawInstance() const
+        {
+            return m_instance;
+        }
+        /** @brief 暴露物理设备给明确依赖 Vulkan 的外部后端适配器。 */
+        VkPhysicalDevice GetRawPhysicalDevice() const
+        {
+            return m_physicalDevice;
+        }
+        /** @brief 暴露图形队列给明确依赖 Vulkan 的外部后端适配器。 */
+        VkQueue GetGraphicsQueue() const
+        {
+            return m_graphicsQueue;
+        }
+        uint32_t GetGraphicsQueueFamily() const
+        {
+            return m_graphicsQueueFamily;
+        }
+        uint32_t GetSwapchainImageCount() const
+        {
+            return m_imageCount;
+        }
+        VkFormat GetSwapchainFormat() const
+        {
+            return m_swapchainFormat;
+        }
         VkSampler GetDefaultSampler() const
         {
             return m_defaultSampler;
@@ -115,9 +139,6 @@ namespace ChikaEngine::Render
             const VulkanTextureView* view = m_textureViews.Get(handle);
             return view ? view->view : VK_NULL_HANDLE;
         }
-
-      public:
-        VkDescriptorPool imguiPool = VK_NULL_HANDLE;
 
       private:
         friend class VulkanCommandList;

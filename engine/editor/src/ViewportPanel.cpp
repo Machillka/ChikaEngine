@@ -5,7 +5,6 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/scene/scene.hpp"
 #include "ChikaEngine/math/mat4.h"
-#include "ChikaEngine/IRHIDevice.hpp" // 用于获取 ImGui Texture Handle
 #include "EditorGizmoRenderer.hpp"
 #include <imgui.h>
 
@@ -163,7 +162,7 @@ namespace ChikaEngine::Editor
             }
 
             Render::TextureHandle offscreenTex = _context->renderer->GetOffscreenTexture();
-            void* imguiTexID = _context->renderer->GetRHIHandle()->GetImGuiTextureHandle(offscreenTex);
+            void* imguiTexID = _context->resolveTextureForUi ? _context->resolveTextureForUi(offscreenTex) : nullptr;
 
             if (imguiTexID)
             {

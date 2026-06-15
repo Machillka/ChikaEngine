@@ -24,6 +24,7 @@ namespace ChikaEngine::Editor
         _context.renderer = _renderer;
 
         _adapter.Initialize(_windowHandle, _renderer);
+        _context.resolveTextureForUi = [this](Render::TextureHandle texture) { return _adapter.GetTextureHandle(texture); };
 
         AddPanel<ViewportPanel>();
         AddPanel<InspectorPanel>();
@@ -35,6 +36,7 @@ namespace ChikaEngine::Editor
     void EditorManager::Shutdown()
     {
         _panels.clear();
+        _context.resolveTextureForUi = {};
         _adapter.Shutdown();
     }
 

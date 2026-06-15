@@ -20,6 +20,11 @@ namespace ChikaEngine::Render
         uint32_t height = 1080;
         RHIBackendTypes backendType = RHIBackendTypes::Default;
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
+#ifdef CHIKA_DEBUG
+        bool enableValidation = true;
+#else
+        bool enableValidation = false;
+#endif
     };
 
     /**
@@ -45,7 +50,8 @@ namespace ChikaEngine::Render
         void SubmitRenderWorldSnapshot(std::shared_ptr<const RenderWorldSnapshot> snapshot);
         /** @brief 将编辑器 Camera 转换为不携带对象指针的 RenderView 值。 */
         RenderView CreateEditorView();
-        void SubmitImGuiData(void* drawData);
+        /** @brief 安装后端无关的最终 Overlay 录制扩展，具体 UI 实现由调用方持有。 */
+        void SetOverlayPassCallback(RenderOverlayCallback callback);
 
         Camera* GetActiveCamera()
         {

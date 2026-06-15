@@ -178,9 +178,9 @@ namespace ChikaEngine::Render
         m_snapshot = std::move(snapshot);
     }
 
-    void RenderPipeline::SubmitImGuiData(void* drawData)
+    void RenderPipeline::SetOverlayPassCallback(RenderOverlayCallback callback)
     {
-        m_imguiDrawData = drawData;
+        m_overlayCallback = std::move(callback);
     }
 
     void RenderPipeline::BuildRenderGraph()
@@ -245,7 +245,7 @@ namespace ChikaEngine::Render
             AddMainScenePass();
         }
         AddPostProcessPass();
-        AddImGuiPass();
+        AddOverlayPass();
 
         m_renderGraph->AddPresentPass("Present", m_graphBlackboard.GetTexture(RenderGraphSemantic::Swapchain));
 
@@ -323,17 +323,15 @@ namespace ChikaEngine::Render
                                     DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
                                 });
     }
-    void RenderPipeline::AddImGuiPass()
+    void RenderPipeline::AddOverlayPass()
     {
-        PassModules::AddUI(*m_renderGraph,
-                           m_graphBlackboard,
-                           [this](IRHICommandList* cmd, RenderGraph* graph)
-                           {
-                               if (m_imguiDrawData)
-                               {
-                                   cmd->DrawImGui(m_imguiDrawData);
-                               }
-                           });
+        PassModules::AddOverlay(*m_renderGraph,
+                                m_graphBlackboard,
+                                [this](IRHICommandList* cmd, RenderGraph*)
+                                {
+                                    if (m_overlayCallback)
+                                        m_overlayCallback(cmd);
+                                });
     }
 
     void RenderPipeline::AddGBufferPass()
@@ -863,7 +861,7 @@ namespace ChikaEngine::Render
         if (m_renderGraph)
             m_renderGraph->Clear();
 
-        m_imguiDrawData = nullptr;
+        m_overlayCallback = {};
         m_dummyTextureTransitioned = false;
         if (m_rhi)
         {

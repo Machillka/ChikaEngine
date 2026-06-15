@@ -71,7 +71,6 @@ namespace
         void DrawIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t) override;
         void DrawIndexedIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t) override;
         void Dispatch(uint32_t, uint32_t, uint32_t) override;
-        void DrawImGui(void*) override {}
 
       private:
         MockRHIDevice& m_device;
@@ -176,11 +175,6 @@ namespace
         ChikaEngine::Render::TextureHandle GetActiveSwapchainTexture() override
         {
             return {};
-        }
-        void InitializeImgui() override {}
-        void* GetImGuiTextureHandle(ChikaEngine::Render::TextureHandle) override
-        {
-            return nullptr;
         }
         void WaitIdle() override {}
         void Resize(uint32_t, uint32_t) override {}

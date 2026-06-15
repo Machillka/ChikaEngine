@@ -20,7 +20,7 @@ namespace ChikaEngine::Platform
         virtual bool ShouldClose() const = 0;
         virtual std::uint32_t GetWidth() const = 0;
         virtual std::uint32_t GetHeight() const = 0;
-        virtual void* GetNativeHandle() const = 0; // 供 Vulkan / ImGui 使用
+        virtual void* GetNativeHandle() const = 0; // 供图形与输入后端使用
 
         // 全屏控制
         virtual void SetFullScreen(bool fullscreen) = 0;

@@ -28,7 +28,22 @@ add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
 add_test(NAME Chika.ShaderInterface COMMAND ChikaShaderInterfaceTests)
+add_test(
+    NAME Chika.RuntimeBoundary
+    COMMAND ${CMAKE_COMMAND}
+        -DPROJECT_ROOT_DIR=${PROJECT_ROOT_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
+)
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.RenderBaseline Chika.ShaderInterface PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.RenderBaseline Chika.ShaderInterface Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
+
+if(CHIKA_BUILD_GAME AND CHIKA_ENABLE_RUNTIME_SMOKE_TESTS)
+    add_test(NAME Chika.GameSmoke COMMAND ChikaGame --smoke-frames 3)
+    set_tests_properties(Chika.GameSmoke PROPERTIES
+        WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
+        LABELS "smoke"
+        TIMEOUT 30
+    )
+endif()

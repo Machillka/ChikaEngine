@@ -7,7 +7,6 @@
 #include <ChikaEngine/rhi/Vulkan/VulkanHelper.hpp>
 #include <algorithm>
 #include <array>
-#include <backends/imgui_impl_vulkan.h>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -207,12 +206,6 @@ namespace ChikaEngine::Render
             vkDestroyCommandPool(m_device, m_commandPools[i], nullptr);
             vkDestroyDescriptorPool(m_device, m_descriptorPools[i], nullptr);
             vkDestroyQueryPool(m_device, m_timestampQueryPools[i], nullptr);
-        }
-
-        if (imguiPool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(m_device, imguiPool, nullptr);
-            imguiPool = VK_NULL_HANDLE;
         }
 
         if (m_persistentDescriptorPool)
@@ -470,7 +463,6 @@ namespace ChikaEngine::Render
         vt.height = desc.height;
         vt.mipLevels = desc.mipLevels;
         vt.arrayLayers = desc.arrayLayers;
-        vt.handle = nullptr;
         VK_CHECK(vmaCreateImage(m_allocator, &iInfo, &aInfo, &vt.image, &vt.allocation, nullptr), "VMA image alloc failed");
 
         VkImageViewCreateInfo vInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
@@ -1243,7 +1235,6 @@ namespace ChikaEngine::Render
             vt.width = m_swapchainExtent.width;
             vt.height = m_swapchainExtent.height;
             vt.allocation = nullptr;
-            vt.handle = nullptr;
             m_swapchainTextures[i] = m_textures.Create(vt);
             SetDebugName(m_swapchainTextures[i], "Swapchain.Image." + std::to_string(i));
         }
@@ -1352,8 +1343,6 @@ namespace ChikaEngine::Render
                     VulkanTexture* tex = m_textures.Get(h);
                     if (tex)
                     {
-                        if (tex->handle)
-                            ImGui_ImplVulkan_RemoveTexture(static_cast<VkDescriptorSet>(tex->handle));
                         if (tex->view)
                             vkDestroyImageView(m_device, tex->view, nullptr);
                         if (tex->allocation)
@@ -1362,7 +1351,6 @@ namespace ChikaEngine::Render
                         tex->view = VK_NULL_HANDLE;
                         tex->image = VK_NULL_HANDLE;
                         tex->allocation = nullptr;
-                        tex->handle = nullptr;
 
                         m_textures.Destroy(h);
                     }
@@ -1459,73 +1447,9 @@ namespace ChikaEngine::Render
         }
     }
 
-    void* VulkanRHIDevice::GetImGuiTextureHandle(TextureHandle handle)
-    {
-        VulkanTexture* tex = m_textures.Get(handle);
-        if (!tex)
-            return nullptr;
-
-        // 懒注册
-        if (!tex->handle)
-        {
-            VkDescriptorSet ds = ImGui_ImplVulkan_AddTexture(m_defaultSampler, tex->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            tex->handle = static_cast<void*>(ds);
-        }
-        return tex->handle;
-    }
-
     TextureHandle VulkanRHIDevice::GetActiveSwapchainTexture()
     {
         return m_swapchainTextures[m_currentImageIndex];
-    }
-
-    void VulkanRHIDevice::InitializeImgui()
-    {
-        VkDescriptorPoolSize pool_sizes[] = {
-            { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-            {
-                VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                1000,
-            },
-        };
-
-        VkDescriptorPoolCreateInfo pool_info = {};
-        pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        pool_info.maxSets = 1000;
-        pool_info.poolSizeCount = std::size(pool_sizes);
-        pool_info.pPoolSizes = pool_sizes;
-
-        if (imguiPool == VK_NULL_HANDLE)
-            VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool), "Create descriptor pool for imgui failed");
-
-        ImGui_ImplVulkan_InitInfo initInfo = {};
-        initInfo.ApiVersion = VK_API_VERSION_1_3;
-        initInfo.Instance = m_instance;
-        initInfo.PhysicalDevice = m_physicalDevice;
-        initInfo.Device = m_device;
-        initInfo.QueueFamily = m_graphicsQueueFamily;
-        initInfo.Queue = m_graphicsQueue;
-        initInfo.MinImageCount = 2;
-        initInfo.ImageCount = m_imageCount;
-        initInfo.DescriptorPool = imguiPool;
-        initInfo.UseDynamicRendering = true;
-        initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo = {};
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_swapchainFormat;
-
-        ImGui_ImplVulkan_Init(&initInfo);
     }
 
     void VulkanRHIDevice::WaitIdle()

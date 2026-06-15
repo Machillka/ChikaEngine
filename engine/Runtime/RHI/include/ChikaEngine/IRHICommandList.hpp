@@ -80,8 +80,5 @@ namespace ChikaEngine::Render
          * @brief 提交 Compute 工作组；调用前必须绑定 Compute Pipeline。
          */
         virtual void Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) = 0;
-
-        // imgui 特化
-        virtual void DrawImGui(void* drawData) = 0;
     };
 } // namespace ChikaEngine::Render

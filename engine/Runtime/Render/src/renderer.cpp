@@ -23,7 +23,7 @@ namespace ChikaEngine::Render
             .width = createInfo.width,
             .height = createInfo.height,
             .backendType = createInfo.backendType,
-            .enableValidation = true,
+            .enableValidation = createInfo.enableValidation,
         });
         m_resourceSystem.Initialize(*m_deviceContext.GetRHI(), *m_assetManager);
 
@@ -90,9 +90,9 @@ namespace ChikaEngine::Render
         };
     }
 
-    void Renderer::SubmitImGuiData(void* drawData)
+    void Renderer::SetOverlayPassCallback(RenderOverlayCallback callback)
     {
-        m_pipeline.SubmitImGuiData(drawData);
+        m_pipeline.SetOverlayPassCallback(std::move(callback));
     }
 
     float Renderer::GetViewportAspectRatio() const
