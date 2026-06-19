@@ -11,5 +11,7 @@ namespace ChikaEngine::Platform
         std::uint32_t width = 1280;
         std::uint32_t height = 720;
         bool isFullscreen = false;
+        bool vSync = true;
+        bool visible = true;
     };
 } // namespace ChikaEngine::Platform

@@ -10,6 +10,7 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include "ChikaEngine/scene/SceneManager.hpp"
 #include <exception>
 #include <memory>
@@ -57,7 +58,7 @@ namespace ChikaEngine::Engine
 
             if (createInfo.enableScripting)
             {
-                m_scriptsInitialized = Scripts::ScriptsSystem::Instance().Init();
+                m_scriptsInitialized = Scripts::ScriptsSystem::Instance().Init(createInfo.contentRoot / "Scripts");
                 if (!m_scriptsInitialized)
                 {
                     LOG_ERROR("EngineContext", "Failed to initialize scripting");
@@ -67,7 +68,14 @@ namespace ChikaEngine::Engine
             }
 
             m_assetManager = std::make_unique<Asset::AssetManager>();
-            if (!m_assetManager->Initialize("Assets"))
+            if (!m_assetManager->Initialize({
+                    .assetRoot = createInfo.contentRoot,
+                    .createRoot = createInfo.createContentRoot,
+                    .scanAssets = createInfo.scanAssets,
+                    .createMissingMeta = createInfo.createMissingMeta,
+                    .importAssets = createInfo.importAssets,
+                    .enableHotReload = createInfo.enableHotReload,
+                }))
             {
                 LOG_ERROR("EngineContext", "Failed to initialize asset manager");
                 Shutdown();
@@ -82,6 +90,7 @@ namespace ChikaEngine::Engine
                 .height = m_window->GetHeight(),
                 .backendType = createInfo.rendererBackend,
                 .pipelineMode = createInfo.renderPipeline,
+                .vSync = createInfo.window.vSync,
             };
             m_renderer->Initialize(rendererInfo);
             m_window->SetResizeCallback(
@@ -94,8 +103,11 @@ namespace ChikaEngine::Engine
             m_sceneManager = std::make_unique<Framework::SceneManager>();
             if (!m_sceneManager->Initialize({
                     .renderInstance = m_renderer.get(),
+                    .assetManager = m_assetManager.get(),
                     .fixedDeltaTime = createInfo.fixedDeltaTime,
                     .maxPhysicsStepsPerFrame = createInfo.maxPhysicsStepsPerFrame,
+                    .createDefaultScene = createInfo.createDefaultScene,
+                    .useEditorView = createInfo.useEditorView,
                 }))
             {
                 LOG_ERROR("EngineContext", "Failed to initialize scene manager");
@@ -159,6 +171,7 @@ namespace ChikaEngine::Engine
 
     float EngineContext::BeginFrame()
     {
+        CHIKA_PROFILE_SCOPE("EngineContext.BeginFrame");
         if (!m_initialized)
             return 0.0f;
 
@@ -168,7 +181,7 @@ namespace ChikaEngine::Engine
             Time::TimeSystem::Update();
         if (m_inputInitialized)
             Input::InputSystem::Update();
-        if (m_assetManager)
+        if (m_assetManager && m_createInfo.enableHotReload)
             m_assetManager->TickHotReload();
 
         return m_timeInitialized ? Time::TimeSystem::GetDeltaTime() : 0.0f;
@@ -176,13 +189,26 @@ namespace ChikaEngine::Engine
 
     void EngineContext::Tick(float deltaTime)
     {
+        CHIKA_PROFILE_SCOPE("EngineContext.Tick");
         if (!m_initialized)
             return;
 
-        m_renderer->BeginFrame();
-        m_sceneManager->Tick(deltaTime);
-        m_renderer->Tick(deltaTime);
-        m_renderer->EndFrame();
+        {
+            CHIKA_PROFILE_SCOPE("Renderer.BeginFrame");
+            m_renderer->BeginFrame();
+        }
+        {
+            CHIKA_PROFILE_SCOPE("SceneManager.Tick");
+            m_sceneManager->Tick(deltaTime);
+        }
+        {
+            CHIKA_PROFILE_SCOPE("Renderer.Tick");
+            m_renderer->Tick(deltaTime);
+        }
+        {
+            CHIKA_PROFILE_SCOPE("Renderer.EndFrame");
+            m_renderer->EndFrame();
+        }
     }
 
     bool EngineContext::ShouldClose() const

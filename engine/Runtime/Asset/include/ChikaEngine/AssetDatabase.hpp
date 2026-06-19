@@ -19,6 +19,21 @@ namespace ChikaEngine::Asset
         Material,
         ShaderTemplate,
         Script,
+        Scene,
+    };
+
+    /**
+     * @brief 控制 AssetDatabase 初始化时允许执行的开发态行为。
+     *
+     * Packaged Runtime 会关闭目录创建、扫描和 meta 生成；Development Runtime
+     * 与 Editor 则可按需开启这些能力。
+     */
+    struct AssetDatabaseCreateInfo
+    {
+        std::filesystem::path assetRoot = "Assets";
+        bool createRoot = true;
+        bool scanAssets = true;
+        bool createMissingMeta = true;
     };
 
     struct AssetGuid
@@ -48,6 +63,7 @@ namespace ChikaEngine::Asset
     {
       public:
         bool Initialize(const std::filesystem::path& assetRoot);
+        bool Initialize(const AssetDatabaseCreateInfo& createInfo);
         void Shutdown();
 
         bool Scan(bool createMissingMeta = true);
@@ -74,7 +90,7 @@ namespace ChikaEngine::Asset
         static bool IsIgnored(const std::filesystem::path& path);
         bool LoadMeta(const std::filesystem::path& metaPath, AssetRecord& record) const;
         bool SaveMeta(const AssetRecord& record) const;
-        void IndexRecord(AssetRecord record);
+        bool IndexRecord(AssetRecord record);
 
       private:
         std::filesystem::path m_assetRoot;

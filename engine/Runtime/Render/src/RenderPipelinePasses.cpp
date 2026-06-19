@@ -84,10 +84,10 @@ namespace ChikaEngine::Render::PassModules
             std::move(execute));
     }
 
-    void AddUI(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute)
+    void AddOverlay(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute)
     {
         graph.AddPass(
-            "ImGui UI Pass",
+            "Overlay Composite Pass",
             [&](RGPassBuilder& builder)
             {
                 builder.ReadTexture(blackboard.GetTexture(RenderGraphSemantic::SceneColor));

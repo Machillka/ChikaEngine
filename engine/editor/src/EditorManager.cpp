@@ -4,6 +4,7 @@
 #include "InspectorPanel.hpp"
 #include "LogPanel.hpp"
 #include "RenderStatisticsPanel.hpp"
+#include "ProfilerTimelinePanel.hpp"
 #include "SceneHierarchyPanel.hpp"
 #include "backends/imgui_impl_glfw.h"
 
@@ -24,17 +25,20 @@ namespace ChikaEngine::Editor
         _context.renderer = _renderer;
 
         _adapter.Initialize(_windowHandle, _renderer);
+        _context.resolveTextureForUi = [this](Render::TextureHandle texture) { return _adapter.GetTextureHandle(texture); };
 
         AddPanel<ViewportPanel>();
         AddPanel<InspectorPanel>();
         AddPanel<SceneHierarchyPanel>();
         AddPanel<LogPanel>();
         AddPanel<RenderStatisticsPanel>();
+        AddPanel<ProfilerTimelinePanel>();
     }
 
     void EditorManager::Shutdown()
     {
         _panels.clear();
+        _context.resolveTextureForUi = {};
         _adapter.Shutdown();
     }
 

@@ -10,7 +10,7 @@ namespace ChikaEngine::Render
      * @brief 保存最近一帧可稳定比较的渲染提交统计。
      *
      * 统计只覆盖 ChikaEngine 显式录制的 RenderGraph Pass 和 RHI 命令。
-     * ImGui 后端内部生成的 Draw Call 不计入，避免后端实现细节污染引擎基线。
+     * 外部 Overlay 后端内部生成的 Draw Call 不计入，避免扩展实现细节污染引擎基线。
      */
     struct RenderFrameStatistics
     {
@@ -40,5 +40,8 @@ namespace ChikaEngine::Render
     {
         std::string name;
         double gpuTimeMs = 0.0;
+        uint64_t frameIndex = 0;
+        uint32_t queueId = 0;
+        bool valid = true;
     };
 } // namespace ChikaEngine::Render

@@ -52,6 +52,21 @@ namespace ChikaEngine::Asset
         ShaderCompiler m_compiler;
     };
 
+    /**
+     * @brief 校验 Scene JSON 结构并保留源内容作为开发态导入结果。
+     *
+     * Phase 1 不改写 Scene 内容；独立 Importer 先建立类型边界，后续 Cook 阶段可替换输出。
+     */
+    class SceneImporter final : public IAssetImporter
+    {
+      public:
+        std::string Name() const override
+        {
+            return "scene";
+        }
+        ImportResult Import(const AssetRecord& record) override;
+    };
+
     class ImporterRegistry
     {
       public:

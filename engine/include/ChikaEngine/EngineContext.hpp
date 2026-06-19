@@ -2,7 +2,9 @@
 
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/Window/WinDesc.hpp"
+#include "ChikaEngine/project/RuntimeMode.hpp"
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 
 namespace ChikaEngine::Asset
@@ -34,6 +36,15 @@ namespace ChikaEngine::Engine
         Render::RenderPipelineMode renderPipeline = Render::RenderPipelineMode::Forward;
         float fixedDeltaTime = 1.0f / 60.0f;
         uint32_t maxPhysicsStepsPerFrame = 4;
+        Project::RuntimeMode runtimeMode = Project::RuntimeMode::Editor;
+        std::filesystem::path contentRoot = "Assets";
+        bool createContentRoot = true;
+        bool scanAssets = true;
+        bool createMissingMeta = true;
+        bool importAssets = true;
+        bool enableHotReload = true;
+        bool createDefaultScene = true;
+        bool useEditorView = true;
     };
 
     class EngineContext
@@ -77,6 +88,11 @@ namespace ChikaEngine::Engine
         Framework::SceneManager* GetSceneManager() const
         {
             return m_sceneManager.get();
+        }
+
+        Project::RuntimeMode GetRuntimeMode() const
+        {
+            return m_createInfo.runtimeMode;
         }
 
       private:

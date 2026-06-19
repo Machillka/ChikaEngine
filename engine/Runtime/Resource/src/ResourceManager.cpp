@@ -365,13 +365,13 @@ namespace ChikaEngine::Resource
         if (!materialData)
             return MaterialHandle::Invalid();
 
-        Asset::ShaderTemplateHandle tmplHandle = m_assetManager.LoadShaderTemplate(materialData->shaderTemplatePath);
+        Asset::ShaderTemplateHandle tmplHandle = m_assetManager.LoadShaderTemplate(materialData->shaderTemplate);
         const Asset::ShaderTemplateData* tmplData = m_assetManager.GetShaderTemplate(tmplHandle);
         if (!tmplData)
             return MaterialHandle::Invalid();
 
-        Asset::ShaderHandle vsAsset = m_assetManager.LoadShader(tmplData->vertexShaderPath);
-        Asset::ShaderHandle fsAsset = m_assetManager.LoadShader(tmplData->fragmentShaderPath);
+        Asset::ShaderHandle vsAsset = m_assetManager.LoadShader(tmplData->vertexShader);
+        Asset::ShaderHandle fsAsset = m_assetManager.LoadShader(tmplData->fragmentShader);
         const auto* vsSpirv = m_assetManager.GetShader(vsAsset);
         const auto* fsSpirv = m_assetManager.GetShader(fsAsset);
         if (!vsSpirv || !fsSpirv)
@@ -486,11 +486,11 @@ namespace ChikaEngine::Resource
         const Render::ResourceBindingHandle materialBinding = Render::ResolveResourceBinding(*forwardInterface, "material");
         Render::BindBuffer(bindings, materialBinding, uboHandle, 0, materialResource->buffer.size, Render::ResourceBindingLifetime::Persistent);
 
-        for (const auto& [texName, texPath] : materialData->textureParams)
+        for (const auto& [texName, textureReference] : materialData->textureParams)
         {
             if (tmplData->textures.contains(texName))
             {
-                Asset::TextureHandle tAsset = m_assetManager.LoadTexture(texPath);
+                Asset::TextureHandle tAsset = m_assetManager.LoadTexture(textureReference);
 
                 TextureHandle tResource = UploadTexture(tAsset);
                 const Render::ResourceBindingHandle textureBinding = Render::ResolveResourceBinding(*forwardInterface, texName);

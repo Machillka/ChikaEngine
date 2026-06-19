@@ -5,6 +5,7 @@
 #include "ChikaEngine/ShaderLoader.hpp"
 #include "ChikaEngine/ShaderTemplateLoader.hpp"
 #include "ChikaEngine/TextureLoader.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 
 namespace ChikaEngine::Asset
 {
@@ -33,14 +34,29 @@ namespace ChikaEngine::Asset
 
     bool AssetManager::Initialize(const std::filesystem::path& assetRoot, bool importAssets)
     {
+        return Initialize({
+            .assetRoot = assetRoot,
+            .importAssets = importAssets,
+        });
+    }
+
+    bool AssetManager::Initialize(const AssetManagerCreateInfo& createInfo)
+    {
         Shutdown();
         {
             std::lock_guard asyncLock(m_asyncMutex);
             m_shuttingDown = false;
         }
         m_importers = ImporterRegistry::CreateDefault();
-        m_initialized = m_database.Initialize(assetRoot);
-        if (m_initialized && importAssets)
+        m_enableImporting = createInfo.importAssets;
+        m_enableHotReload = createInfo.enableHotReload;
+        m_initialized = m_database.Initialize({
+            .assetRoot = createInfo.assetRoot,
+            .createRoot = createInfo.createRoot,
+            .scanAssets = createInfo.scanAssets,
+            .createMissingMeta = createInfo.createMissingMeta,
+        });
+        if (m_initialized && createInfo.importAssets)
             ImportAll();
         return m_initialized;
     }
@@ -65,6 +81,8 @@ namespace ChikaEngine::Asset
     size_t AssetManager::ImportAll()
     {
         std::lock_guard lock(m_assetMutex);
+        if (!m_enableImporting)
+            return 0;
         return m_importers.ImportAll(m_database);
     }
 
@@ -72,7 +90,7 @@ namespace ChikaEngine::Asset
     {
         std::lock_guard lock(m_assetMutex);
         const auto now = std::chrono::steady_clock::now();
-        if (!m_initialized || now < m_nextHotReloadPoll)
+        if (!m_initialized || !m_enableHotReload || now < m_nextHotReloadPoll)
             return 0;
         m_nextHotReloadPoll = now + std::chrono::milliseconds(500);
 
@@ -205,6 +223,63 @@ namespace ChikaEngine::Asset
         return record ? LoadAnimationClip(record->sourcePath.string()) : AnimationClipHandle::Invalid();
     }
 
+    const AssetRecord* AssetManager::ResolveReference(const AssetReference& reference, AssetType requiredType, std::string_view context) const
+    {
+        std::lock_guard lock(m_assetMutex);
+        const AssetRecord* record = reference.IsValid() ? m_database.FindByGuid(reference.GetGuid()) : nullptr;
+        if (!record && !reference.diagnosticPath.empty())
+            record = m_database.FindByPath(reference.diagnosticPath);
+        if (!record)
+        {
+            LOG_ERROR("AssetManager", "Missing asset reference '{}' for {}", reference.guid, context.empty() ? "unnamed consumer" : context);
+            return nullptr;
+        }
+
+        const AssetType expectedType = reference.GetExpectedType();
+        if ((expectedType != AssetType::Unknown && record->type != expectedType) || (requiredType != AssetType::Unknown && record->type != requiredType))
+        {
+            LOG_ERROR("AssetManager", "Asset reference '{}' type mismatch for {}: record={}, expected={}, required={}", record->guid.value, context.empty() ? "unnamed consumer" : context, AssetDatabase::AssetTypeName(record->type), AssetDatabase::AssetTypeName(expectedType), AssetDatabase::AssetTypeName(requiredType));
+            return nullptr;
+        }
+        return record;
+    }
+
+    TextureHandle AssetManager::LoadTexture(const AssetReference& reference)
+    {
+        const AssetRecord* record = ResolveReference(reference, AssetType::Texture, "Texture");
+        return record ? LoadTexture(record->guid) : TextureHandle::Invalid();
+    }
+
+    MeshHandle AssetManager::LoadMesh(const AssetReference& reference)
+    {
+        const AssetRecord* record = ResolveReference(reference, AssetType::Mesh, "Mesh");
+        return record ? LoadMesh(record->guid) : MeshHandle::Invalid();
+    }
+
+    ShaderHandle AssetManager::LoadShader(const AssetReference& reference)
+    {
+        const AssetRecord* record = ResolveReference(reference, AssetType::ShaderSource, "Shader");
+        return record ? LoadShader(record->guid) : ShaderHandle::Invalid();
+    }
+
+    MaterialHandle AssetManager::LoadMaterial(const AssetReference& reference)
+    {
+        const AssetRecord* record = ResolveReference(reference, AssetType::Material, "Material");
+        return record ? LoadMaterial(record->guid) : MaterialHandle::Invalid();
+    }
+
+    ShaderTemplateHandle AssetManager::LoadShaderTemplate(const AssetReference& reference)
+    {
+        const AssetRecord* record = ResolveReference(reference, AssetType::ShaderTemplate, "ShaderTemplate");
+        return record ? LoadShaderTemplate(record->guid) : ShaderTemplateHandle::Invalid();
+    }
+
+    AnimationClipHandle AssetManager::LoadAnimationClip(const AssetReference& reference)
+    {
+        const AssetRecord* record = ResolveReference(reference, AssetType::Mesh, "AnimationClip source");
+        return record ? LoadAnimationClip(record->guid) : AnimationClipHandle::Invalid();
+    }
+
     std::shared_future<TextureHandle> AssetManager::LoadTextureAsync(std::string path)
     {
         return LaunchAsync<TextureHandle>([this, path = std::move(path)] { return LoadTexture(path); });
@@ -329,6 +404,9 @@ namespace ChikaEngine::Asset
         const AssetRecord* record = m_database.FindByPath(path);
         if (!record)
             return path;
+
+        if (!m_enableImporting)
+            return record->importedPath.empty() ? record->sourcePath.string() : record->importedPath.string();
 
         const ImportResult result = m_importers.Import(m_database, record->guid);
         return result.success ? result.importedPath.string() : path;

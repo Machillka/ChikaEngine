@@ -9,6 +9,7 @@
  *
  */
 #pragma once
+#include <filesystem>
 #include <pybind11/embed.h>
 namespace py = pybind11;
 namespace ChikaEngine::Scripts
@@ -23,7 +24,8 @@ namespace ChikaEngine::Scripts
             return instance;
         }
 
-        bool Init();
+        /** @brief 初始化脚本 VM，并将当前 Project 的脚本目录加入模块搜索路径。 */
+        bool Init(const std::filesystem::path& scriptRoot = "Assets/Scripts");
         void Shutdown();
         bool IsInitialized() const
         {

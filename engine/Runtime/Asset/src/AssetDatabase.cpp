@@ -23,17 +23,22 @@ namespace ChikaEngine::Asset
 
     bool AssetDatabase::Initialize(const std::filesystem::path& assetRoot)
     {
+        return Initialize({ .assetRoot = assetRoot });
+    }
+
+    bool AssetDatabase::Initialize(const AssetDatabaseCreateInfo& createInfo)
+    {
         Shutdown();
-        m_assetRoot = NormalizePath(assetRoot);
+        m_assetRoot = NormalizePath(createInfo.assetRoot);
         std::error_code error;
-        std::filesystem::create_directories(m_assetRoot, error);
-        if (error)
+        if (createInfo.createRoot)
+            std::filesystem::create_directories(m_assetRoot, error);
+        if (error || !std::filesystem::is_directory(m_assetRoot))
         {
-            LOG_ERROR("AssetDatabase", "Failed to create asset root {}: {}", m_assetRoot.string(), error.message());
+            LOG_ERROR("AssetDatabase", "Asset root is unavailable {}: {}", m_assetRoot.string(), error.message());
             return false;
         }
-        // 初始化的时候 递归遍历生成 guid 和 meta
-        return Scan();
+        return !createInfo.scanAssets || Scan(createInfo.createMissingMeta);
     }
 
     void AssetDatabase::Shutdown()
@@ -51,12 +56,13 @@ namespace ChikaEngine::Asset
         m_recordsByGuid.clear();
         m_guidByPath.clear();
 
+        bool success = true;
         std::error_code error;
         for (std::filesystem::recursive_directory_iterator it(m_assetRoot, error), end; it != end && !error; it.increment(error))
         {
             if (!it->is_regular_file() || IsIgnored(it->path()))
                 continue;
-            RegisterAsset(it->path(), createMissingMeta);
+            success = RegisterAsset(it->path(), createMissingMeta) && success;
         }
 
         if (error)
@@ -64,7 +70,7 @@ namespace ChikaEngine::Asset
             LOG_ERROR("AssetDatabase", "Failed to scan {}: {}", m_assetRoot.string(), error.message());
             return false;
         }
-        return true;
+        return success;
     }
 
     bool AssetDatabase::RegisterAsset(const std::filesystem::path& sourcePath, bool createMissingMeta)
@@ -103,8 +109,7 @@ namespace ChikaEngine::Asset
 
         if (!record.guid.IsValid())
             return false;
-        IndexRecord(std::move(record));
-        return true;
+        return IndexRecord(std::move(record));
     }
 
     const AssetRecord* AssetDatabase::FindByGuid(const AssetGuid& guid) const
@@ -172,6 +177,8 @@ namespace ChikaEngine::Asset
             return AssetType::ShaderBinary;
         if (extension == ".py")
             return AssetType::Script;
+        if (extension == ".scene")
+            return AssetType::Scene;
         if (extension == ".json")
         {
             const std::string name = path.filename().string();
@@ -198,6 +205,8 @@ namespace ChikaEngine::Asset
             return "shader_template";
         case AssetType::Script:
             return "script";
+        case AssetType::Scene:
+            return "scene";
         default:
             return "unknown";
         }
@@ -205,7 +214,11 @@ namespace ChikaEngine::Asset
 
     std::string AssetDatabase::DefaultImporterName(AssetType type)
     {
-        return type == AssetType::ShaderSource ? "shader" : "passthrough";
+        if (type == AssetType::ShaderSource)
+            return "shader";
+        if (type == AssetType::Scene)
+            return "scene";
+        return "passthrough";
     }
 
     std::filesystem::path AssetDatabase::NormalizePath(const std::filesystem::path& path)
@@ -288,10 +301,16 @@ namespace ChikaEngine::Asset
         }
     }
 
-    void AssetDatabase::IndexRecord(AssetRecord record)
+    bool AssetDatabase::IndexRecord(AssetRecord record)
     {
         const std::string guid = record.guid.value;
+        if (const auto existing = m_recordsByGuid.find(guid); existing != m_recordsByGuid.end() && existing->second.sourcePath != record.sourcePath)
+        {
+            LOG_ERROR("AssetDatabase", "Duplicate asset GUID '{}' for '{}' and '{}'", guid, existing->second.sourcePath.string(), record.sourcePath.string());
+            return false;
+        }
         m_guidByPath[record.sourcePath.generic_string()] = guid;
         m_recordsByGuid[guid] = std::move(record);
+        return true;
     }
 } // namespace ChikaEngine::Asset

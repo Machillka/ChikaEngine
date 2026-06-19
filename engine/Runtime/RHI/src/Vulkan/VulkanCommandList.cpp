@@ -73,7 +73,11 @@ namespace ChikaEngine::Render
     {
         const uint32_t beginQuery = m_device->AllocateTimestampScope(name);
         if (beginQuery == UINT32_MAX)
+        {
+            // Preserve scope balance so an overflowed child cannot consume its parent's end query.
+            m_timestampEndQueries.push_back(UINT32_MAX);
             return;
+        }
         vkCmdWriteTimestamp(m_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_device->m_timestampQueryPools[m_device->m_currentFrame], beginQuery);
         m_timestampEndQueries.push_back(beginQuery + 1);
     }
@@ -85,8 +89,11 @@ namespace ChikaEngine::Render
     {
         if (m_timestampEndQueries.empty())
             return;
-        vkCmdWriteTimestamp(m_cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_device->m_timestampQueryPools[m_device->m_currentFrame], m_timestampEndQueries.back());
+        const uint32_t endQuery = m_timestampEndQueries.back();
         m_timestampEndQueries.pop_back();
+        if (endQuery == UINT32_MAX)
+            return;
+        vkCmdWriteTimestamp(m_cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_device->m_timestampQueryPools[m_device->m_currentFrame], endQuery);
     }
 
     // TODO[x]: 加入分辨率推导

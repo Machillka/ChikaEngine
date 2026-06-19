@@ -25,6 +25,6 @@ namespace ChikaEngine::Render::PassModules
     void AddTransparent(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
     /** @brief 将线性 HDR Scene Color 转换为供显示和编辑器 Viewport 使用的 LDR Scene Color。 */
     void AddPostProcess(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
-    /** @brief 添加最终 UI Composite Pass。 */
-    void AddUI(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
+    /** @brief 添加最终 Overlay Composite Pass，并为外部扩展提供命令录制位置。 */
+    void AddOverlay(RenderGraph& graph, const RenderGraphBlackboard& blackboard, RGExecuteCallback execute);
 } // namespace ChikaEngine::Render::PassModules

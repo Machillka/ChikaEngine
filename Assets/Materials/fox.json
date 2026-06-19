@@ -1,7 +1,10 @@
 {
     "name": "ChikaBodyMaterial",
     "shader": {
-        "template": "Assets/Materials/skinned.template.json"
+        "template": {
+            "guid": "2fb6dceabfaf018efe2ae213b931953a",
+            "path": "Assets/Materials/skinned.template.json"
+        }
     },
     "parameters": {
         "BaseColor": [
@@ -12,6 +15,9 @@
         ]
     },
     "textures": {
-        "Albedo": "Assets/Textures/fox.png"
+        "Albedo": {
+            "guid": "ecc37a7761b35a383d6b9eb11ba7dcf9",
+            "path": "Assets/Textures/fox.png"
+        }
     }
 }

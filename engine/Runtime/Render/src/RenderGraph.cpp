@@ -2,6 +2,7 @@
 
 #include "ChikaEngine/IRHICommandList.hpp"
 #include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <algorithm>
 #include <chrono>
 #include <functional>
@@ -194,6 +195,7 @@ namespace ChikaEngine::Render
      */
     bool RenderGraph::Compile()
     {
+        CHIKA_PROFILE_SCOPE("RenderGraph.Compile");
         m_sortedPasses.clear();
         m_compileErrors.clear();
         m_compileSucceeded = false;
@@ -452,6 +454,7 @@ namespace ChikaEngine::Render
      */
     void RenderGraph::Execute()
     {
+        CHIKA_PROFILE_SCOPE("RenderGraph.Execute");
         m_lastExecutedPassCount = 0;
         m_debugSnapshot.barriers.clear();
         if (!m_compileSucceeded || m_sortedPasses.empty())
@@ -478,6 +481,7 @@ namespace ChikaEngine::Render
 
         for (uint32_t passIndex = 0; passIndex < m_sortedPasses.size(); ++passIndex)
         {
+            CHIKA_PROFILE_SCOPE("RenderGraph.RecordPass");
             RGPass* pass = m_passes.Get(m_sortedPasses[passIndex]);
             const float labelColor[4] = { 0.25f, 0.55f, 0.95f, 1.0f };
             commandList->BeginDebugLabel(pass->name, labelColor);

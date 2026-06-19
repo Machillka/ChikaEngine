@@ -19,11 +19,16 @@
 #include <vector>
 namespace ChikaEngine::Framework
 {
+    namespace Asset = ChikaEngine::Asset;
+
     struct SceneCreateInfo
     {
         Render::Renderer* renderInstance = nullptr;
+        Asset::AssetManager* assetManager = nullptr;
         float fixedDeltaTime = 1.0f / 60.0f;
         uint32_t maxPhysicsStepsPerFrame = 4;
+        bool createDefaultScene = true;
+        bool useEditorView = true;
     };
 
     class Scene
@@ -78,7 +83,19 @@ namespace ChikaEngine::Framework
 
         RenderSubsystem* GetRenderSubsystem();
         Physics::PhysicsScene* GetPhysicsSubsystem();
+        Asset::AssetManager* GetAssetManager() const
+        {
+            return _assetManager;
+        }
         const std::vector<std::unique_ptr<GameObject>>& GetAllGameobjects() const;
+        /** @brief 判断 Scene 是否包含一个激活的 Primary Runtime Camera。 */
+        bool HasPrimaryCamera() const;
+        /**
+         * @brief 验证启动所需的直接资产引用可被当前 AssetManager 解析。
+         *
+         * 该检查用于 Game 启动快速失败；完整传递依赖闭包由 Phase 2 Cook Manifest 实现。
+         */
+        bool ValidateRuntimeAssetReferences() const;
 
         void Initialize(const SceneCreateInfo& createInfo);
         void Shutdown();
@@ -129,6 +146,7 @@ namespace ChikaEngine::Framework
         std::unique_ptr<RenderSubsystem> _renderSubsystem = nullptr;
         std::unique_ptr<PhysicsSubsystem> _physicsSubsystem = nullptr;
         std::unique_ptr<AnimationSubsystem> _animationSubsystem = nullptr;
+        Asset::AssetManager* _assetManager = nullptr;
 
       private:
         std::vector<std::unique_ptr<GameObject>> _gameobjects;              // 连续存储 GO

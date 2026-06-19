@@ -1,4 +1,5 @@
 #include "ChikaEngine/base/FixedStepAccumulator.hpp"
+#include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Animator.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
@@ -7,6 +8,7 @@
 #include "ChikaEngine/math/vector3.h"
 #include <cmath>
 #include <iostream>
+#include <unordered_set>
 
 namespace
 {
@@ -216,6 +218,19 @@ namespace
         const ChikaEngine::Math::Vector3 result = ChikaEngine::Math::Vector3(2.0f, 3.0f, 4.0f) * ChikaEngine::Math::Vector3(5.0f, 6.0f, 7.0f);
         Check(result == ChikaEngine::Math::Vector3(10.0f, 18.0f, 28.0f), "vector3 component multiply");
     }
+
+    /** @brief Verifies Snowflake bit fields remain disjoint under benchmark-scale burst creation. */
+    void TestUIDGeneratorBurstUniqueness()
+    {
+        auto& generator = ChikaEngine::Core::UIDGenerator::Instance();
+        generator.Init(221);
+        std::unordered_set<ChikaEngine::Core::GameObjectID> ids;
+        ids.reserve(50'000);
+        for (uint32_t index = 0; index < 50'000; ++index)
+            ids.insert(generator.Generate());
+        Check(ids.size() == 50'000, "UID generator produces unique ids during a 50k burst");
+        Check(!ids.contains(ChikaEngine::Core::InvalidGameObjectID), "UID generator never emits the invalid id");
+    }
 } // namespace
 
 int main()
@@ -227,6 +242,7 @@ int main()
     TestDeferredComponentRemoval();
     TestEventBus();
     TestVector3ComponentMultiply();
+    TestUIDGeneratorBurstUniqueness();
 
     if (g_failures != 0)
         std::cerr << g_failures << " core boundary test(s) failed\n";

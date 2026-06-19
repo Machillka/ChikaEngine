@@ -14,6 +14,7 @@ namespace ChikaEngine::Render
         uint32_t height = 0;
         RHIBackendTypes backendType = RHIBackendTypes::Default;
         bool enableValidation = true;
+        bool vSync = true;
     };
 
     /**
@@ -28,7 +29,8 @@ namespace ChikaEngine::Render
         void Initialize(const RenderDeviceContextCreateInfo& createInfo);
         /** @brief 等待 GPU 空闲后销毁 RHI，防止资源仍被提交命令引用。 */
         void Shutdown();
-        void BeginFrame();
+        /** @brief Starts an RHI frame and reports whether a swapchain image is available. */
+        bool BeginFrame();
         void EndFrame();
         void Resize(uint32_t width, uint32_t height);
 

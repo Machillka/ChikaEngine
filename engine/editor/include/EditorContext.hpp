@@ -12,6 +12,7 @@
 
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
+#include <functional>
 #include <string>
 
 namespace ChikaEngine::Framework
@@ -25,6 +26,8 @@ namespace ChikaEngine::Editor
     struct EditorContext
     {
         Render::Renderer* renderer = nullptr;
+        /** @brief 由 Editor Backend Adapter 提供的 UI 纹理解析入口。 */
+        std::function<void*(Render::TextureHandle)> resolveTextureForUi;
         Framework::SceneManager* sceneManager = nullptr;
         Framework::Scene* activeScene = nullptr;
 

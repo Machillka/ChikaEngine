@@ -8,6 +8,20 @@
 
 namespace ChikaEngine::Asset
 {
+    /**
+     * @brief 解析 Shader Stage 的稳定 GUID 引用，并兼容旧路径模板。
+     */
+    static AssetReference ParseShaderReference(const nlohmann::json& value)
+    {
+        if (value.is_string())
+            return AssetReference::LegacyPath(value.get<std::string>(), AssetType::ShaderSource);
+        return {
+            AssetGuid{ value.value("guid", "") },
+            AssetType::ShaderSource,
+            value.value("subAsset", ""),
+            value.value("path", ""),
+        };
+    }
 
     static std::unordered_map<std::string, ShaderParamTypes> _ShaderParamTypeMap{ { "float", ShaderParamTypes::Float }, { "vec2", ShaderParamTypes::Vec2 }, { "vec3", ShaderParamTypes::Vec3 }, { "vec4", ShaderParamTypes::Vec4 }, { "bool", ShaderParamTypes::Bool } };
 
@@ -56,8 +70,8 @@ namespace ChikaEngine::Asset
         f >> j;
 
         tmpl->name = j.value("name", path);
-        tmpl->vertexShaderPath = j["stages"]["vertex"];
-        tmpl->fragmentShaderPath = j["stages"]["fragment"];
+        tmpl->vertexShader = ParseShaderReference(j["stages"]["vertex"]);
+        tmpl->fragmentShader = ParseShaderReference(j["stages"]["fragment"]);
 
         if (j.contains("parameters"))
         {

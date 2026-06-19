@@ -1,6 +1,7 @@
 #include "ChikaEngine/component/ScriptComponent.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/scene/scene.hpp"
 
 namespace py = pybind11;
 
@@ -13,6 +14,13 @@ namespace ChikaEngine::Framework
 
     void ScriptComponent::Awake()
     {
+        if ((scriptAsset.IsValid() || !scriptAsset.diagnosticPath.empty()) && GetOwner() && GetOwner()->GetScene() && GetOwner()->GetScene()->GetAssetManager())
+        {
+            const Asset::AssetRecord* scriptRecord = GetOwner()->GetScene()->GetAssetManager()->ResolveReference(scriptAsset, Asset::AssetType::Script, GetOwner()->GetName() + ".ScriptComponent");
+            if (!scriptRecord)
+                return;
+            moduleName = scriptRecord->sourcePath.stem().string();
+        }
         if (moduleName.empty() || className.empty())
             return;
         try

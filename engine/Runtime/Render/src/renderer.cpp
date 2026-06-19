@@ -1,6 +1,7 @@
 #include "ChikaEngine/Renderer.hpp"
 
 #include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <stdexcept>
 
 namespace ChikaEngine::Render
@@ -23,7 +24,8 @@ namespace ChikaEngine::Render
             .width = createInfo.width,
             .height = createInfo.height,
             .backendType = createInfo.backendType,
-            .enableValidation = true,
+            .enableValidation = createInfo.enableValidation,
+            .vSync = createInfo.vSync,
         });
         m_resourceSystem.Initialize(*m_deviceContext.GetRHI(), *m_assetManager);
 
@@ -51,26 +53,31 @@ namespace ChikaEngine::Render
         m_deviceContext.Shutdown();
         m_assetManager = nullptr;
         m_initialized = false;
+        m_frameActive = false;
     }
 
     void Renderer::BeginFrame()
     {
+        CHIKA_PROFILE_SCOPE("Renderer.BeginFrame.Internal");
         if (!m_initialized)
             return;
         m_editorCamera.SetAspectRatio(GetViewportAspectRatio());
-        m_deviceContext.BeginFrame();
-        m_pipeline.BeginFrame();
+        m_frameActive = m_deviceContext.BeginFrame();
+        if (m_frameActive)
+            m_pipeline.BeginFrame();
     }
 
     void Renderer::Tick(float deltaTime)
     {
-        if (m_initialized)
+        CHIKA_PROFILE_SCOPE("Renderer.ExecutePipeline");
+        if (m_initialized && m_frameActive)
             m_pipeline.Execute(deltaTime);
     }
 
     void Renderer::EndFrame()
     {
-        if (m_initialized)
+        CHIKA_PROFILE_SCOPE("Renderer.Present");
+        if (m_initialized && m_frameActive)
             m_deviceContext.EndFrame();
     }
 
@@ -90,9 +97,9 @@ namespace ChikaEngine::Render
         };
     }
 
-    void Renderer::SubmitImGuiData(void* drawData)
+    void Renderer::SetOverlayPassCallback(RenderOverlayCallback callback)
     {
-        m_pipeline.SubmitImGuiData(drawData);
+        m_pipeline.SetOverlayPassCallback(std::move(callback));
     }
 
     float Renderer::GetViewportAspectRatio() const

@@ -4,6 +4,13 @@ project(ChikaEngine VERSION 0.0.1 LANGUAGES CXX C)
 
 include(CTest)
 
+option(CHIKA_BUILD_GAME "Build the standalone ChikaGame runtime executable" ON)
+option(CHIKA_BUILD_EDITOR "Build the ChikaEditor executable and editor-only UI dependencies" ON)
+option(CHIKA_BUILD_TOOLS "Build standalone ChikaEngine tools when tool targets are available" ON)
+option(CHIKA_BUILD_BENCHMARKS "Build the deterministic ChikaBenchmark executable" ON)
+option(CHIKA_ENABLE_PROFILING "Compile ChikaProfiler instrumentation into engine targets" ON)
+option(CHIKA_ENABLE_RUNTIME_SMOKE_TESTS "Run windowed standalone runtime smoke tests through CTest" OFF)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -17,7 +24,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin")
 
-add_compile_definitions(CHIKA_DEBUG)
+add_compile_definitions($<$<CONFIG:Debug>:CHIKA_DEBUG>)
+add_compile_definitions(CHIKA_ENABLE_PROFILING=$<BOOL:${CHIKA_ENABLE_PROFILING}>)
+
+message(STATUS "[ChikaEngine] Build Game: ${CHIKA_BUILD_GAME}")
+message(STATUS "[ChikaEngine] Build Editor: ${CHIKA_BUILD_EDITOR}")
+message(STATUS "[ChikaEngine] Build Tools: ${CHIKA_BUILD_TOOLS}")
+message(STATUS "[ChikaEngine] Build Benchmarks: ${CHIKA_BUILD_BENCHMARKS}")
+message(STATUS "[ChikaEngine] Enable Profiling: ${CHIKA_ENABLE_PROFILING}")
+message(STATUS "[ChikaEngine] Build Tests: ${BUILD_TESTING}")
 
 message(STATUS "[ChikaEngine] Bootstrapping isolated Python environment via uv...")
 # 查找本地 uv 环境

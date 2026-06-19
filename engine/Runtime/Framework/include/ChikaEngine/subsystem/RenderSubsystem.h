@@ -23,6 +23,8 @@ namespace ChikaEngine::Framework
 {
     class Scene;
     class MeshRenderer;
+    class CameraComponent;
+    class LightComponent;
 
     /**
      * @brief 将 Gameplay 生命周期增量同步为 RenderWorld Scene Proxy。
@@ -33,7 +35,7 @@ namespace ChikaEngine::Framework
     class RenderSubsystem : public ISubsystem
     {
       public:
-        RenderSubsystem(Scene* ownerScene, Render::Renderer* renderInstance);
+        RenderSubsystem(Scene* ownerScene, Render::Renderer* renderInstance, bool useEditorView);
         ~RenderSubsystem() override;
         /** @brief 同步已注册组件的变化，并在帧边界提交不可变 Snapshot。 */
         void Tick(float deltaTime) override;
@@ -61,27 +63,46 @@ namespace ChikaEngine::Framework
             bool resourcesDirty = true;
         };
 
+        struct ViewEntry
+        {
+            CameraComponent* component = nullptr;
+            Render::RenderViewHandle renderView;
+        };
+
+        struct LightEntry
+        {
+            LightComponent* component = nullptr;
+            Render::RenderLightHandle renderLight;
+        };
+
         void SubscribeSceneEvents();
         /** @brief 仅在 Bridge 创建时扫描一次现有组件，后续依赖生命周期事件。 */
         void RegisterExistingComponents();
         void RegisterMeshRenderer(Core::GameObjectID gameObjectId, MeshRenderer* component);
+        void RegisterCamera(Core::GameObjectID gameObjectId, CameraComponent* component);
+        void RegisterLight(Core::GameObjectID gameObjectId, LightComponent* component);
         void RemoveEntry(Core::GameObjectID gameObjectId);
+        void RemoveView(Core::GameObjectID gameObjectId);
+        void RemoveLight(Core::GameObjectID gameObjectId);
+        void RemoveGameObjectEntries(Core::GameObjectID gameObjectId);
         void DeactivateEntry(ProxyEntry& entry);
         /** @brief 只 Resolve Dirty 资产，并把对象值变化增量写入 RenderWorld。 */
         void SyncEntry(Core::GameObjectID gameObjectId, ProxyEntry& entry);
-        void SyncViewAndLight();
+        void SyncViewsAndLights();
 
         Scene* _ownerScene = nullptr;
         Render::Renderer* _renderer;
         Asset::AssetManager* _assetMgr = nullptr;
         Resource::ResourceManager* _resourceMgr = nullptr;
         Render::RenderWorld _renderWorld;
-        Render::RenderViewHandle _primaryView;
-        Render::RenderLightHandle _defaultLight;
+        Render::RenderViewHandle _editorView;
         std::unordered_map<Core::GameObjectID, ProxyEntry> _entries;
+        std::unordered_map<Core::GameObjectID, ViewEntry> _views;
+        std::unordered_map<Core::GameObjectID, LightEntry> _lights;
         std::vector<EventBus::SubscriptionId> _eventSubscriptions;
         size_t _assetReloadSubscription = 0;
         uint32_t _lastProxyUpdateCount = 0;
         bool _cleanedUp = false;
+        bool _useEditorView = false;
     };
 } // namespace ChikaEngine::Framework

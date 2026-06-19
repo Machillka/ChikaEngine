@@ -35,7 +35,8 @@ namespace ChikaEngine::Core
         static constexpr std::uint32_t s_MAX_machineID = (1 << s_machineIDBits) - 1;
         static constexpr std::uint32_t s_MAX_sequenceID = (1 << s_sequenceIDBits) - 1;
 
-        static constexpr int s_machineShift = s_machineIDBits; // 偏移量
+        // Sequence occupies the lowest 12 bits, so machine identity must begin above it.
+        static constexpr int s_machineShift = s_sequenceIDBits;
         static constexpr int s_timeShift = s_machineIDBits + s_sequenceIDBits;
 
         bool _isInitialized = false;

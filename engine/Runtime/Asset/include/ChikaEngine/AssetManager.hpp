@@ -17,6 +17,7 @@
 #include "AssetAnimation.hpp"
 #include "AssetHandle.hpp"
 #include "AssetLayouts.hpp"
+#include "AssetReference.hpp"
 #include "ChikaEngine/base/SlotMap.h"
 #include <condition_variable>
 #include <chrono>
@@ -26,6 +27,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -38,6 +40,17 @@ namespace ChikaEngine::Asset
         std::filesystem::path sourcePath;
     };
 
+    /** @brief 描述 AssetManager 在当前 RuntimeMode 下允许的资产能力。 */
+    struct AssetManagerCreateInfo
+    {
+        std::filesystem::path assetRoot = "Assets";
+        bool createRoot = true;
+        bool scanAssets = true;
+        bool createMissingMeta = true;
+        bool importAssets = true;
+        bool enableHotReload = true;
+    };
+
     class AssetManager
     {
       public:
@@ -45,6 +58,7 @@ namespace ChikaEngine::Asset
         ~AssetManager();
 
         bool Initialize(const std::filesystem::path& assetRoot = "Assets", bool importAssets = true);
+        bool Initialize(const AssetManagerCreateInfo& createInfo);
         void Shutdown();
 
         AssetDatabase& GetDatabase()
@@ -75,6 +89,26 @@ namespace ChikaEngine::Asset
         MaterialHandle LoadMaterial(const AssetGuid& guid);
         ShaderTemplateHandle LoadShaderTemplate(const AssetGuid& guid);
         AnimationClipHandle LoadAnimationClip(const AssetGuid& guid);
+
+        /** @brief 按稳定 AssetReference 加载 Texture，并校验引用类型。 */
+        TextureHandle LoadTexture(const AssetReference& reference);
+        /** @brief 按稳定 AssetReference 加载 Mesh，并校验引用类型。 */
+        MeshHandle LoadMesh(const AssetReference& reference);
+        /** @brief 按稳定 AssetReference 加载 Shader，并校验引用类型。 */
+        ShaderHandle LoadShader(const AssetReference& reference);
+        /** @brief 按稳定 AssetReference 加载 Material，并校验引用类型。 */
+        MaterialHandle LoadMaterial(const AssetReference& reference);
+        /** @brief 按稳定 AssetReference 加载 Shader Template，并校验引用类型。 */
+        ShaderTemplateHandle LoadShaderTemplate(const AssetReference& reference);
+        /** @brief 按源资产 GUID 和 SubAsset 契约加载 Animation Clip。 */
+        AnimationClipHandle LoadAnimationClip(const AssetReference& reference);
+
+        /**
+         * @brief 将稳定引用解析到当前 AssetDatabase 记录。
+         *
+         * 正式引用按 GUID 查询；仅开发态兼容引用可使用 diagnosticPath 回退。
+         */
+        const AssetRecord* ResolveReference(const AssetReference& reference, AssetType requiredType, std::string_view context = {}) const;
 
         std::shared_future<TextureHandle> LoadTextureAsync(std::string path);
         std::shared_future<MeshHandle> LoadMeshAsync(std::string path);
@@ -198,6 +232,8 @@ namespace ChikaEngine::Asset
         AssetDatabase m_database;
         ImporterRegistry m_importers;
         bool m_initialized = false;
+        bool m_enableImporting = true;
+        bool m_enableHotReload = true;
         std::chrono::steady_clock::time_point m_nextHotReloadPoll{};
         std::unordered_map<std::string, std::filesystem::file_time_type> m_loadedWriteTimes;
         std::unordered_map<size_t, std::function<void(const AssetReloadEvent&)>> m_reloadCallbacks;

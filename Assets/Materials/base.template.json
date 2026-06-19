@@ -1,8 +1,14 @@
 {
     "name": "StandardPBR",
     "stages": {
-        "vertex": "Assets/Shaders/test.vert",
-        "fragment": "Assets/Shaders/test.frag"
+        "vertex": {
+            "guid": "122515072b7d31c965a64a1eba21da4e",
+            "path": "Assets/Shaders/test.vert"
+        },
+        "fragment": {
+            "guid": "13b092fdd61e1f32937b83bbc5011646",
+            "path": "Assets/Shaders/test.frag"
+        }
     },
     "parameters": {
         "BaseColor": {

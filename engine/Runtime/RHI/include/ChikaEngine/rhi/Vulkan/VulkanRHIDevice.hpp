@@ -30,6 +30,14 @@ namespace ChikaEngine::Render
         void Shutdown() override;
         void BeginFrame() override;
         void EndFrame() override;
+        bool IsFrameActive() const override
+        {
+            return !m_frameSkipped;
+        }
+        std::string_view GetDeviceName() const override
+        {
+            return m_deviceName;
+        }
         void Submit(IRHICommandList* cmdList) override;
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
@@ -65,10 +73,7 @@ namespace ChikaEngine::Render
         void DestroySampler(SamplerHandle handle) override;
         void DestroyTextureView(TextureViewHandle handle) override;
 
-        void* GetImGuiTextureHandle(TextureHandle handle) override;
         TextureHandle GetActiveSwapchainTexture() override;
-
-        void InitializeImgui() override;
 
         void WaitIdle() override;
 
@@ -101,6 +106,33 @@ namespace ChikaEngine::Render
         {
             return m_device;
         }
+        /** @brief 暴露 Vulkan 实例给明确依赖 Vulkan 的外部后端适配器。 */
+        VkInstance GetRawInstance() const
+        {
+            return m_instance;
+        }
+        /** @brief 暴露物理设备给明确依赖 Vulkan 的外部后端适配器。 */
+        VkPhysicalDevice GetRawPhysicalDevice() const
+        {
+            return m_physicalDevice;
+        }
+        /** @brief 暴露图形队列给明确依赖 Vulkan 的外部后端适配器。 */
+        VkQueue GetGraphicsQueue() const
+        {
+            return m_graphicsQueue;
+        }
+        uint32_t GetGraphicsQueueFamily() const
+        {
+            return m_graphicsQueueFamily;
+        }
+        uint32_t GetSwapchainImageCount() const
+        {
+            return m_imageCount;
+        }
+        VkFormat GetSwapchainFormat() const
+        {
+            return m_swapchainFormat;
+        }
         VkSampler GetDefaultSampler() const
         {
             return m_defaultSampler;
@@ -115,9 +147,6 @@ namespace ChikaEngine::Render
             const VulkanTextureView* view = m_textureViews.Get(handle);
             return view ? view->view : VK_NULL_HANDLE;
         }
-
-      public:
-        VkDescriptorPool imguiPool = VK_NULL_HANDLE;
 
       private:
         friend class VulkanCommandList;
@@ -196,6 +225,7 @@ namespace ChikaEngine::Render
         VkInstance m_instance = VK_NULL_HANDLE;
         VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+        std::string m_deviceName;
         VkDevice m_device = VK_NULL_HANDLE;
         VkQueue m_graphicsQueue = VK_NULL_HANDLE;
         uint32_t m_graphicsQueueFamily = 0;
@@ -206,6 +236,7 @@ namespace ChikaEngine::Render
 
         VkSampler m_defaultSampler = VK_NULL_HANDLE;
         bool m_enableValidation = true;
+        bool m_vSync = true;
         RenderFrameStatistics m_frameStatistics;
         std::vector<RenderPassGpuTiming> m_passGpuTimings;
 
@@ -221,8 +252,11 @@ namespace ChikaEngine::Render
             std::string name;
             uint32_t beginQuery = 0;
             uint32_t endQuery = 0;
+            uint64_t frameIndex = 0;
         };
         std::vector<TimestampScope> m_timestampScopes[MAX_FRAMES_IN_FLIGHT];
+        bool m_timestampOverflow[MAX_FRAMES_IN_FLIGHT]{};
+        uint64_t m_timestampOverflowFrame[MAX_FRAMES_IN_FLIGHT]{};
         float m_timestampPeriodNs = 1.0f;
         VkDescriptorPool m_persistentDescriptorPool = VK_NULL_HANDLE;
         std::unordered_map<uint64_t, VkDescriptorSetLayout> m_descriptorSetLayoutCache;

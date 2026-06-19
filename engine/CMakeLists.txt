@@ -4,7 +4,6 @@ include(cmake/reflection.cmake)
 
 add_subdirectory(ThirdParty)		# 第三方库处理
 add_subdirectory(Runtime)			# 引擎核心
-add_subdirectory(Editor)			# 编辑器
 
 get_property(ALL_REFLECT_HEADERS GLOBAL PROPERTY CHIKA_REFLECT_HEADERS)
 
@@ -57,3 +56,15 @@ target_link_libraries(ChikaEngine
 	PUBLIC
 		ChikaRuntime
 )
+
+if(CHIKA_BUILD_GAME)
+    add_subdirectory(Game)
+endif()
+
+if(CHIKA_BUILD_EDITOR)
+    add_subdirectory(Editor)
+endif()
+
+if(CHIKA_BUILD_BENCHMARKS)
+    add_subdirectory(Benchmark)
+endif()

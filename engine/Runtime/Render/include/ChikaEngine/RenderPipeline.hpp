@@ -11,11 +11,14 @@
 #include "ChikaEngine/ResourceManager.hpp"
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <unordered_map>
 
 namespace ChikaEngine::Render
 {
+    using RenderOverlayCallback = std::function<void(IRHICommandList*)>;
+
     struct SceneData
     {
         Math::Mat4 cameraVP;
@@ -86,7 +89,8 @@ namespace ChikaEngine::Render
         void Execute(float deltaTime);
         /** @brief 原子替换下一帧消费的只读世界快照。 */
         void SubmitSnapshot(std::shared_ptr<const RenderWorldSnapshot> snapshot);
-        void SubmitImGuiData(void* drawData);
+        /** @brief 安装可选的外部 Overlay 录制回调；Pipeline 不理解具体 UI 技术。 */
+        void SetOverlayPassCallback(RenderOverlayCallback callback);
         void OnWindowResize(uint32_t width, uint32_t height);
         void OnViewResize(uint32_t width, uint32_t height);
 
@@ -108,7 +112,7 @@ namespace ChikaEngine::Render
         void AddPostProcessPass();
         void AddUploadPasses();
         void AddShadowPass();
-        void AddImGuiPass();
+        void AddOverlayPass();
         /** @brief 按已排序 Batch 录制 Draw，并缓存相邻 Batch 共享的绑定状态。 */
         void DrawRenderQueue(IRHICommandList* cmd, const RenderQueue& queue);
         void CreateDeferredResources();
@@ -154,7 +158,7 @@ namespace ChikaEngine::Render
         bool m_dummyTextureTransitioned = false;
         uint32_t m_pendingViewWidth = 0;
         uint32_t m_pendingViewHeight = 0;
-        void* m_imguiDrawData = nullptr;
+        RenderOverlayCallback m_overlayCallback;
 
         TextureHandle m_offscreenColor;
         TextureHandle m_hdrSceneColor;

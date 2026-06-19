@@ -2,7 +2,7 @@
 // #include "ChikaEngine/debug/log_macros.h"
 namespace ChikaEngine::Framework
 {
-    MeshRenderer::MeshRenderer(const std::string& meshPath, const std::string& materialPath) : _dirty(true), _meshPath(meshPath), _materialPath(materialPath) {}
+    MeshRenderer::MeshRenderer(const std::string& meshPath, const std::string& materialPath) : _materialReference(Asset::AssetReference::LegacyPath(materialPath, Asset::AssetType::Material)), _meshReference(Asset::AssetReference::LegacyPath(meshPath, Asset::AssetType::Mesh)), _dirty(true) {}
 
     // write down by copilot
     MeshRenderer::MeshRenderer() : _dirty(true) {}
@@ -21,11 +21,11 @@ namespace ChikaEngine::Framework
         if (!_dirty)
             return;
 
-        if (!_meshPath.empty())
-            _meshAsset = assetMgr.LoadMesh(_meshPath);
+        if (_meshReference.IsValid() || !_meshReference.diagnosticPath.empty())
+            _meshAsset = assetMgr.LoadMesh(_meshReference);
 
-        if (!_materialPath.empty())
-            _materialAsset = assetMgr.LoadMaterial(_materialPath);
+        if (_materialReference.IsValid() || !_materialReference.diagnosticPath.empty())
+            _materialAsset = assetMgr.LoadMaterial(_materialReference);
 
         _dirty = false;
 

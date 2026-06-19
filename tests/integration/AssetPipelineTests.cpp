@@ -1,7 +1,10 @@
 #include "ChikaEngine/AssetDatabase.hpp"
 #include "ChikaEngine/AssetImporter.hpp"
 #include "ChikaEngine/AssetManager.hpp"
+#include "ChikaEngine/AssetReference.hpp"
+#include "ChikaEngine/MaterialLoader.hpp"
 #include "ChikaEngine/ShaderReflection.hpp"
+#include "ChikaEngine/ShaderTemplateLoader.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -41,7 +44,8 @@ int main()
     const auto generatedShaderSource = root / "generated.vert";
     const auto generatedShaderBinary = root / "generated.vert.spv";
     const auto compiledShaderSource = root / "compiled.vert";
-    if (!WriteBytes(source, { 1, 2, 3 }) || !WriteBytes(generatedShaderSource, { 1 }) || !WriteBytes(generatedShaderBinary, { 1, 2, 3, 4 }) || !WriteText(compiledShaderSource, "#version 450\nvoid main() { gl_Position = vec4(0.0); }\n"))
+    const auto sceneSource = root / "startup.scene";
+    if (!WriteBytes(source, { 1, 2, 3 }) || !WriteBytes(generatedShaderSource, { 1 }) || !WriteBytes(generatedShaderBinary, { 1, 2, 3, 4 }) || !WriteText(compiledShaderSource, "#version 450\nvoid main() { gl_Position = vec4(0.0); }\n") || !WriteText(sceneSource, R"({"Scene":{"GameObjects":[]}})"))
         return 2;
 
     Asset::AssetDatabase database;
@@ -52,6 +56,9 @@ int main()
         return 4;
     if (!database.FindByPath(generatedShaderSource) || database.FindByPath(generatedShaderBinary))
         return 15;
+    const Asset::AssetRecord* sceneRecord = database.FindByPath(sceneSource);
+    if (!sceneRecord || sceneRecord->type != Asset::AssetType::Scene || sceneRecord->importer != "scene")
+        return 18;
     const std::string stableGuid = firstRecord->guid.value;
 
     database.Shutdown();
@@ -61,8 +68,28 @@ int main()
     if (!secondRecord || secondRecord->guid.value != stableGuid)
         return 6;
 
+    const auto movedSource = root / "moved.asset";
+    std::filesystem::rename(source, movedSource, error);
+    std::filesystem::rename(source.string() + ".meta", movedSource.string() + ".meta", error);
+    if (error || !database.Scan())
+        return 19;
+    const Asset::AssetRecord* movedRecord = database.FindByGuid({ stableGuid });
+    if (!movedRecord || movedRecord->sourcePath != Asset::AssetDatabase::NormalizePath(movedSource))
+        return 20;
+
+    const auto duplicateSource = root / "duplicate.asset";
+    if (!WriteBytes(duplicateSource, { 4, 5, 6 }) || !WriteText(duplicateSource.string() + ".meta", R"({"version":1,"guid":")" + stableGuid + R"(","type":"unknown","importer":"passthrough","imported":"duplicate.asset"})"))
+        return 21;
+    if (database.Scan())
+        return 22;
+    std::filesystem::remove(duplicateSource, error);
+    std::filesystem::remove(duplicateSource.string() + ".meta", error);
+    if (!database.Scan())
+        return 23;
+
     auto importers = Asset::ImporterRegistry::CreateDefault();
-    if (!importers.Import(database, secondRecord->guid).success)
+    movedRecord = database.FindByGuid({ stableGuid });
+    if (!movedRecord || !importers.Import(database, movedRecord->guid).success)
         return 7;
     const Asset::AssetRecord* compiledShaderRecord = database.FindByPath(compiledShaderSource);
     if (!compiledShaderRecord || !importers.Import(database, compiledShaderRecord->guid).success || !std::filesystem::exists(compiledShaderSource.string() + ".spv") || !std::filesystem::exists(Asset::ShaderReflection::SidecarPath(compiledShaderSource.string() + ".spv")))
@@ -75,6 +102,10 @@ int main()
     Asset::AssetManager assets;
     if (!assets.Initialize(root, false))
         return 9;
+
+    const Asset::AssetReference movedReference{ Asset::AssetGuid{ stableGuid }, Asset::AssetType::Unknown };
+    if (!assets.ResolveReference(movedReference, Asset::AssetType::Unknown, "moved test asset"))
+        return 24;
 
     const Asset::ShaderHandle compiledShader = assets.LoadShader(compiledShaderSource.string());
     const Asset::ShaderData* compiledData = assets.GetShader(compiledShader);
@@ -107,6 +138,11 @@ int main()
 
     if (!assets.Unload(shader) || assets.GetShader(shader) != nullptr)
         return 14;
+
+    const auto material = Asset::MaterialLoader::Load("Assets/Materials/floor.json");
+    const auto shaderTemplate = Asset::ShaderTemplateLoader::Load("Assets/Materials/base.template.json");
+    if (!material || !material->shaderTemplate.IsValid() || !material->textureParams.at("Albedo").IsValid() || !shaderTemplate || !shaderTemplate->vertexShader.IsValid() || !shaderTemplate->fragmentShader.IsValid())
+        return 25;
 
     assets.Shutdown();
     std::filesystem::remove_all(root, error);

@@ -1,0 +1,128 @@
+{
+  "aggregates": {
+    "engineTickCpuTime": {
+      "count": 3,
+      "max": 0.5426,
+      "mean": 0.46373333333333333,
+      "min": 0.4065,
+      "p50": 0.4421,
+      "p95": 0.5426,
+      "p99": 0.5426
+    },
+    "frameTime": {
+      "count": 3,
+      "max": 1.0149000445380807,
+      "mean": 0.6682000239379704,
+      "min": 0.444200006313622,
+      "p50": 0.5455000209622085,
+      "p95": 1.0149000445380807,
+      "p99": 1.0149000445380807
+    },
+    "gpuTime": {
+      "count": 3,
+      "max": 0.052832000000000004,
+      "mean": 0.04986666666666667,
+      "min": 0.04768,
+      "p50": 0.049088,
+      "p95": 0.052832000000000004,
+      "p99": 0.052832000000000004
+    },
+    "missingGpuSamples": 0,
+    "renderGraphCpuTime": {
+      "count": 3,
+      "max": 0.0433,
+      "mean": 0.033433333333333336,
+      "min": 0.026000000000000002,
+      "p50": 0.031,
+      "p95": 0.0433,
+      "p99": 0.0433
+    }
+  },
+  "build": {
+    "buildType": "Release",
+    "compiler": "Clang 22.1.8 (https://github.com/llvm/llvm-project ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)",
+    "engineVersion": "0.0.1"
+  },
+  "configuration": {
+    "effectiveMode": "serial",
+    "flushFrames": 3,
+    "height": 720,
+    "requestedMode": "serial",
+    "sampleFrames": 3,
+    "scene": "empty",
+    "sceneConfigHash": 5747763289200897512,
+    "seed": 803274,
+    "vSync": false,
+    "warmupFrames": 2,
+    "width": 1280,
+    "workers": 1
+  },
+  "hardware": {
+    "gpuName": "NVIDIA GeForce RTX 5060 Ti",
+    "logicalCpuCount": 24,
+    "operatingSystem": "Windows"
+  },
+  "samples": [
+    {
+      "engineTickCpuTimeMs": 0.5426,
+      "frameIndex": 2,
+      "frameTimeMs": 1.0149000445380807,
+      "gpuTimeMs": 0.052832000000000004,
+      "gpuTimingAvailable": true,
+      "renderGraphCpuTimeMs": 0.0433,
+      "renderStatistics": {
+        "batchCount": 0,
+        "culledObjectCount": 0,
+        "descriptorUpdateCount": 2,
+        "drawCallCount": 1,
+        "instanceCount": 1,
+        "instancedBatchCount": 0,
+        "packetCount": 0,
+        "passCount": 5,
+        "pipelineBindCount": 1,
+        "visibleObjectCount": 0
+      }
+    },
+    {
+      "engineTickCpuTimeMs": 0.4421,
+      "frameIndex": 3,
+      "frameTimeMs": 0.5455000209622085,
+      "gpuTimeMs": 0.049088,
+      "gpuTimingAvailable": true,
+      "renderGraphCpuTimeMs": 0.031,
+      "renderStatistics": {
+        "batchCount": 0,
+        "culledObjectCount": 0,
+        "descriptorUpdateCount": 2,
+        "drawCallCount": 1,
+        "instanceCount": 1,
+        "instancedBatchCount": 0,
+        "packetCount": 0,
+        "passCount": 5,
+        "pipelineBindCount": 1,
+        "visibleObjectCount": 0
+      }
+    },
+    {
+      "engineTickCpuTimeMs": 0.4065,
+      "frameIndex": 4,
+      "frameTimeMs": 0.444200006313622,
+      "gpuTimeMs": 0.04768,
+      "gpuTimingAvailable": true,
+      "renderGraphCpuTimeMs": 0.026000000000000002,
+      "renderStatistics": {
+        "batchCount": 0,
+        "culledObjectCount": 0,
+        "descriptorUpdateCount": 2,
+        "drawCallCount": 1,
+        "instanceCount": 1,
+        "instancedBatchCount": 0,
+        "packetCount": 0,
+        "passCount": 5,
+        "pipelineBindCount": 1,
+        "visibleObjectCount": 0
+      }
+    }
+  ],
+  "schemaVersion": 1
+}

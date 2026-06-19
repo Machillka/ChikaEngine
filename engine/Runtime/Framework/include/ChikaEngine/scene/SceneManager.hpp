@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChikaEngine/AssetDatabase.hpp"
 #include "ChikaEngine/scene/scene.hpp"
 #include <memory>
 #include <string>
@@ -18,6 +19,8 @@ namespace ChikaEngine::Framework
         bool SetActiveScene(const std::string& name);
         bool SaveScene(const std::string& name, const std::string& path) const;
         Scene* LoadScene(const std::string& name, const std::string& path, bool makeActive = false);
+        /** @brief 按 AssetDatabase 中的稳定 Scene GUID 加载并可选激活 Scene。 */
+        Scene* LoadScene(const Asset::AssetGuid& guid, bool makeActive = false);
 
         Scene* GetActiveScene() const
         {

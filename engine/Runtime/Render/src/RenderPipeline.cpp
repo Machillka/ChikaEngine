@@ -6,6 +6,7 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -178,9 +179,9 @@ namespace ChikaEngine::Render
         m_snapshot = std::move(snapshot);
     }
 
-    void RenderPipeline::SubmitImGuiData(void* drawData)
+    void RenderPipeline::SetOverlayPassCallback(RenderOverlayCallback callback)
     {
-        m_imguiDrawData = drawData;
+        m_overlayCallback = std::move(callback);
     }
 
     void RenderPipeline::BuildRenderGraph()
@@ -245,7 +246,7 @@ namespace ChikaEngine::Render
             AddMainScenePass();
         }
         AddPostProcessPass();
-        AddImGuiPass();
+        AddOverlayPass();
 
         m_renderGraph->AddPresentPass("Present", m_graphBlackboard.GetTexture(RenderGraphSemantic::Swapchain));
 
@@ -323,17 +324,15 @@ namespace ChikaEngine::Render
                                     DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
                                 });
     }
-    void RenderPipeline::AddImGuiPass()
+    void RenderPipeline::AddOverlayPass()
     {
-        PassModules::AddUI(*m_renderGraph,
-                           m_graphBlackboard,
-                           [this](IRHICommandList* cmd, RenderGraph* graph)
-                           {
-                               if (m_imguiDrawData)
-                               {
-                                   cmd->DrawImGui(m_imguiDrawData);
-                               }
-                           });
+        PassModules::AddOverlay(*m_renderGraph,
+                                m_graphBlackboard,
+                                [this](IRHICommandList* cmd, RenderGraph*)
+                                {
+                                    if (m_overlayCallback)
+                                        m_overlayCallback(cmd);
+                                });
     }
 
     void RenderPipeline::AddGBufferPass()
@@ -598,6 +597,7 @@ namespace ChikaEngine::Render
 
     void RenderPipeline::BeginFrame()
     {
+        CHIKA_PROFILE_SCOPE("RenderPipeline.BeginFrame");
         // 清空 Renderer 侧汇总，避免跳帧时继续显示上一帧统计。
         m_frameStatistics.Reset();
         HandlePendingResize();
@@ -605,17 +605,36 @@ namespace ChikaEngine::Render
 
     void RenderPipeline::Execute(float deltaTime)
     {
+        CHIKA_PROFILE_SCOPE("RenderPipeline.Execute");
         m_time += deltaTime;
-        UpdateSceneDataFromSnapshot();
-        PrepareLightData();
-        UpdatePostProcessData();
-        PrepareSnapshotResources();
-        PrepareRenderQueues();
-        PrepareInstanceData();
+        {
+            CHIKA_PROFILE_SCOPE("RenderPipeline.UpdateFrameData");
+            UpdateSceneDataFromSnapshot();
+            PrepareLightData();
+            UpdatePostProcessData();
+        }
+        {
+            CHIKA_PROFILE_SCOPE("RenderPipeline.PrepareResources");
+            PrepareSnapshotResources();
+        }
+        {
+            CHIKA_PROFILE_SCOPE("RenderPipeline.PrepareQueues");
+            PrepareRenderQueues();
+        }
+        {
+            CHIKA_PROFILE_SCOPE("RenderPipeline.PrepareInstances");
+            PrepareInstanceData();
+        }
 
-        BuildRenderGraph();
+        {
+            CHIKA_PROFILE_SCOPE("RenderPipeline.BuildGraph");
+            BuildRenderGraph();
+        }
 
-        m_renderGraph->Execute();
+        {
+            CHIKA_PROFILE_SCOPE("RenderPipeline.ExecuteGraph");
+            m_renderGraph->Execute();
+        }
 
         // RHI 负责命令统计，RenderGraph 负责 Pass 统计；Renderer 在帧执行结束后汇总两者。
         m_frameStatistics = m_rhi->GetFrameStatistics();
@@ -633,6 +652,12 @@ namespace ChikaEngine::Render
             m_frameStatistics.batchCount += static_cast<uint32_t>(queue->batches.size());
             m_frameStatistics.instancedBatchCount += static_cast<uint32_t>(std::ranges::count(queue->batches, true, &RenderBatch::instanced));
         }
+        CHIKA_PROFILE_COUNTER("Renderer.PassCount", static_cast<int64_t>(m_frameStatistics.passCount));
+        CHIKA_PROFILE_COUNTER("Renderer.DrawCalls", static_cast<int64_t>(m_frameStatistics.drawCallCount));
+        CHIKA_PROFILE_COUNTER("Renderer.Instances", static_cast<int64_t>(m_frameStatistics.instanceCount));
+        CHIKA_PROFILE_COUNTER("Renderer.VisibleObjects", static_cast<int64_t>(m_frameStatistics.visibleObjectCount));
+        CHIKA_PROFILE_COUNTER("Renderer.CulledObjects", static_cast<int64_t>(m_frameStatistics.culledObjectCount));
+        CHIKA_PROFILE_COUNTER("Renderer.Batches", static_cast<int64_t>(m_frameStatistics.batchCount));
     }
 
     void RenderPipeline::UpdateSceneDataFromSnapshot()
@@ -863,7 +888,7 @@ namespace ChikaEngine::Render
         if (m_renderGraph)
             m_renderGraph->Clear();
 
-        m_imguiDrawData = nullptr;
+        m_overlayCallback = {};
         m_dummyTextureTransitioned = false;
         if (m_rhi)
         {

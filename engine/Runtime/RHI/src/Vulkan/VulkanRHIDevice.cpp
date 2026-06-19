@@ -7,7 +7,6 @@
 #include <ChikaEngine/rhi/Vulkan/VulkanHelper.hpp>
 #include <algorithm>
 #include <array>
-#include <backends/imgui_impl_vulkan.h>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -167,6 +166,7 @@ namespace ChikaEngine::Render
         m_width = params.width;
         m_pipelineCachePath = params.pipelineCachePath;
         m_enableValidation = params.enableValidation;
+        m_vSync = params.vSync;
 
         CreateInstance();
         CreateDebugMessenger();
@@ -207,12 +207,6 @@ namespace ChikaEngine::Render
             vkDestroyCommandPool(m_device, m_commandPools[i], nullptr);
             vkDestroyDescriptorPool(m_device, m_descriptorPools[i], nullptr);
             vkDestroyQueryPool(m_device, m_timestampQueryPools[i], nullptr);
-        }
-
-        if (imguiPool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(m_device, imguiPool, nullptr);
-            imguiPool = VK_NULL_HANDLE;
         }
 
         if (m_persistentDescriptorPool)
@@ -296,18 +290,27 @@ namespace ChikaEngine::Render
         if (!completedScopes.empty())
         {
             std::vector<uint64_t> timestamps(completedScopes.size() * 2u);
-            const VkResult timestampResult = vkGetQueryPoolResults(m_device, m_timestampQueryPools[m_currentFrame], 0, static_cast<uint32_t>(timestamps.size()), timestamps.size() * sizeof(uint64_t), timestamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+            const VkResult timestampResult = vkGetQueryPoolResults(m_device, m_timestampQueryPools[m_currentFrame], 0, static_cast<uint32_t>(timestamps.size()), timestamps.size() * sizeof(uint64_t), timestamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT);
             if (timestampResult == VK_SUCCESS)
             {
                 for (size_t index = 0; index < completedScopes.size(); ++index)
                 {
                     const uint64_t begin = timestamps[index * 2u];
                     const uint64_t end = timestamps[index * 2u + 1u];
-                    m_passGpuTimings.push_back({ completedScopes[index].name, static_cast<double>(end - begin) * m_timestampPeriodNs / 1'000'000.0 });
+                    const bool valid = end >= begin;
+                    m_passGpuTimings.push_back({ completedScopes[index].name, valid ? static_cast<double>(end - begin) * m_timestampPeriodNs / 1'000'000.0 : 0.0, completedScopes[index].frameIndex, 0, valid });
                 }
             }
+            else
+            {
+                for (const TimestampScope& scope : completedScopes)
+                    m_passGpuTimings.push_back({ scope.name, 0.0, scope.frameIndex, 0, false });
+            }
         }
+        if (m_timestampOverflow[m_currentFrame])
+            m_passGpuTimings.push_back({ "GPU Timestamp Query Overflow", 0.0, m_timestampOverflowFrame[m_currentFrame], 0, false });
         m_timestampScopes[m_currentFrame].clear();
+        m_timestampOverflow[m_currentFrame] = false;
         m_timestampQueriesReset = false;
 
         VkResult res = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex);
@@ -325,7 +328,7 @@ namespace ChikaEngine::Render
 
         vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
         vkResetCommandPool(m_device, m_commandPools[m_currentFrame], 0);
-        vkResetDescriptorPool(m_device, m_descriptorPools[m_currentFrame], 0);
+        VK_CHECK(vkResetDescriptorPool(m_device, m_descriptorPools[m_currentFrame], 0), "Failed to reset transient descriptor pool");
 
         m_pendingCmds[m_currentFrame].clear();
         m_submittedCommandLists[m_currentFrame].clear();
@@ -470,7 +473,6 @@ namespace ChikaEngine::Render
         vt.height = desc.height;
         vt.mipLevels = desc.mipLevels;
         vt.arrayLayers = desc.arrayLayers;
-        vt.handle = nullptr;
         VK_CHECK(vmaCreateImage(m_allocator, &iInfo, &aInfo, &vt.image, &vt.allocation, nullptr), "VMA image alloc failed");
 
         VkImageViewCreateInfo vInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
@@ -838,8 +840,12 @@ namespace ChikaEngine::Render
     {
         const uint32_t beginQuery = static_cast<uint32_t>(m_timestampScopes[m_currentFrame].size() * 2u);
         if (beginQuery + 1u >= MAX_TIMESTAMP_QUERIES)
+        {
+            m_timestampOverflow[m_currentFrame] = true;
+            m_timestampOverflowFrame[m_currentFrame] = m_absoluteFrame;
             return UINT32_MAX;
-        m_timestampScopes[m_currentFrame].push_back({ std::string(name), beginQuery, beginQuery + 1u });
+        }
+        m_timestampScopes[m_currentFrame].push_back({ std::string(name), beginQuery, beginQuery + 1u, m_absoluteFrame });
         return beginQuery;
     }
 
@@ -972,27 +978,66 @@ namespace ChikaEngine::Render
         std::vector<VkPhysicalDevice> devices(count);
         vkEnumeratePhysicalDevices(m_instance, &count, devices.data());
 
-        // TODO: 实现评估方法
-        m_physicalDevice = devices[0];
+        int bestScore = -1;
+        for (VkPhysicalDevice device : devices)
+        {
+            VkPhysicalDeviceProperties properties{};
+            vkGetPhysicalDeviceProperties(device, &properties);
+
+            VkPhysicalDeviceVulkan13Features features13{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
+            VkPhysicalDeviceFeatures2 features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+            features.pNext = &features13;
+            vkGetPhysicalDeviceFeatures2(device, &features);
+            if (properties.apiVersion < VK_API_VERSION_1_3 || !features13.dynamicRendering)
+                continue;
+
+            uint32_t extensionCount = 0;
+            vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+            std::vector<VkExtensionProperties> extensions(extensionCount);
+            vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+            const bool supportsSwapchain = std::ranges::any_of(extensions, [](const VkExtensionProperties& extension) { return std::string_view(extension.extensionName) == VK_KHR_SWAPCHAIN_EXTENSION_NAME; });
+            if (!supportsSwapchain)
+                continue;
+
+            uint32_t queueFamilyCount = 0;
+            vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+            std::vector<VkQueueFamilyProperties> families(queueFamilyCount);
+            vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, families.data());
+            uint32_t compatibleQueue = UINT32_MAX;
+            for (uint32_t index = 0; index < queueFamilyCount; ++index)
+            {
+                VkBool32 supportsPresent = VK_FALSE;
+                vkGetPhysicalDeviceSurfaceSupportKHR(device, index, m_surface, &supportsPresent);
+                if ((families[index].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 && supportsPresent)
+                {
+                    compatibleQueue = index;
+                    break;
+                }
+            }
+            if (compatibleQueue == UINT32_MAX)
+                continue;
+
+            int score = static_cast<int>(properties.limits.maxImageDimension2D);
+            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                score += 100'000;
+            else if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+                score += 10'000;
+            if (score <= bestScore)
+                continue;
+
+            bestScore = score;
+            m_physicalDevice = device;
+            m_graphicsQueueFamily = compatibleQueue;
+            m_deviceName = properties.deviceName;
+        }
+
+        if (!m_physicalDevice)
+            throw std::runtime_error("No Vulkan 1.3 graphics/present device with swapchain support found");
+        LOG_INFO("VulkanRHI", "Selected physical device: {}", m_deviceName);
     }
 
     void VulkanRHIDevice::CreateLogicalDevice()
     {
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);
-        std::vector<VkQueueFamilyProperties> families(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, families.data());
-
-        m_graphicsQueueFamily = 0;
-        for (uint32_t i = 0; i < queueFamilyCount; ++i)
-        {
-            if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                m_graphicsQueueFamily = i;
-                break;
-            }
-        }
-
         float priority = 1.0f;
         VkDeviceQueueCreateInfo qinfo{};
         qinfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -1055,7 +1100,8 @@ namespace ChikaEngine::Render
         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
         {
             VkDescriptorPoolCreateInfo poolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-            poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+            // Transient sets are released together by vkResetDescriptorPool; per-set free support only adds fragmentation risk.
+            poolInfo.flags = 0;
             poolInfo.maxSets = 1024;
             poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
             poolInfo.pPoolSizes = poolSizes.data();
@@ -1194,11 +1240,28 @@ namespace ChikaEngine::Render
             imageCount = capabilities.maxImageCount;
         }
 
+        VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        if (!m_vSync)
+        {
+            uint32_t presentModeCount = 0;
+            VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModeCount, nullptr), "Failed to query present modes");
+            std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+            VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModeCount, presentModes.data()), "Failed to enumerate present modes");
+
+            // IMMEDIATE removes display pacing from benchmark samples; MAILBOX is the non-tearing fallback.
+            if (std::ranges::find(presentModes, VK_PRESENT_MODE_IMMEDIATE_KHR) != presentModes.end())
+                presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+            else if (std::ranges::find(presentModes, VK_PRESENT_MODE_MAILBOX_KHR) != presentModes.end())
+                presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+            else
+                LOG_WARN("VulkanRHI", "VSync was disabled but the surface only supports FIFO present mode");
+        }
+
         m_swapchainFormat = VK_FORMAT_B8G8R8A8_UNORM;
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         createInfo.surface = m_surface;
-        createInfo.minImageCount = MAX_FRAMES_IN_FLIGHT + 1;
+        createInfo.minImageCount = imageCount;
         createInfo.imageFormat = m_swapchainFormat;
         createInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
         createInfo.imageExtent = m_swapchainExtent;
@@ -1207,11 +1270,12 @@ namespace ChikaEngine::Render
         createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
         createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR; // V-Sync
+        createInfo.presentMode = presentMode;
         createInfo.clipped = VK_TRUE;
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
         VK_CHECK(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain), "Failed to create swapchain");
+        LOG_INFO("VulkanRHI", "Created swapchain with present mode {} (VSync requested: {})", static_cast<int>(presentMode), m_vSync);
 
         // uint32_t imageCount;
         vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr);
@@ -1243,7 +1307,6 @@ namespace ChikaEngine::Render
             vt.width = m_swapchainExtent.width;
             vt.height = m_swapchainExtent.height;
             vt.allocation = nullptr;
-            vt.handle = nullptr;
             m_swapchainTextures[i] = m_textures.Create(vt);
             SetDebugName(m_swapchainTextures[i], "Swapchain.Image." + std::to_string(i));
         }
@@ -1352,8 +1415,6 @@ namespace ChikaEngine::Render
                     VulkanTexture* tex = m_textures.Get(h);
                     if (tex)
                     {
-                        if (tex->handle)
-                            ImGui_ImplVulkan_RemoveTexture(static_cast<VkDescriptorSet>(tex->handle));
                         if (tex->view)
                             vkDestroyImageView(m_device, tex->view, nullptr);
                         if (tex->allocation)
@@ -1362,7 +1423,6 @@ namespace ChikaEngine::Render
                         tex->view = VK_NULL_HANDLE;
                         tex->image = VK_NULL_HANDLE;
                         tex->allocation = nullptr;
-                        tex->handle = nullptr;
 
                         m_textures.Destroy(h);
                     }
@@ -1459,73 +1519,9 @@ namespace ChikaEngine::Render
         }
     }
 
-    void* VulkanRHIDevice::GetImGuiTextureHandle(TextureHandle handle)
-    {
-        VulkanTexture* tex = m_textures.Get(handle);
-        if (!tex)
-            return nullptr;
-
-        // 懒注册
-        if (!tex->handle)
-        {
-            VkDescriptorSet ds = ImGui_ImplVulkan_AddTexture(m_defaultSampler, tex->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            tex->handle = static_cast<void*>(ds);
-        }
-        return tex->handle;
-    }
-
     TextureHandle VulkanRHIDevice::GetActiveSwapchainTexture()
     {
         return m_swapchainTextures[m_currentImageIndex];
-    }
-
-    void VulkanRHIDevice::InitializeImgui()
-    {
-        VkDescriptorPoolSize pool_sizes[] = {
-            { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-            {
-                VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                1000,
-            },
-        };
-
-        VkDescriptorPoolCreateInfo pool_info = {};
-        pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        pool_info.maxSets = 1000;
-        pool_info.poolSizeCount = std::size(pool_sizes);
-        pool_info.pPoolSizes = pool_sizes;
-
-        if (imguiPool == VK_NULL_HANDLE)
-            VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool), "Create descriptor pool for imgui failed");
-
-        ImGui_ImplVulkan_InitInfo initInfo = {};
-        initInfo.ApiVersion = VK_API_VERSION_1_3;
-        initInfo.Instance = m_instance;
-        initInfo.PhysicalDevice = m_physicalDevice;
-        initInfo.Device = m_device;
-        initInfo.QueueFamily = m_graphicsQueueFamily;
-        initInfo.Queue = m_graphicsQueue;
-        initInfo.MinImageCount = 2;
-        initInfo.ImageCount = m_imageCount;
-        initInfo.DescriptorPool = imguiPool;
-        initInfo.UseDynamicRendering = true;
-        initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo = {};
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-        initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_swapchainFormat;
-
-        ImGui_ImplVulkan_Init(&initInfo);
     }
 
     void VulkanRHIDevice::WaitIdle()

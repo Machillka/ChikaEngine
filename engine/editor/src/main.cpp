@@ -3,6 +3,7 @@
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/Window/IWindow.hpp"
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
 #include "ChikaEngine/debug/console_sink.h"
@@ -61,6 +62,12 @@ namespace ChikaEngine::Editor
             // 保留明确的场景迁移锚点，但不挂载 MeshRenderer，避免把当前不支持的效果伪装成正确输出。
             scene.CreateGameobject("Baseline.Pending.MultiMaterial");
             scene.CreateGameobject("Baseline.Pending.Transparent");
+
+            const auto lightId = scene.CreateGameobject("Baseline.DirectionalLight");
+            auto* light = scene.GetGameObject(lightId);
+            light->transform->position = Math::Vector3(5.0f, 8.0f, 5.0f);
+            light->transform->LookAt(Math::Vector3::zero);
+            light->AddComponent<Framework::LightComponent>();
         }
     } // namespace
 
@@ -74,6 +81,7 @@ namespace ChikaEngine::Editor
             createInfo.window.width = 1280;
             createInfo.window.height = 720;
             createInfo.window.isFullscreen = false;
+            createInfo.runtimeMode = Project::RuntimeMode::Editor;
             return createInfo;
         }
 

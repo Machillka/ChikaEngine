@@ -60,9 +60,6 @@ namespace ChikaEngine::Render
         uint32_t height = 0;
         uint32_t mipLevels = 1;
         uint32_t arrayLayers = 1;
-
-        // 缓存 DescriptorSet 可以像 imgui 提供
-        void* handle = nullptr;
     };
 
     struct VulkanTextureView
