@@ -1,7 +1,10 @@
 {
     "name": "ChikaBodyMaterial",
     "shader": {
-        "template": "Assets/Materials/test.template.json"
+        "template": {
+            "guid": "ed8a6e5e71669e71740431190b98c4ad",
+            "path": "Assets/Materials/base.template.json"
+        }
     },
     "parameters": {
         "Base": {
@@ -14,6 +17,9 @@
         }
     },
     "textures": {
-        "Albedo": "Assets/Textures/test.png"
+        "Albedo": {
+            "guid": "3a8e920cba54fb49db762180ffa44436",
+            "path": "Assets/Textures/test.png"
+        }
     }
 }

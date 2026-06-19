@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: Planned
+- Status: Complete
 - Depends on: Step 1.3
 - Suggested scope: `Application`, `EngineContext`, `Runtime/Project`, `AssetManager`, tests
 
@@ -47,3 +47,12 @@
 
 - Step 1.5：加载 Project 启动 Scene 并进入 Play。
 
+## Implementation Record
+
+- 新增 `RuntimeMode::{Editor, DevelopmentGame, PackagedGame}` 与 `RuntimeBootConfig`。
+- `EngineContextCreateInfo` 现在显式接收 Content Root、扫描、meta、Importer、热重载、默认 Scene 和 Editor View 能力。
+- `AssetDatabaseCreateInfo`/`AssetManagerCreateInfo` 让 Packaged Mode 可关闭目录创建、源扫描、meta、Importer 和热重载。
+- 脚本模块搜索路径改为 Project Content Root 下的 `Scripts/`，不再写死仓库 `Assets/Scripts`。
+- Editor 保持开发态行为；Development Game 使用 Project Source Content；Packaged Game 使用 Cooked Content。
+
+当前尚无 Cooked Registry，因此示例 `--mode packaged` 会在缺失 `Content/` 时快速失败；这是 Phase 3.4 前的预期行为。

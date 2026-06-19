@@ -3,6 +3,7 @@
 #include "ChikaEngine/debug/log_macros.h"
 
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <optional>
 
 namespace ChikaEngine::Asset
@@ -111,6 +112,25 @@ namespace ChikaEngine::Asset
         };
     }
 
+    ImportResult SceneImporter::Import(const AssetRecord& record)
+    {
+        try
+        {
+            std::ifstream file(record.sourcePath);
+            const nlohmann::json json = nlohmann::json::parse(file);
+            const bool valid = json.contains("Scene") && json["Scene"].is_object() && json["Scene"].contains("GameObjects") && json["Scene"]["GameObjects"].is_array();
+            return {
+                .success = valid,
+                .importedPath = record.sourcePath,
+                .message = valid ? "" : "Scene must contain Scene.GameObjects array",
+            };
+        }
+        catch (const std::exception& exception)
+        {
+            return { .importedPath = record.sourcePath, .message = exception.what() };
+        }
+    }
+
     void ImporterRegistry::Register(std::unique_ptr<IAssetImporter> importer)
     {
         if (!importer)
@@ -159,6 +179,7 @@ namespace ChikaEngine::Asset
         ImporterRegistry registry;
         registry.Register(std::make_unique<PassthroughImporter>());
         registry.Register(std::make_unique<ShaderImporter>());
+        registry.Register(std::make_unique<SceneImporter>());
         return registry;
     }
 } // namespace ChikaEngine::Asset

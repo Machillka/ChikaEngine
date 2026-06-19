@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: Planned
+- Status: Complete
 - Depends on: Step 1.1, Step 1.2
 - Suggested scope: `Runtime/Project`, project root, tests
 
@@ -71,3 +71,11 @@
 
 - Step 1.4：将 Project 配置投影到 EngineContext。
 
+## Implementation Record
+
+- 新增 `Runtime/Project` 模块，提供 `ProjectDescriptor::Load()`、结构化字段和版本/相对路径/GUID 校验。
+- 新增根目录 `ChikaProject.json`，指定项目身份、内容根、Cooked 根、启动 Scene、窗口与 Runtime 配置。
+- `ChikaGame --project <path>` 加载 Descriptor；缺失或非法 Descriptor 在 Engine 初始化前返回错误码 `2`。
+- `Chika.ProjectDescriptor` 覆盖合法配置、未知版本、非法相对路径和模式投影。
+
+首版尚未包含插件、平台矩阵和命令行窗口/渲染覆盖；这些不是独立启动闭环的阻塞项。

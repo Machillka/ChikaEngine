@@ -11,6 +11,7 @@ add_subdirectory(Time)
 add_subdirectory(Physics)
 add_subdirectory(Framework)
 add_subdirectory(Scripts)
+add_subdirectory(Project)
 
 add_library(${TARGET_NAME} INTERFACE)
 
@@ -26,4 +27,5 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     ChikaPhysics
     ChikaFramework
     ChikaScripts
+    ChikaProject
 )

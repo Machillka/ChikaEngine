@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: Planned
+- Status: Complete
 - Depends on: Step 0.4, existing Scene serialization
 - Suggested scope: `Runtime/Asset`, `Runtime/Framework`, `Assets/Scenes`, `tests/`
 
@@ -42,3 +42,13 @@
 ## Next Step
 
 - Step 1.2：建立统一 AssetReference 并迁移可 Cook 的持久引用。
+
+## Implementation Record
+
+- `AssetType::Scene` 识别 `.scene`，默认使用独立 `SceneImporter` 校验 `Scene.GameObjects` 结构。
+- `AssetDatabase::Scan()` 现在会拒绝重复 GUID，而不是静默覆盖记录。
+- `SceneManager::LoadScene(AssetGuid)` 通过 AssetDatabase 解析 Scene，不要求调用方持有路径。
+- 新增 `Assets/Scenes/Main.scene` 与稳定 meta；Project 启动只引用其 GUID。
+- `Chika.AssetPipeline` 覆盖 Scene 分类、Importer 和重复 GUID；`Chika.SceneIntegration` 覆盖按 GUID 加载。
+
+当前 Scene Importer 在 Development 模式仍返回源 Scene；Cooked Scene 产物由 Phase 3 实现。

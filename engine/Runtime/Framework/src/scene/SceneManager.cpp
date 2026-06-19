@@ -1,4 +1,5 @@
 #include "ChikaEngine/scene/SceneManager.hpp"
+#include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/io/FileStream.h"
 #include <exception>
@@ -10,7 +11,7 @@ namespace ChikaEngine::Framework
         Shutdown();
         _createInfo = createInfo;
         _initialized = true;
-        return CreateScene("Main", true) != nullptr;
+        return !createInfo.createDefaultScene || CreateScene("Main", true) != nullptr;
     }
 
     void SceneManager::Shutdown()
@@ -122,6 +123,25 @@ namespace ChikaEngine::Framework
             LOG_ERROR("SceneManager", "Failed to load scene '{}': {}", name, exception.what());
             return nullptr;
         }
+    }
+
+    Scene* SceneManager::LoadScene(const Asset::AssetGuid& guid, bool makeActive)
+    {
+        if (!_createInfo.assetManager)
+        {
+            LOG_ERROR("SceneManager", "Cannot load Scene GUID '{}' without AssetManager", guid.value);
+            return nullptr;
+        }
+
+        const Asset::AssetRecord* record = _createInfo.assetManager->GetDatabase().FindByGuid(guid);
+        if (!record || record->type != Asset::AssetType::Scene)
+        {
+            LOG_ERROR("SceneManager", "Startup Scene GUID '{}' is missing or is not a Scene", guid.value);
+            return nullptr;
+        }
+
+        const std::filesystem::path loadPath = record->importedPath.empty() ? record->sourcePath : record->importedPath;
+        return LoadScene(guid.value, loadPath.string(), makeActive);
     }
 
     Scene* SceneManager::GetScene(const std::string& name) const

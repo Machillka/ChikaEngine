@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: Planned
+- Status: Complete
 - Depends on: Step 1.1, existing Asset GUID loading
 - Suggested scope: `Runtime/Asset`, `Runtime/Framework`, serialization, tests
 
@@ -49,3 +49,14 @@
 ## Next Step
 
 - Step 1.3：定义 Project Descriptor。
+
+## Implementation Record
+
+- 新增可反射序列化的 `AssetReference`：保存 `guid`、`subAsset`、`expectedType` 与可选 `diagnosticPath`。
+- `AssetManager::ResolveReference()` 统一完成 GUID 查询与类型校验；各类 `Load*(AssetReference)` 只生成进程内 Handle。
+- `MeshRenderer`、`Animator`、`ScriptComponent` 已迁移到 AssetReference；旧 Path API 仅生成 Legacy 诊断引用。
+- `MaterialData`、`ShaderTemplateData` 及现有 Material/Template JSON 已迁移到 GUID 引用。
+- `Scene::ValidateRuntimeAssetReferences()` 在游戏启动时验证 Scene、Material、Texture、Template、Shader 和 Script 直接依赖。
+- 测试覆盖资产与 meta 一同移动后按 GUID 继续解析，以及 Material/Shader Template 正式引用。
+
+`subAsset` 已进入稳定格式，但当前 Mesh/Animation Loader 仍加载整份 GLTF；精确 SubAsset 选择留给后续 Import/Cook Rule。

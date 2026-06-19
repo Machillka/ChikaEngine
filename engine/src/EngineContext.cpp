@@ -57,7 +57,7 @@ namespace ChikaEngine::Engine
 
             if (createInfo.enableScripting)
             {
-                m_scriptsInitialized = Scripts::ScriptsSystem::Instance().Init();
+                m_scriptsInitialized = Scripts::ScriptsSystem::Instance().Init(createInfo.contentRoot / "Scripts");
                 if (!m_scriptsInitialized)
                 {
                     LOG_ERROR("EngineContext", "Failed to initialize scripting");
@@ -67,7 +67,14 @@ namespace ChikaEngine::Engine
             }
 
             m_assetManager = std::make_unique<Asset::AssetManager>();
-            if (!m_assetManager->Initialize("Assets"))
+            if (!m_assetManager->Initialize({
+                    .assetRoot = createInfo.contentRoot,
+                    .createRoot = createInfo.createContentRoot,
+                    .scanAssets = createInfo.scanAssets,
+                    .createMissingMeta = createInfo.createMissingMeta,
+                    .importAssets = createInfo.importAssets,
+                    .enableHotReload = createInfo.enableHotReload,
+                }))
             {
                 LOG_ERROR("EngineContext", "Failed to initialize asset manager");
                 Shutdown();
@@ -94,8 +101,11 @@ namespace ChikaEngine::Engine
             m_sceneManager = std::make_unique<Framework::SceneManager>();
             if (!m_sceneManager->Initialize({
                     .renderInstance = m_renderer.get(),
+                    .assetManager = m_assetManager.get(),
                     .fixedDeltaTime = createInfo.fixedDeltaTime,
                     .maxPhysicsStepsPerFrame = createInfo.maxPhysicsStepsPerFrame,
+                    .createDefaultScene = createInfo.createDefaultScene,
+                    .useEditorView = createInfo.useEditorView,
                 }))
             {
                 LOG_ERROR("EngineContext", "Failed to initialize scene manager");
@@ -168,7 +178,7 @@ namespace ChikaEngine::Engine
             Time::TimeSystem::Update();
         if (m_inputInitialized)
             Input::InputSystem::Update();
-        if (m_assetManager)
+        if (m_assetManager && m_createInfo.enableHotReload)
             m_assetManager->TickHotReload();
 
         return m_timeInitialized ? Time::TimeSystem::GetDeltaTime() : 0.0f;

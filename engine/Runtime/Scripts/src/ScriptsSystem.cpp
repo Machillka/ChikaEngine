@@ -12,7 +12,7 @@ PYBIND11_EMBEDDED_MODULE(chika_engine, m)
 namespace ChikaEngine::Scripts
 {
     namespace fs = std::filesystem;
-    bool ScriptsSystem::Init()
+    bool ScriptsSystem::Init(const std::filesystem::path& scriptRoot)
     {
         if (guard)
             return true;
@@ -51,7 +51,7 @@ namespace ChikaEngine::Scripts
 
             py::module_ sys = py::module_::import("sys");
             py::list path = sys.attr("path");
-            path.append((engineRoot / "Assets" / "Scripts").string());
+            path.append(std::filesystem::absolute(scriptRoot).lexically_normal().string());
             LOG_INFO("Scripting", "Python Script Engine initialized successfully.");
             return true;
         }

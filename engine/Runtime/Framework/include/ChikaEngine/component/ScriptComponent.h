@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/component/Component.h"
+#include "ChikaEngine/AssetReference.hpp"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include <pybind11/pytypes.h>
@@ -17,6 +18,9 @@ namespace ChikaEngine::Framework
       public:
         ScriptComponent() = default;
         ~ScriptComponent();
+
+        MFIELD()
+        Asset::AssetReference scriptAsset;
 
         MFIELD()
         std::string moduleName = "player";

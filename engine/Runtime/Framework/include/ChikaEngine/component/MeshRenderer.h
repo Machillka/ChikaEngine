@@ -2,6 +2,7 @@
 
 #include "ChikaEngine/AssetHandle.hpp"
 #include "ChikaEngine/AssetManager.hpp"
+#include "ChikaEngine/AssetReference.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include <string>
@@ -26,25 +27,39 @@ namespace ChikaEngine::Framework
             _dirty = true;
         }
 
-        const std::string& GetMaterialPath() const
+        const Asset::AssetReference& GetMaterialReference() const
         {
-            return _materialPath;
+            return _materialReference;
         }
-        const std::string& GetMeshPath() const
+        const Asset::AssetReference& GetMeshReference() const
         {
-            return _meshPath;
+            return _meshReference;
         }
 
+        /** @brief 设置正式 Material 引用并使 Runtime Handle 失效。 */
+        void SetMaterialReference(Asset::AssetReference reference)
+        {
+            _materialReference = std::move(reference);
+            OnDirty();
+        }
+
+        /** @brief 设置正式 Mesh 引用并使 Runtime Handle 失效。 */
+        void SetMeshReference(Asset::AssetReference reference)
+        {
+            _meshReference = std::move(reference);
+            OnDirty();
+        }
+
+        /** @brief 兼容旧调用方；路径只作为迁移诊断，不是持久身份。 */
         void SetMaterialPath(const std::string& path)
         {
-            _materialPath = path;
-            OnDirty();
+            SetMaterialReference(Asset::AssetReference::LegacyPath(path, Asset::AssetType::Material));
         }
 
+        /** @brief 兼容旧调用方；路径只作为迁移诊断，不是持久身份。 */
         void SetMeshPath(const std::string& path)
         {
-            _meshPath = path;
-            OnDirty();
+            SetMeshReference(Asset::AssetReference::LegacyPath(path, Asset::AssetType::Mesh));
         }
 
         Asset::MeshHandle GetMeshAsset() const
@@ -64,13 +79,11 @@ namespace ChikaEngine::Framework
         void ResolveAssets(Asset::AssetManager & assetMgr);
 
       private:
-        // 材质只需要记录位置, 办法交给老爹来想
-        // 实际上是交付给用户修改, 修改 Path 即可
         MFIELD()
-        std::string _materialPath;
+        Asset::AssetReference _materialReference;
 
         MFIELD()
-        std::string _meshPath;
+        Asset::AssetReference _meshReference;
 
         Asset::MeshHandle _meshAsset{};
         Asset::MaterialHandle _materialAsset{};

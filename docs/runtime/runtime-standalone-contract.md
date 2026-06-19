@@ -26,7 +26,7 @@ The following dependencies are forbidden in `engine/Runtime/` and `engine/Game/`
 | Editor Development | Allowed | Allowed, owned by Editor | Optional |
 | Packaged Game | Forbidden | Forbidden | Required |
 
-Phase 0 proves the executable and module boundary. Source-free startup, Project Descriptor and Cooked Registry remain later phases.
+Phase 1 proves Project-driven startup, GUID Scene loading, Play lifecycle and Scene-owned Runtime View/Light. Source-free startup and Cooked Registry remain later phases.
 
 ## Failure Contract
 

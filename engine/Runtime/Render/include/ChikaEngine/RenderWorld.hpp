@@ -191,6 +191,14 @@ namespace ChikaEngine::Render
         {
             return m_objects.Size();
         }
+        uint32_t GetLightCount() const
+        {
+            return m_lights.Size();
+        }
+        uint32_t GetViewCount() const
+        {
+            return m_views.Size();
+        }
 
       private:
         void MarkChanged();

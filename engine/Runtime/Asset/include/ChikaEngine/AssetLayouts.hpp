@@ -11,6 +11,7 @@
 #pragma once
 
 #include "AssetAnimation.hpp"
+#include "AssetReference.hpp"
 #include "ChikaEngine/math/Bounds.hpp"
 #include "ChikaEngine/shader/ShaderInterface.hpp"
 #include <cstdint>
@@ -48,9 +49,8 @@ namespace ChikaEngine::Asset
     {
         std::string name;
 
-        // Shader stage 路径 Asset 层只存路径
-        std::string vertexShaderPath;
-        std::string fragmentShaderPath;
+        AssetReference vertexShader;
+        AssetReference fragmentShader;
 
         // 参数描述
         std::unordered_map<std::string, ShaderParamDesc> parameters;
@@ -107,12 +107,12 @@ namespace ChikaEngine::Asset
     {
         std::string name;
 
-        std::string shaderTemplatePath;
+        AssetReference shaderTemplate;
 
         std::unordered_map<std::string, bool> variants;
         std::unordered_map<std::string, float> floatParams;
         std::unordered_map<std::string, std::vector<float>> vectorParams;
-        std::unordered_map<std::string, std::string> textureParams;
+        std::unordered_map<std::string, AssetReference> textureParams;
     };
 
 } // namespace ChikaEngine::Asset

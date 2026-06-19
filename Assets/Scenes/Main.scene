@@ -1,0 +1,131 @@
+{
+  "Scene": {
+    "GameObjects": [
+      {
+        "GameObject": {
+          "ID": 1,
+          "Name": "Main Camera",
+          "Active": true,
+          "Parent": 0,
+          "Components": [
+            {
+              "TypeName": "Transform",
+              "CompData": {
+                "position": { "x": 0.0, "y": 3.0, "z": 8.0 },
+                "rotation": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 },
+                "scale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+              }
+            },
+            {
+              "TypeName": "CameraComponent",
+              "CompData": {
+                "primary": true,
+                "fieldOfView": 45.0,
+                "nearClip": 0.1,
+                "farClip": 1000.0,
+                "layerMask": -1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "GameObject": {
+          "ID": 2,
+          "Name": "Directional Light",
+          "Active": true,
+          "Parent": 0,
+          "Components": [
+            {
+              "TypeName": "Transform",
+              "CompData": {
+                "position": { "x": 5.0, "y": 8.0, "z": 5.0 },
+                "rotation": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 },
+                "scale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+              }
+            },
+            {
+              "TypeName": "LightComponent",
+              "CompData": {
+                "color": { "x": 1.0, "y": 1.0, "z": 1.0 },
+                "intensity": 1.0,
+                "castsShadow": true,
+                "layerMask": -1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "GameObject": {
+          "ID": 3,
+          "Name": "Floor",
+          "Active": true,
+          "Parent": 0,
+          "Components": [
+            {
+              "TypeName": "Transform",
+              "CompData": {
+                "position": { "x": 0.0, "y": -1.0, "z": 0.0 },
+                "rotation": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 },
+                "scale": { "x": 8.0, "y": 0.2, "z": 8.0 }
+              }
+            },
+            {
+              "TypeName": "MeshRenderer",
+              "CompData": {
+                "_materialReference": {
+                  "guid": "1ba4d7d5174ab9b47177c45a2ceb3549",
+                  "subAsset": "",
+                  "expectedType": 5,
+                  "diagnosticPath": "Assets/Materials/floor.json"
+                },
+                "_meshReference": {
+                  "guid": "3ad1c670df63558ffb36c4d824e95cff",
+                  "subAsset": "Mesh0",
+                  "expectedType": 1,
+                  "diagnosticPath": "Assets/Meshes/Box.gltf"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "GameObject": {
+          "ID": 4,
+          "Name": "Box",
+          "Active": true,
+          "Parent": 0,
+          "Components": [
+            {
+              "TypeName": "Transform",
+              "CompData": {
+                "position": { "x": 0.0, "y": 0.0, "z": 0.0 },
+                "rotation": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 },
+                "scale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+              }
+            },
+            {
+              "TypeName": "MeshRenderer",
+              "CompData": {
+                "_materialReference": {
+                  "guid": "1ba4d7d5174ab9b47177c45a2ceb3549",
+                  "subAsset": "",
+                  "expectedType": 5,
+                  "diagnosticPath": "Assets/Materials/floor.json"
+                },
+                "_meshReference": {
+                  "guid": "3ad1c670df63558ffb36c4d824e95cff",
+                  "subAsset": "Mesh0",
+                  "expectedType": 1,
+                  "diagnosticPath": "Assets/Meshes/Box.gltf"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

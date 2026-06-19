@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: Planned
+- Status: Complete
 - Depends on: Step 1.3, Step 1.4
 - Suggested scope: `engine/Game`, `SceneManager`, Asset/Project integration, tests
 
@@ -45,3 +45,12 @@
 
 - Step 1.6：让启动 Scene 提供正式 Runtime Camera 和 Light。
 
+## Implementation Record
+
+- `GameApplication` 从 `RuntimeBootConfig.startupScene` 获取 GUID，并调用 `SceneManager::LoadScene(guid, true)`。
+- Game 的 SceneManager 不再创建临时 `Main` Scene；加载后验证直接资产依赖和 Primary Camera，再调用 `StartPlayMode()`。
+- Scene 缺失、类型错误、直接依赖错误、Primary Camera 缺失或 Play 失败都会抛出启动错误并返回非零。
+- 正常退出仍经过 `EndPlay -> Scene Shutdown -> Renderer/Asset/Platform Shutdown`。
+- Development Game smoke 已验证 `Load -> Activate -> BeginPlay -> normal shutdown`。
+
+Phase 1 的依赖验证仅覆盖直接运行依赖；可解释的传递闭包和 Cook Manifest 属于 Phase 2。

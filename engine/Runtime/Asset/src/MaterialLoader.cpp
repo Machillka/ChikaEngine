@@ -6,6 +6,21 @@
 #include <fstream>
 namespace ChikaEngine::Asset
 {
+    /**
+     * @brief 解析正式 GUID 引用，并兼容旧版路径字符串作为诊断回退。
+     */
+    static AssetReference ParseReference(const nlohmann::json& value, AssetType expectedType)
+    {
+        if (value.is_string())
+            return AssetReference::LegacyPath(value.get<std::string>(), expectedType);
+        return {
+            AssetGuid{ value.value("guid", "") },
+            expectedType,
+            value.value("subAsset", ""),
+            value.value("path", ""),
+        };
+    }
+
     /*!
      * @brief dfs 把 json 嵌套路径压成单字符串并且插入到 material 数据中
      *
@@ -55,7 +70,7 @@ namespace ChikaEngine::Asset
         f >> j;
 
         mat->name = j.value("name", path);
-        mat->shaderTemplatePath = j["shader"]["template"];
+        mat->shaderTemplate = ParseReference(j["shader"]["template"], AssetType::ShaderTemplate);
         if (j.contains("variants"))
         {
             for (const auto& [name, enabled] : j["variants"].items())
@@ -72,7 +87,7 @@ namespace ChikaEngine::Asset
         {
             for (auto& [name, texPath] : j["textures"].items())
             {
-                mat->textureParams[name] = texPath.get<std::string>();
+                mat->textureParams[name] = ParseReference(texPath, AssetType::Texture);
             }
         }
 

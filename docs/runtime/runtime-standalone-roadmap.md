@@ -4,7 +4,7 @@
 
 - Date: 2026-06-15
 - Area: Runtime/Application/Asset/Framework/Build/Packaging
-- Status: In Progress - Phase 0 Complete
+- Status: In Progress - Phase 1 Complete
 - Goal: 从当前仅有 `ChikaEditor` 的开发态工程，增量建立可 Cook、可 Package、脱离 Editor 和源资产运行的独立游戏产物。
 
 ## 当前边界
@@ -22,12 +22,16 @@ Phase 0 已完成：
 - 已将 Editor UI 后端从通用 Render/RHI API 外移，并建立通用 Overlay 扩展点。
 - 已建立 Game/Editor/Tool/Test 构建选项、Game-only Release 构建和 Runtime 静态边界测试。
 
+Phase 1 已完成：
+
+- Scene 已成为带 GUID/meta 的正式资产，Game 可按 GUID 加载启动 Scene 并进入 Play。
+- 已建立统一 `AssetReference`，首批 Component、Material 和 Shader Template 使用 GUID 引用。
+- 已建立 Project Descriptor、RuntimeMode 和 Boot Config，EngineContext 不再写死 `Assets/` 能力。
+- Scene 提供正式 Runtime Camera/Light；Game 不再借用 Editor View 或硬编码默认光源。
+
 当前阻塞：
 
-- `EngineContext` 固定从 `Assets/` 扫描、导入并开启热重载。
-- `RenderSubsystem` 仍使用 Editor Camera 和硬编码默认光源，Scene 尚未拥有正式 Runtime View。
-- Scene、Component 和 Material 的资产引用仍主要使用源文件路径。
-- 没有 Project Descriptor、启动 Scene、依赖闭包、Cooked Registry 和 Package 目录。
+- 没有资产依赖图、传递依赖闭包、Cooked Registry 和 Package 目录。
 - 运行时仍依赖 `.meta`、Importer、Shader Compiler 和源资产目录。
 
 ## 目标数据流

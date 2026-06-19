@@ -11,13 +11,13 @@ namespace ChikaEngine::Framework
         if (!_isDirty)
             return;
 
-        if (_animationClipPath.empty())
+        if (!_animationClipReference.IsValid() && _animationClipReference.diagnosticPath.empty())
         {
             LOG_WARN("Animator", "Null of Animation Clip Path");
             return;
         }
 
-        _animationClipHandle = assetMgr.LoadAnimationClip(_animationClipPath);
+        _animationClipHandle = assetMgr.LoadAnimationClip(_animationClipReference);
         auto* animData = assetMgr.GetAnimationClip(_animationClipHandle);
 
         if (!animData)

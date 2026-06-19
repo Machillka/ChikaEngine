@@ -3,6 +3,10 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/component/CameraComponent.hpp"
+#include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/MeshRenderer.h"
+#include "ChikaEngine/component/ScriptComponent.h"
 #include "ChikaEngine/scene/SceneEvents.hpp"
 
 #include "ChikaEngine/subsystem/AnimationSubsystem.hpp"
@@ -27,10 +31,11 @@ namespace ChikaEngine::Framework
     {
         Shutdown();
 
+        _assetManager = createInfo.assetManager;
         _physicsSubsystem = std::make_unique<PhysicsSubsystem>(this);
         if (createInfo.renderInstance)
         {
-            _renderSubsystem = std::make_unique<RenderSubsystem>(this, createInfo.renderInstance);
+            _renderSubsystem = std::make_unique<RenderSubsystem>(this, createInfo.renderInstance, createInfo.useEditorView);
             _animationSubsystem = std::make_unique<AnimationSubsystem>(this, createInfo.renderInstance->GetAssetManager());
         }
         _physicsStepper.Configure(createInfo.fixedDeltaTime, createInfo.maxPhysicsStepsPerFrame);
@@ -63,6 +68,7 @@ namespace ChikaEngine::Framework
         _requestedMode.reset();
         _mode = SceneModes::Edit;
         _eventBus.Clear();
+        _assetManager = nullptr;
     }
 
     Core::GameObjectID Scene::CreateGameobject(std::string name)
@@ -228,6 +234,63 @@ namespace ChikaEngine::Framework
     const std::vector<std::unique_ptr<GameObject>>& Scene::GetAllGameobjects() const
     {
         return _gameobjects;
+    }
+
+    bool Scene::HasPrimaryCamera() const
+    {
+        for (const auto& gameObject : _gameobjects)
+        {
+            const auto* camera = gameObject->GetComponent<CameraComponent>();
+            if (camera && camera->primary && camera->IsActiveAndEnabled() && gameObject->IsActiveInHierarchy() && !gameObject->IsPendingDestroy())
+                return true;
+        }
+        return false;
+    }
+
+    bool Scene::ValidateRuntimeAssetReferences() const
+    {
+        if (!_assetManager)
+            return false;
+
+        bool valid = true;
+        for (const auto& gameObject : _gameobjects)
+        {
+            const std::string contextPrefix = gameObject->GetName() + ".";
+            if (const auto* meshRenderer = gameObject->GetComponent<MeshRenderer>())
+            {
+                const Asset::AssetRecord* mesh = _assetManager->ResolveReference(meshRenderer->GetMeshReference(), Asset::AssetType::Mesh, contextPrefix + "MeshRenderer.mesh");
+                const Asset::AssetRecord* material = _assetManager->ResolveReference(meshRenderer->GetMaterialReference(), Asset::AssetType::Material, contextPrefix + "MeshRenderer.material");
+                valid = mesh && material && valid;
+                if (material)
+                {
+                    const Asset::MaterialHandle materialHandle = _assetManager->LoadMaterial(material->guid);
+                    const Asset::MaterialData* materialData = _assetManager->GetMaterial(materialHandle);
+                    const Asset::AssetRecord* shaderTemplateRecord = materialData ? _assetManager->ResolveReference(materialData->shaderTemplate, Asset::AssetType::ShaderTemplate, contextPrefix + "Material.shaderTemplate") : nullptr;
+                    valid = materialData && shaderTemplateRecord && valid;
+                    if (materialData)
+                    {
+                        for (const auto& [name, texture] : materialData->textureParams)
+                            valid = _assetManager->ResolveReference(texture, Asset::AssetType::Texture, contextPrefix + "Material.texture." + name) && valid;
+                    }
+                    if (shaderTemplateRecord)
+                    {
+                        const Asset::ShaderTemplateHandle templateHandle = _assetManager->LoadShaderTemplate(shaderTemplateRecord->guid);
+                        const Asset::ShaderTemplateData* templateData = _assetManager->GetShaderTemplate(templateHandle);
+                        valid = templateData && valid;
+                        if (templateData)
+                        {
+                            valid = _assetManager->ResolveReference(templateData->vertexShader, Asset::AssetType::ShaderSource, contextPrefix + "ShaderTemplate.vertex") && valid;
+                            valid = _assetManager->ResolveReference(templateData->fragmentShader, Asset::AssetType::ShaderSource, contextPrefix + "ShaderTemplate.fragment") && valid;
+                        }
+                    }
+                }
+            }
+            if (const auto* animator = gameObject->GetComponent<Animator>())
+                valid = _assetManager->ResolveReference(animator->GetAnimationClipReference(), Asset::AssetType::Mesh, contextPrefix + "Animator.animationClip") && valid;
+            if (const auto* script = gameObject->GetComponent<ScriptComponent>(); script && (script->scriptAsset.IsValid() || !script->scriptAsset.diagnosticPath.empty()))
+                valid = _assetManager->ResolveReference(script->scriptAsset, Asset::AssetType::Script, contextPrefix + "ScriptComponent.script") && valid;
+        }
+        return valid;
     }
 
     Physics::PhysicsScene* Scene::GetPhysicsSubsystem()

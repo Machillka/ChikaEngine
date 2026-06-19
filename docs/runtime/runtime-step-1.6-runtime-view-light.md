@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: Planned
+- Status: Complete
 - Depends on: Step 1.5
 - Suggested scope: `Runtime/Framework`, `Runtime/Render`, Scene serialization, tests
 
@@ -46,3 +46,15 @@
 ## Next Step
 
 - Step 2.1：建立资产直接依赖查询。
+
+## Implementation Record
+
+- 新增可序列化 `CameraComponent`，由 Transform、投影参数、Primary 和 Layer Mask 构建 `RenderView`。
+- 新增可序列化 `LightComponent`，首版由 Transform、颜色、强度和阴影配置构建 Directional `RenderLightProxy`。
+- `RenderSubsystem` 按 Component 生命周期增量创建、更新和删除 View/Light Proxy。
+- 已移除 RenderSubsystem 中的硬编码默认光源；Game 路径不再调用 `CreateEditorView()`。
+- Editor 明确使用独立 Editor View，并在基准 Scene 中创建 Scene Light。
+- `Assets/Scenes/Main.scene` 提供 Primary Camera、Directional Light 与 GUID 资源引用。
+- `Chika.SceneIntegration` 覆盖 Camera/Light 序列化与 Proxy 构建；Game 启动会拒绝无 Primary Camera 的 Scene。
+
+首版只支持一个主游戏视图和方向光数据；多 Camera、Point/Spot Light 与高级 Light Editor 留给后续渲染阶段。

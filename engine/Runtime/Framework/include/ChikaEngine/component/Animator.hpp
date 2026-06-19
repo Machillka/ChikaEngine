@@ -5,6 +5,7 @@
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include "ChikaEngine/AssetHandle.hpp"
+#include "ChikaEngine/AssetReference.hpp"
 #include <string>
 #include <vector>
 
@@ -26,7 +27,7 @@ namespace ChikaEngine::Framework
             SetReflectedClassName("Animator");
         }
 
-        explicit Animator(const std::string& animationClipPath) : _animationClipPath(animationClipPath), _isDirty(true) {}
+        explicit Animator(const std::string& animationClipPath) : _animationClipReference(Asset::AssetReference::LegacyPath(animationClipPath, Asset::AssetType::Mesh)), _isDirty(true) {}
 
         ~Animator() override = default;
 
@@ -40,9 +41,21 @@ namespace ChikaEngine::Framework
          */
         void ResolveAssets(Asset::AssetManager & assetMgr, const Asset::MeshData* meshData);
 
+        /** @brief 设置同一源资产内可选 SubAsset 标识的动画引用。 */
+        void SetAnimationClipReference(Asset::AssetReference reference)
+        {
+            _animationClipReference = std::move(reference);
+            _isDirty = true;
+        }
+
         Asset::AnimationClipHandle GetAnimationClipHandle() const
         {
             return _animationClipHandle;
+        }
+
+        const Asset::AssetReference& GetAnimationClipReference() const
+        {
+            return _animationClipReference;
         }
 
         void UpdateTime(float deltatime, float duration);
@@ -58,7 +71,7 @@ namespace ChikaEngine::Framework
 
       private:
         MFIELD()
-        std::string _animationClipPath;
+        Asset::AssetReference _animationClipReference;
 
         Asset::AnimationClipHandle _animationClipHandle{};
 

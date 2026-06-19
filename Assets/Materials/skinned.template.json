@@ -1,8 +1,14 @@
 {
     "name": "SkinnedStandardPBR",
     "stages": {
-        "vertex": "Assets/Shaders/skinned.vert",
-        "fragment": "Assets/Shaders/test.frag"
+        "vertex": {
+            "guid": "011b8bcdb63327d6688ceb5ca94e8927",
+            "path": "Assets/Shaders/skinned.vert"
+        },
+        "fragment": {
+            "guid": "13b092fdd61e1f32937b83bbc5011646",
+            "path": "Assets/Shaders/test.frag"
+        }
     },
     "parameters": {
         "BaseColor": {

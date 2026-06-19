@@ -1,6 +1,8 @@
 #include "ChikaEngine/subsystem/RenderSubsystem.h"
 
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/CameraComponent.hpp"
+#include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/math/mat4.h"
@@ -12,26 +14,15 @@
 
 namespace ChikaEngine::Framework
 {
-    RenderSubsystem::RenderSubsystem(Scene* ownerScene, Render::Renderer* renderInstance) : _ownerScene(ownerScene), _renderer(renderInstance)
+    RenderSubsystem::RenderSubsystem(Scene* ownerScene, Render::Renderer* renderInstance, bool useEditorView) : _ownerScene(ownerScene), _renderer(renderInstance), _useEditorView(useEditorView)
     {
         _assetMgr = _renderer->GetAssetManager();
         _resourceMgr = _renderer->GetResourceManager();
         SubscribeSceneEvents();
         RegisterExistingComponents();
 
-        using namespace Math;
-        const Vector3 lightPosition(5.0f, 8.0f, 5.0f);
-        Mat4 lightProjection = Mat4::Perspective(3.1415926f / 3.0f, 1.0f, 0.1f, 100.0f);
-        lightProjection(1, 1) *= -1.0f;
-        lightProjection(2, 2) = -100.0f / (100.0f - 0.1f);
-        lightProjection(2, 3) = -(100.0f * 0.1f) / (100.0f - 0.1f);
-        _defaultLight = _renderWorld.CreateLight({
-            .type = Render::RenderLightType::Directional,
-            .position = lightPosition,
-            .direction = lightPosition,
-            .viewProjection = lightProjection * Mat4::LookAt(lightPosition, Vector3(0.0f, 0.0f, 0.0f), Vector3::up),
-        });
-        _primaryView = _renderWorld.CreateView(_renderer->CreateEditorView());
+        if (_useEditorView)
+            _editorView = _renderWorld.CreateView(_renderer->CreateEditorView());
 
         _assetReloadSubscription = _assetMgr->SubscribeReload(
             [this](const Asset::AssetReloadEvent&)
@@ -51,7 +42,7 @@ namespace ChikaEngine::Framework
         _lastProxyUpdateCount = 0;
         for (auto& [gameObjectId, entry] : _entries)
             SyncEntry(gameObjectId, entry);
-        SyncViewAndLight();
+        SyncViewsAndLights();
         _renderer->SubmitRenderWorldSnapshot(_renderWorld.CreateSnapshot());
     }
 
@@ -71,6 +62,8 @@ namespace ChikaEngine::Framework
             _assetMgr->UnsubscribeReload(_assetReloadSubscription);
         _assetReloadSubscription = 0;
         _entries.clear();
+        _views.clear();
+        _lights.clear();
         _renderWorld.Clear();
         if (_renderer)
             _renderer->SubmitRenderWorldSnapshot(_renderWorld.CreateSnapshot());
@@ -84,14 +77,22 @@ namespace ChikaEngine::Framework
             {
                 if (auto* meshRenderer = dynamic_cast<MeshRenderer*>(event.component))
                     RegisterMeshRenderer(event.gameObjectId, meshRenderer);
+                else if (auto* camera = dynamic_cast<CameraComponent*>(event.component))
+                    RegisterCamera(event.gameObjectId, camera);
+                else if (auto* light = dynamic_cast<LightComponent*>(event.component))
+                    RegisterLight(event.gameObjectId, light);
             }));
         _eventSubscriptions.push_back(events.Subscribe<ComponentRemovedEvent>(
             [this](const ComponentRemovedEvent& event)
             {
                 if (event.componentType && std::string_view(event.componentType) == "MeshRenderer")
                     RemoveEntry(event.gameObjectId);
+                else if (event.componentType && std::string_view(event.componentType) == "CameraComponent")
+                    RemoveView(event.gameObjectId);
+                else if (event.componentType && std::string_view(event.componentType) == "LightComponent")
+                    RemoveLight(event.gameObjectId);
             }));
-        _eventSubscriptions.push_back(events.Subscribe<GameObjectDestroyedEvent>([this](const GameObjectDestroyedEvent& event) { RemoveEntry(event.gameObjectId); }));
+        _eventSubscriptions.push_back(events.Subscribe<GameObjectDestroyedEvent>([this](const GameObjectDestroyedEvent& event) { RemoveGameObjectEntries(event.gameObjectId); }));
         _eventSubscriptions.push_back(events.Subscribe<ComponentActivationChangedEvent>(
             [this](const ComponentActivationChangedEvent& event)
             {
@@ -102,6 +103,10 @@ namespace ChikaEngine::Framework
                     if (entry != _entries.end())
                         SyncEntry(event.gameObjectId, entry->second);
                 }
+                else if (auto* camera = dynamic_cast<CameraComponent*>(event.component))
+                    RegisterCamera(event.gameObjectId, camera);
+                else if (auto* light = dynamic_cast<LightComponent*>(event.component))
+                    RegisterLight(event.gameObjectId, light);
             }));
     }
 
@@ -111,7 +116,23 @@ namespace ChikaEngine::Framework
         {
             if (auto* meshRenderer = gameObject->GetComponent<MeshRenderer>())
                 RegisterMeshRenderer(gameObject->GetID(), meshRenderer);
+            if (auto* camera = gameObject->GetComponent<CameraComponent>())
+                RegisterCamera(gameObject->GetID(), camera);
+            if (auto* light = gameObject->GetComponent<LightComponent>())
+                RegisterLight(gameObject->GetID(), light);
         }
+    }
+
+    void RenderSubsystem::RegisterCamera(Core::GameObjectID gameObjectId, CameraComponent* component)
+    {
+        if (component)
+            _views[gameObjectId].component = component;
+    }
+
+    void RenderSubsystem::RegisterLight(Core::GameObjectID gameObjectId, LightComponent* component)
+    {
+        if (component)
+            _lights[gameObjectId].component = component;
     }
 
     void RenderSubsystem::RegisterMeshRenderer(Core::GameObjectID gameObjectId, MeshRenderer* component)
@@ -123,6 +144,33 @@ namespace ChikaEngine::Framework
         if (inserted || entry.component != component)
             entry.resourcesDirty = true;
         entry.component = component;
+    }
+
+    void RenderSubsystem::RemoveView(Core::GameObjectID gameObjectId)
+    {
+        const auto entry = _views.find(gameObjectId);
+        if (entry == _views.end())
+            return;
+        if (entry->second.renderView.IsValid())
+            _renderWorld.DestroyView(entry->second.renderView);
+        _views.erase(entry);
+    }
+
+    void RenderSubsystem::RemoveLight(Core::GameObjectID gameObjectId)
+    {
+        const auto entry = _lights.find(gameObjectId);
+        if (entry == _lights.end())
+            return;
+        if (entry->second.renderLight.IsValid())
+            _renderWorld.DestroyLight(entry->second.renderLight);
+        _lights.erase(entry);
+    }
+
+    void RenderSubsystem::RemoveGameObjectEntries(Core::GameObjectID gameObjectId)
+    {
+        RemoveEntry(gameObjectId);
+        RemoveView(gameObjectId);
+        RemoveLight(gameObjectId);
     }
 
     void RenderSubsystem::RemoveEntry(Core::GameObjectID gameObjectId)
@@ -206,9 +254,54 @@ namespace ChikaEngine::Framework
         }
     }
 
-    void RenderSubsystem::SyncViewAndLight()
+    void RenderSubsystem::SyncViewsAndLights()
     {
-        if (_primaryView.IsValid() && _renderWorld.UpdateView(_primaryView, _renderer->CreateEditorView()))
+        if (_editorView.IsValid() && _renderWorld.UpdateView(_editorView, _renderer->CreateEditorView()))
             ++_lastProxyUpdateCount;
+
+        const float aspectRatio = _renderer->GetViewportAspectRatio();
+        for (auto& [gameObjectId, entry] : _views)
+        {
+            GameObject* owner = _ownerScene->GetGameObject(gameObjectId);
+            const bool active = !_useEditorView && owner && owner->IsActiveInHierarchy() && !owner->IsPendingDestroy() && entry.component && entry.component->IsActiveAndEnabled();
+            if (!active)
+            {
+                if (entry.renderView.IsValid() && _renderWorld.DestroyView(entry.renderView))
+                    ++_lastProxyUpdateCount;
+                entry.renderView = Render::RenderViewHandle::Invalid();
+                continue;
+            }
+
+            const Render::RenderView view = entry.component->BuildRenderView(aspectRatio);
+            if (!entry.renderView.IsValid())
+            {
+                entry.renderView = _renderWorld.CreateView(view);
+                ++_lastProxyUpdateCount;
+            }
+            else if (_renderWorld.UpdateView(entry.renderView, view))
+                ++_lastProxyUpdateCount;
+        }
+
+        for (auto& [gameObjectId, entry] : _lights)
+        {
+            GameObject* owner = _ownerScene->GetGameObject(gameObjectId);
+            const bool active = owner && owner->IsActiveInHierarchy() && !owner->IsPendingDestroy() && entry.component && entry.component->IsActiveAndEnabled();
+            if (!active)
+            {
+                if (entry.renderLight.IsValid() && _renderWorld.DestroyLight(entry.renderLight))
+                    ++_lastProxyUpdateCount;
+                entry.renderLight = Render::RenderLightHandle::Invalid();
+                continue;
+            }
+
+            const Render::RenderLightProxy light = entry.component->BuildRenderLightProxy();
+            if (!entry.renderLight.IsValid())
+            {
+                entry.renderLight = _renderWorld.CreateLight(light);
+                ++_lastProxyUpdateCount;
+            }
+            else if (_renderWorld.UpdateLight(entry.renderLight, light))
+                ++_lastProxyUpdateCount;
+        }
     }
 } // namespace ChikaEngine::Framework

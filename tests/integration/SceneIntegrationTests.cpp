@@ -1,4 +1,7 @@
 #include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/AssetManager.hpp"
+#include "ChikaEngine/component/CameraComponent.hpp"
+#include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/prefab/Prefab.hpp"
@@ -7,6 +10,7 @@
 #include "ChikaEngine/scene/SceneManager.hpp"
 #include "ChikaEngine/scene/scene.hpp"
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 
 namespace
@@ -69,6 +73,11 @@ int main()
     if (parent->transform->SetParent(child->transform))
         return Fail("transform hierarchy accepted a cycle");
 
+    auto* camera = parent->AddComponent<Framework::CameraComponent>();
+    auto* light = child->AddComponent<Framework::LightComponent>();
+    if (!scene.HasPrimaryCamera() || !camera->BuildRenderView(16.0f / 9.0f).primary || light->BuildRenderLightProxy().type != Render::RenderLightType::Directional)
+        return Fail("runtime Camera or Light component did not build render proxy");
+
     const auto worldPosition = child->transform->GetWorldPosition();
     if (!NearlyEqual(worldPosition.x, 3.0f) || !NearlyEqual(worldPosition.y, 2.0f) || !NearlyEqual(worldPosition.z, 3.0f))
         return Fail("child world transform does not include parent transform");
@@ -110,6 +119,8 @@ int main()
         return Fail("scene snapshot did not restore Transform");
     if (!restoredChild || restoredChild->transform->GetParent() != restored->transform)
         return Fail("scene snapshot did not restore Transform hierarchy");
+    if (!scene.HasPrimaryCamera() || !restored->GetComponent<Framework::CameraComponent>() || !restoredChild->GetComponent<Framework::LightComponent>())
+        return Fail("scene snapshot did not restore Camera/Light components");
     if (scene.GetGameObject(runtimeObjectId))
         return Fail("scene snapshot retained runtime-only GameObject");
 
@@ -129,6 +140,26 @@ int main()
     if (!sceneManager.DestroyScene("Second") || !sceneManager.GetActiveScene())
         return Fail("SceneManager destroy/fallback failed");
     sceneManager.Shutdown();
+
+    const auto sceneAssetRoot = std::filesystem::temp_directory_path() / "chika_scene_asset_tests";
+    std::error_code error;
+    std::filesystem::remove_all(sceneAssetRoot, error);
+    std::filesystem::create_directories(sceneAssetRoot, error);
+    Framework::SceneManager authoringManager;
+    if (!authoringManager.Initialize({}) || !authoringManager.SaveScene("Main", (sceneAssetRoot / "Startup.scene").string()))
+        return Fail("failed to author Scene asset");
+    authoringManager.Shutdown();
+
+    Asset::AssetManager sceneAssets;
+    if (!sceneAssets.Initialize(sceneAssetRoot, false))
+        return Fail("failed to index Scene asset");
+    const Asset::AssetRecord* startupRecord = sceneAssets.GetDatabase().FindByPath(sceneAssetRoot / "Startup.scene");
+    Framework::SceneManager runtimeManager;
+    if (!startupRecord || startupRecord->type != Asset::AssetType::Scene || !runtimeManager.Initialize({ .assetManager = &sceneAssets, .createDefaultScene = false, .useEditorView = false }) || !runtimeManager.LoadScene(startupRecord->guid, true))
+        return Fail("SceneManager failed to load Scene asset by GUID");
+    runtimeManager.Shutdown();
+    sceneAssets.Shutdown();
+    std::filesystem::remove_all(sceneAssetRoot, error);
 
     if (!Reflection::TypeRegister::Instance().GetClassByName("Transform"))
         return Fail("reflection registry does not contain Transform");

@@ -23,11 +23,17 @@ add_executable(ChikaShaderInterfaceTests
 )
 target_link_libraries(ChikaShaderInterfaceTests PRIVATE ChikaAsset)
 
+add_executable(ChikaProjectDescriptorTests
+    unit/ProjectDescriptorTests.cpp
+)
+target_link_libraries(ChikaProjectDescriptorTests PRIVATE ChikaProject)
+
 add_test(NAME Chika.CoreBoundary COMMAND ChikaCoreBoundaryTests)
 add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
 add_test(NAME Chika.ShaderInterface COMMAND ChikaShaderInterfaceTests)
+add_test(NAME Chika.ProjectDescriptor COMMAND ChikaProjectDescriptorTests)
 add_test(
     NAME Chika.RuntimeBoundary
     COMMAND ${CMAKE_COMMAND}
@@ -35,7 +41,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.RenderBaseline Chika.ShaderInterface Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.RenderBaseline Chika.ShaderInterface Chika.ProjectDescriptor Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 
