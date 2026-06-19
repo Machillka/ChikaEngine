@@ -11,6 +11,8 @@
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/debug/Gizmo.hpp"
 #include "ChikaEngine/math/Bounds.hpp"
+#include "ChikaEngine/profiler/ProfilerName.hpp"
+#include "ChikaEngine/profiler/ProfilerSession.hpp"
 
 #include <iostream>
 #include <memory>
@@ -705,6 +707,45 @@ namespace
         Check(graph.Compile(), "post process graph compiles");
         Check(graph.GetCompiledPassNames() == std::vector<std::string>({ "HDR Scene", "Post Process Composite", "Present" }), "post process remains between HDR scene and LDR present");
     }
+
+    /** @brief Verifies real RenderGraph instrumentation reaches a completed headless profiler capture. */
+    void TestRenderGraphProfilerIntegration()
+    {
+        using namespace ChikaEngine;
+        Profiler::ProfilerSession& profiler = Profiler::ProfilerSession::Get();
+        profiler.Initialize({ .enabled = true, .historyCapacity = 2 });
+        profiler.BeginFrame(100);
+        {
+            MockRHIDevice device;
+            Render::RenderGraph graph(&device);
+            const Render::TextureDesc desc{
+                .width = 16,
+                .height = 16,
+                .format = Render::RHI_Format::RGBA8_UNorm,
+                .usage = Render::RHI_TextureUsage::ColorAttachment,
+            };
+            const auto output = graph.ImportTexture("ProfilerOutput", device.CreateTexture(desc), desc);
+            graph.AddPresentPass("Present", output);
+            Check(graph.Compile(), "instrumented render graph compiles in headless integration test");
+            graph.Execute();
+        }
+        profiler.EndFrame(100);
+
+        const auto capture = profiler.GetHistory().Find(100);
+        bool foundCompile = false;
+        bool foundExecute = false;
+        if (capture)
+        {
+            for (const Profiler::ProfilerZone& zone : capture->zones)
+            {
+                const std::string name = Profiler::ProfilerNameRegistry::Instance().Resolve(zone.nameId);
+                foundCompile = foundCompile || name == "RenderGraph.Compile";
+                foundExecute = foundExecute || name == "RenderGraph.Execute";
+            }
+        }
+        Check(foundCompile && foundExecute, "RenderGraph compile and execute zones must reach profiler history");
+        profiler.Shutdown();
+    }
 } // namespace
 
 int main()
@@ -723,6 +764,7 @@ int main()
     TestRenderGraphDepthOnlyPass();
     TestRenderGraphCompileValidation();
     TestPostProcessGraphPath();
+    TestRenderGraphProfilerIntegration();
 
     if (g_failures != 0)
         std::cerr << g_failures << " render baseline test(s) failed\n";

@@ -28,6 +28,19 @@ add_executable(ChikaProjectDescriptorTests
 )
 target_link_libraries(ChikaProjectDescriptorTests PRIVATE ChikaProject)
 
+add_executable(ChikaProfilerTests
+    unit/ProfilerTests.cpp
+    unit/ProfilerDisabledMacroTests.cpp
+)
+target_link_libraries(ChikaProfilerTests PRIVATE ChikaProfiler nlohmann_json)
+
+add_executable(ChikaProfilerTimelineModelTests
+    unit/ProfilerTimelineModelTests.cpp
+    ${PROJECT_ROOT_DIR}/engine/Editor/src/ProfilerTimelineModel.cpp
+)
+target_include_directories(ChikaProfilerTimelineModelTests PRIVATE ${PROJECT_ROOT_DIR}/engine/Editor/include)
+target_link_libraries(ChikaProfilerTimelineModelTests PRIVATE ChikaProfiler)
+
 if(CHIKA_BUILD_BENCHMARKS)
     add_executable(ChikaBenchmarkTests
         unit/BenchmarkTests.cpp
@@ -41,6 +54,8 @@ add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
 add_test(NAME Chika.ShaderInterface COMMAND ChikaShaderInterfaceTests)
 add_test(NAME Chika.ProjectDescriptor COMMAND ChikaProjectDescriptorTests)
+add_test(NAME Chika.Profiler COMMAND ChikaProfilerTests)
+add_test(NAME Chika.ProfilerTimelineModel COMMAND ChikaProfilerTimelineModelTests)
 if(CHIKA_BUILD_BENCHMARKS)
     add_test(NAME Chika.Benchmark COMMAND ChikaBenchmarkTests)
 endif()
@@ -51,7 +66,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.RenderBaseline Chika.ShaderInterface Chika.ProjectDescriptor Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.RenderBaseline Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 if(CHIKA_BUILD_BENCHMARKS)

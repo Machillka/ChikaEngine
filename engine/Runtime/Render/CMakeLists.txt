@@ -20,6 +20,7 @@ target_link_libraries(${TARGET_NAME}
     PUBLIC
         ChikaThirdParty
         ChikaCore
+        ChikaProfiler
         ChikaAsset
         ChikaRHI
         ChikaResource

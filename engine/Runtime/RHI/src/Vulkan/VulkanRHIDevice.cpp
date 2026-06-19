@@ -290,18 +290,27 @@ namespace ChikaEngine::Render
         if (!completedScopes.empty())
         {
             std::vector<uint64_t> timestamps(completedScopes.size() * 2u);
-            const VkResult timestampResult = vkGetQueryPoolResults(m_device, m_timestampQueryPools[m_currentFrame], 0, static_cast<uint32_t>(timestamps.size()), timestamps.size() * sizeof(uint64_t), timestamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+            const VkResult timestampResult = vkGetQueryPoolResults(m_device, m_timestampQueryPools[m_currentFrame], 0, static_cast<uint32_t>(timestamps.size()), timestamps.size() * sizeof(uint64_t), timestamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT);
             if (timestampResult == VK_SUCCESS)
             {
                 for (size_t index = 0; index < completedScopes.size(); ++index)
                 {
                     const uint64_t begin = timestamps[index * 2u];
                     const uint64_t end = timestamps[index * 2u + 1u];
-                    m_passGpuTimings.push_back({ completedScopes[index].name, static_cast<double>(end - begin) * m_timestampPeriodNs / 1'000'000.0, completedScopes[index].frameIndex });
+                    const bool valid = end >= begin;
+                    m_passGpuTimings.push_back({ completedScopes[index].name, valid ? static_cast<double>(end - begin) * m_timestampPeriodNs / 1'000'000.0 : 0.0, completedScopes[index].frameIndex, 0, valid });
                 }
             }
+            else
+            {
+                for (const TimestampScope& scope : completedScopes)
+                    m_passGpuTimings.push_back({ scope.name, 0.0, scope.frameIndex, 0, false });
+            }
         }
+        if (m_timestampOverflow[m_currentFrame])
+            m_passGpuTimings.push_back({ "GPU Timestamp Query Overflow", 0.0, m_timestampOverflowFrame[m_currentFrame], 0, false });
         m_timestampScopes[m_currentFrame].clear();
+        m_timestampOverflow[m_currentFrame] = false;
         m_timestampQueriesReset = false;
 
         VkResult res = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex);
@@ -831,7 +840,11 @@ namespace ChikaEngine::Render
     {
         const uint32_t beginQuery = static_cast<uint32_t>(m_timestampScopes[m_currentFrame].size() * 2u);
         if (beginQuery + 1u >= MAX_TIMESTAMP_QUERIES)
+        {
+            m_timestampOverflow[m_currentFrame] = true;
+            m_timestampOverflowFrame[m_currentFrame] = m_absoluteFrame;
             return UINT32_MAX;
+        }
         m_timestampScopes[m_currentFrame].push_back({ std::string(name), beginQuery, beginQuery + 1u, m_absoluteFrame });
         return beginQuery;
     }

@@ -21,3 +21,16 @@ set_target_properties(ChikaBenchmark PROPERTIES
     VS_DEBUGGING_WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
 )
+
+add_executable(ChikaProfilerOverheadBenchmark
+    src/ProfilerOverheadBenchmark.cpp
+    src/ProfilerCompileDisabledBenchmark.cpp
+)
+target_link_libraries(ChikaProfilerOverheadBenchmark PRIVATE ChikaProfiler nlohmann_json)
+target_compile_definitions(ChikaProfilerOverheadBenchmark PRIVATE
+    CHIKA_PROFILER_BENCHMARK_BUILD_TYPE="$<CONFIG>"
+)
+set_target_properties(ChikaProfilerOverheadBenchmark PROPERTIES
+    VS_DEBUGGING_WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
+)

@@ -1,0 +1,3634 @@
+{
+  "displayTimeUnit": "ms",
+  "metadata": {
+    "additional": {
+      "purpose": "Phase 1 profiler trace format sample",
+      "workUnitsPerZone": "16384",
+      "zoneLimit": "256"
+    },
+    "application": "ChikaProfilerOverheadBenchmark",
+    "buildType": "Release",
+    "eventSchemaVersion": 1,
+    "gitRevision": "",
+    "platform": "Windows"
+  },
+  "traceEvents": [
+    {
+      "args": {
+        "name": "ChikaEngine CPU"
+      },
+      "name": "process_name",
+      "ph": "M",
+      "pid": 1,
+      "tid": 0
+    },
+    {
+      "args": {
+        "name": "Main Thread"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 1,
+      "tid": 1
+    },
+    {
+      "args": {
+        "droppedEvents": 0,
+        "frameId": 14,
+        "hitch": true,
+        "malformedZones": 0
+      },
+      "cat": "frame",
+      "dur": 124027.5,
+      "name": "Frame",
+      "ph": "X",
+      "pid": 1,
+      "tid": 0,
+      "ts": 477216102576.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102580.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102593.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102605.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102617.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102630.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12600,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.6,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102642.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102655.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102667.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102680.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102692.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102705.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102717.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102729.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102742.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102754.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102766.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102779.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102791.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102804.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102816.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102828.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102841.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102853.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102866.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102878.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102890.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102902.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102915.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102927.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102939.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102952.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 16900,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 16.9,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102964.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102981.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216102994.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103006.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103018.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103031.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103043.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103055.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103068.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103080.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103093.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103105.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103117.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103130.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103142.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103155.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103167.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103179.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103192.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103204.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103216.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103229.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103241.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103254.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103266.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103278.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103291.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103303.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103315.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103328.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103340.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103353.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103365.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12600,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.6,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103377.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103390.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103402.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103415.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103427.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103440.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103452.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103464.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103477.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103489.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103501.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103514.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103526.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103539.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103551.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103563.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103576.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103588.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103601.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103613.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103625.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103638.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103650.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103663.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103675.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103687.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103700.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103712.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103724.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103737.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103749.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103761.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103774.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103786.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103798.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103811.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103823.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103835.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103848.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103860.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103872.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103885.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103897.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103909.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103922.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103934.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103947.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103959.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103971.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103984.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216103996.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104008.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104021.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104033.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104045.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104058.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104070.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104082.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104094.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104107.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104119.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104132.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104144.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104156.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104169.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104181.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104194.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104206.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104218.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104231.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104243.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104255.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104268.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104280.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104292.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104305.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104317.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104329.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104342.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104354.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104367.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104379.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104391.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104404.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104416.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104429.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104441.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104453.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104466.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104478.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104490.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104503.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104515.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104527.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104540.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104552.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104565.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104577.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104589.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104602.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104614.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104626.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104639.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104651.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104664.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104676.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104688.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104701.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104713.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104725.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104738.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104750.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104762.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104775.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104787.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104800.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104812.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104824.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104837.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104849.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104862.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104874.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104886.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104899.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104911.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104924.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104936.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104948.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104961.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 18800,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 18.8,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104973.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12600,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.6,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216104992.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105004.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105017.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105029.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105041.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105054.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105066.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105079.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105091.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105103.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105115.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105128.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105140.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105152.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105165.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105177.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105189.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105202.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105214.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105226.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105239.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105251.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105264.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12700,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.7,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105276.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105289.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105301.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105313.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105326.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105338.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105351.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105363.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105375.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105388.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105400.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105412.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105425.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105437.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105450.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105462.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105474.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105487.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105499.2
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105511.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105523.9
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105536.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105548.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105561.1
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105573.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105586.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105598.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105610.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105623.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105635.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105647.7
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12500,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.5,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105660.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105672.5
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105685.0
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105697.4
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105709.8
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12200,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.2,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105722.3
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12300,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.3,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105734.6
+    },
+    {
+      "args": {
+        "depth": 0,
+        "exclusiveNs": 12400,
+        "malformed": false
+      },
+      "cat": "cpu",
+      "dur": 12.4,
+      "name": "ProfilerBenchmark.Work",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 477216105746.9
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 #include "ChikaEngine/RenderVisibility.hpp"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 
 #include <cmath>
 
@@ -53,6 +54,7 @@ namespace ChikaEngine::Render
 
     VisibilityResult BuildVisibility(const RenderWorldSnapshot& snapshot, const RenderView& view, bool shadowCastersOnly)
     {
+        CHIKA_PROFILE_SCOPE("Renderer.Visibility");
         VisibilityResult result;
         result.visibleObjects.reserve(snapshot.objects.size());
         const ViewFrustum frustum = ViewFrustum::FromViewProjection(view.viewProjection);

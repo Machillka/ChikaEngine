@@ -4,6 +4,7 @@
 #include "InspectorPanel.hpp"
 #include "LogPanel.hpp"
 #include "RenderStatisticsPanel.hpp"
+#include "ProfilerTimelinePanel.hpp"
 #include "SceneHierarchyPanel.hpp"
 #include "backends/imgui_impl_glfw.h"
 
@@ -31,6 +32,7 @@ namespace ChikaEngine::Editor
         AddPanel<SceneHierarchyPanel>();
         AddPanel<LogPanel>();
         AddPanel<RenderStatisticsPanel>();
+        AddPanel<ProfilerTimelinePanel>();
     }
 
     void EditorManager::Shutdown()

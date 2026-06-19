@@ -3,10 +3,12 @@
 #include "ChikaEngine/component/Animator.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/scene/scene.hpp"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 namespace ChikaEngine::Framework
 {
     void AnimationSubsystem::Tick(float deltaTime)
     {
+        CHIKA_PROFILE_SCOPE("Animation.Update");
         const auto& gos = _ownerScene->GetAllGameobjects();
 
         for (const auto& go : gos)

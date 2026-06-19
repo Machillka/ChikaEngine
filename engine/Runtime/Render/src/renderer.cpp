@@ -1,6 +1,7 @@
 #include "ChikaEngine/Renderer.hpp"
 
 #include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <stdexcept>
 
 namespace ChikaEngine::Render
@@ -57,6 +58,7 @@ namespace ChikaEngine::Render
 
     void Renderer::BeginFrame()
     {
+        CHIKA_PROFILE_SCOPE("Renderer.BeginFrame.Internal");
         if (!m_initialized)
             return;
         m_editorCamera.SetAspectRatio(GetViewportAspectRatio());
@@ -67,12 +69,14 @@ namespace ChikaEngine::Render
 
     void Renderer::Tick(float deltaTime)
     {
+        CHIKA_PROFILE_SCOPE("Renderer.ExecutePipeline");
         if (m_initialized && m_frameActive)
             m_pipeline.Execute(deltaTime);
     }
 
     void Renderer::EndFrame()
     {
+        CHIKA_PROFILE_SCOPE("Renderer.Present");
         if (m_initialized && m_frameActive)
             m_deviceContext.EndFrame();
     }

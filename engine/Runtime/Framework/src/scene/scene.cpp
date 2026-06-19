@@ -1,4 +1,5 @@
 #include "ChikaEngine/scene/scene.hpp"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
@@ -173,6 +174,7 @@ namespace ChikaEngine::Framework
 
     void Scene::Tick(float deltaTime)
     {
+        CHIKA_PROFILE_SCOPE("Scene.Tick");
         FlushPendingChanges();
 
         if (_mode == SceneModes::Play)
@@ -183,6 +185,7 @@ namespace ChikaEngine::Framework
             _physicsStepper.Consume(deltaTime,
                                     [this, &gameObjects](float fixedDeltaTime)
                                     {
+                                        CHIKA_PROFILE_SCOPE("Scene.FixedUpdate");
                                         for (auto* gameObject : gameObjects)
                                             gameObject->FixedTick(fixedDeltaTime);
                                         if (_physicsSubsystem)
@@ -192,14 +195,20 @@ namespace ChikaEngine::Framework
                                         }
                                     });
 
-            for (auto* gameObject : gameObjects)
-                gameObject->Tick(deltaTime);
+            {
+                CHIKA_PROFILE_SCOPE("Scene.GameObjectUpdate");
+                for (auto* gameObject : gameObjects)
+                    gameObject->Tick(deltaTime);
+            }
 
             if (_animationSubsystem)
                 _animationSubsystem->Tick(deltaTime);
 
-            for (auto* gameObject : gameObjects)
-                gameObject->LateTick(deltaTime);
+            {
+                CHIKA_PROFILE_SCOPE("Scene.GameObjectLateUpdate");
+                for (auto* gameObject : gameObjects)
+                    gameObject->LateTick(deltaTime);
+            }
 
             _isTicking = false;
         }

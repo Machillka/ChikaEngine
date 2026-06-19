@@ -41,5 +41,7 @@ namespace ChikaEngine::Render
         std::string name;
         double gpuTimeMs = 0.0;
         uint64_t frameIndex = 0;
+        uint32_t queueId = 0;
+        bool valid = true;
     };
 } // namespace ChikaEngine::Render

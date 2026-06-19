@@ -255,6 +255,8 @@ namespace ChikaEngine::Render
             uint64_t frameIndex = 0;
         };
         std::vector<TimestampScope> m_timestampScopes[MAX_FRAMES_IN_FLIGHT];
+        bool m_timestampOverflow[MAX_FRAMES_IN_FLIGHT]{};
+        uint64_t m_timestampOverflowFrame[MAX_FRAMES_IN_FLIGHT]{};
         float m_timestampPeriodNs = 1.0f;
         VkDescriptorPool m_persistentDescriptorPool = VK_NULL_HANDLE;
         std::unordered_map<uint64_t, VkDescriptorSetLayout> m_descriptorSetLayoutCache;

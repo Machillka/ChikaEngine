@@ -1,4 +1,5 @@
 #include "ChikaEngine/scene/SceneManager.hpp"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/io/FileStream.h"
@@ -152,6 +153,7 @@ namespace ChikaEngine::Framework
 
     void SceneManager::Tick(float deltaTime)
     {
+        CHIKA_PROFILE_SCOPE("SceneManager.ActiveScene");
         if (_activeScene)
             _activeScene->Tick(deltaTime);
     }

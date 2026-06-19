@@ -1,6 +1,7 @@
 #include "ChikaEngine/RenderQueue.hpp"
 
 #include "ChikaEngine/math/vector4.h"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <algorithm>
 #include <tuple>
 
@@ -81,6 +82,7 @@ namespace ChikaEngine::Render
 
     RenderQueueSet BuildRenderQueues(const VisibilityResult& mainVisibility, const VisibilityResult& shadowVisibility, const RenderView& view, const Resource::ResourceManager& resources)
     {
+        CHIKA_PROFILE_SCOPE("Renderer.BuildRenderQueues");
         RenderQueueSet queues;
         for (const RenderObjectSnapshot* object : mainVisibility.visibleObjects)
         {

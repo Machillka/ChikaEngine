@@ -3,6 +3,7 @@
 #include <memory>
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/scene/scene.hpp"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 
 namespace ChikaEngine::Framework
 {
@@ -21,6 +22,7 @@ namespace ChikaEngine::Framework
 
     void PhysicsSubsystem::Tick(float dt)
     {
+        CHIKA_PROFILE_SCOPE("Physics.Simulate");
         if (_physics)
             _physics->Tick(dt);
     }
@@ -58,6 +60,7 @@ namespace ChikaEngine::Framework
 
     void PhysicsSubsystem::SyncTransform()
     {
+        CHIKA_PROFILE_SCOPE("Physics.SyncTransforms");
         if (!_physics)
             return;
 

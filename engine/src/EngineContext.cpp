@@ -10,6 +10,7 @@
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include "ChikaEngine/scene/SceneManager.hpp"
 #include <exception>
 #include <memory>
@@ -170,6 +171,7 @@ namespace ChikaEngine::Engine
 
     float EngineContext::BeginFrame()
     {
+        CHIKA_PROFILE_SCOPE("EngineContext.BeginFrame");
         if (!m_initialized)
             return 0.0f;
 
@@ -187,13 +189,26 @@ namespace ChikaEngine::Engine
 
     void EngineContext::Tick(float deltaTime)
     {
+        CHIKA_PROFILE_SCOPE("EngineContext.Tick");
         if (!m_initialized)
             return;
 
-        m_renderer->BeginFrame();
-        m_sceneManager->Tick(deltaTime);
-        m_renderer->Tick(deltaTime);
-        m_renderer->EndFrame();
+        {
+            CHIKA_PROFILE_SCOPE("Renderer.BeginFrame");
+            m_renderer->BeginFrame();
+        }
+        {
+            CHIKA_PROFILE_SCOPE("SceneManager.Tick");
+            m_sceneManager->Tick(deltaTime);
+        }
+        {
+            CHIKA_PROFILE_SCOPE("Renderer.Tick");
+            m_renderer->Tick(deltaTime);
+        }
+        {
+            CHIKA_PROFILE_SCOPE("Renderer.EndFrame");
+            m_renderer->EndFrame();
+        }
     }
 
     bool EngineContext::ShouldClose() const

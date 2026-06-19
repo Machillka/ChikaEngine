@@ -3,7 +3,7 @@
 ## Metadata
 
 - Date: 2026-06-19
-- Status: Future Plan
+- Status: Phase 1 Complete (2026-06-19)
 - Depends on: Existing RenderGraph GPU Timestamp
 - Priority: P0
 
@@ -20,13 +20,16 @@
 - Draw、Instance、Pipeline Bind、Descriptor Write、Visibility、Batch 统计。
 - Editor Render Statistics 面板。
 
-缺少：
+Phase 1 已完成：
 
-- Game/Main/Worker 线程 CPU Timeline。
-- Frame History、p50/p95/p99 和卡顿帧捕获。
-- Job 依赖、排队、执行、等待和 Work Steal 可视化。
-- Capture 持久化和外部 Trace 工具兼容。
-- Profiler 自身开销数据。
+- Main/任意注册线程 CPU Timeline、300 帧 History、p50/p95/p99、卡顿和 pin。
+- Vulkan GPU pass 延迟回填、Perfetto/Chrome Trace、Profiler 自身开销基准。
+- Engine、Gameplay、RenderWorld、Renderer 和 RenderGraph 阶段级 CPU zones/counters。
+
+后续仍缺少：
+
+- Job 依赖、排队、执行、等待和 Work Steal 可视化；这属于 Phase 2 Job System 接入。
+- CPU/GPU 时钟绝对校准、远程采集和统计采样 profiler；不属于 Phase 1 边界。
 
 ## 数据模型
 
@@ -103,4 +106,3 @@ Vulkan Timestamp N
 - 首版不 Hook 全局 Allocator。
 - 首版不追求网络远程采集。
 - 不让 Editor UI 参与采样或控制 Runtime 数据所有权。
-

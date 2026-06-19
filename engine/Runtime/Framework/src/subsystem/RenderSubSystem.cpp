@@ -9,6 +9,7 @@
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/scene/SceneEvents.hpp"
 #include "ChikaEngine/scene/scene.hpp"
+#include "ChikaEngine/profiler/ProfilerMacros.hpp"
 
 #include <string_view>
 
@@ -39,11 +40,13 @@ namespace ChikaEngine::Framework
 
     void RenderSubsystem::Tick(float)
     {
+        CHIKA_PROFILE_SCOPE("RenderWorld.BuildSnapshot");
         _lastProxyUpdateCount = 0;
         for (auto& [gameObjectId, entry] : _entries)
             SyncEntry(gameObjectId, entry);
         SyncViewsAndLights();
         _renderer->SubmitRenderWorldSnapshot(_renderWorld.CreateSnapshot());
+        CHIKA_PROFILE_COUNTER("RenderWorld.ProxyUpdates", static_cast<int64_t>(_lastProxyUpdateCount));
     }
 
     void RenderSubsystem::Cleanup()
