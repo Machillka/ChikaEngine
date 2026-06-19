@@ -1,5 +1,6 @@
 #include "ChikaEngine/Application.hpp"
 #include "ChikaEngine/debug/log_macros.h"
+#include <chrono>
 #include <exception>
 
 namespace ChikaEngine::Engine
@@ -28,11 +29,18 @@ namespace ChikaEngine::Engine
             m_applicationInitialized = true;
             OnInitialize();
 
+            uint64_t frameIndex = 0;
             while (!m_exitRequested && !m_context.ShouldClose())
             {
                 const float deltaTime = m_context.BeginFrame();
                 OnUpdate(deltaTime);
+
+                // Measure the shared engine tick so every application observes the same CPU boundary.
+                const auto tickBegin = std::chrono::steady_clock::now();
                 m_context.Tick(deltaTime);
+                const auto tickEnd = std::chrono::steady_clock::now();
+                const double tickTimeMs = std::chrono::duration<double, std::milli>(tickEnd - tickBegin).count();
+                OnFrameComplete({ .deltaTime = deltaTime, .engineTickCpuTimeMs = tickTimeMs, .frameIndex = frameIndex++ });
             }
 
             shutdownApplication();

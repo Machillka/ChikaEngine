@@ -81,6 +81,7 @@ namespace ChikaEngine::Project
                 loaded.window.width = window.value("width", loaded.window.width);
                 loaded.window.height = window.value("height", loaded.window.height);
                 loaded.window.isFullscreen = window.value("fullscreen", loaded.window.isFullscreen);
+                loaded.window.vSync = window.value("vSync", loaded.window.vSync);
             }
             if (json.contains("runtime"))
             {

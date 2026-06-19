@@ -1,0 +1,24 @@
+{
+  "captureDate": "2026-06-19",
+  "cpu": {
+    "name": "AMD Ryzen 9 9900X 12-Core Processor",
+    "cores": 12,
+    "logicalProcessors": 24
+  },
+  "memoryGiB": 64,
+  "gpu": {
+    "selected": "NVIDIA GeForce RTX 5060 Ti",
+    "driverVersionRaw": "32.0.16.1047"
+  },
+  "operatingSystem": {
+    "name": "Microsoft Windows 11 IoT Enterprise LTSC",
+    "version": "10.0.26100",
+    "build": "26100"
+  },
+  "toolchain": {
+    "compiler": "Clang 22.1.8",
+    "vulkanSdk": "1.4.350",
+    "generator": "Ninja",
+    "configuration": "Release"
+  }
+}

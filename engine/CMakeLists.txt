@@ -64,3 +64,7 @@ endif()
 if(CHIKA_BUILD_EDITOR)
     add_subdirectory(Editor)
 endif()
+
+if(CHIKA_BUILD_BENCHMARKS)
+    add_subdirectory(Benchmark)
+endif()

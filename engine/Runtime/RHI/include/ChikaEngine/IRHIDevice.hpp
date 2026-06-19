@@ -16,6 +16,7 @@ namespace ChikaEngine::Render
         uint32_t width = 1280;
         uint32_t height = 720;
         bool enableValidation = true;
+        bool vSync = true;
         std::filesystem::path pipelineCachePath = ".chika/cache/vulkan_pipeline_cache.bin";
     };
 
@@ -31,6 +32,16 @@ namespace ChikaEngine::Render
         // 每帧生命周期
         virtual void BeginFrame() = 0;
         virtual void EndFrame() = 0;
+        /** @brief Reports whether BeginFrame acquired a usable target for command recording. */
+        virtual bool IsFrameActive() const
+        {
+            return true;
+        }
+        /** @brief Returns the selected adapter name for diagnostics and benchmark metadata. */
+        virtual std::string_view GetDeviceName() const
+        {
+            return "Unknown RHI device";
+        }
 
         // 资源创建（返回 RHI 句柄）
         virtual BufferHandle CreateBuffer(const BufferDesc& desc) = 0;

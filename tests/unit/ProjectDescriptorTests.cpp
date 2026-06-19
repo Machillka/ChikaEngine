@@ -30,7 +30,7 @@ int main()
     std::filesystem::create_directories(root / "Assets", filesystemError);
     std::filesystem::create_directories(root / "Content", filesystemError);
     const auto descriptorPath = root / "Sample.chikaproject";
-    if (!WriteText(descriptorPath, R"({"version":1,"name":"Sample","contentRoot":"Assets","cookedContentRoot":"Content","startupScene":"70a1e96c29ca4c9ab61d65d9f127c143","alwaysCook":[],"window":{"title":"Sample","width":800,"height":600,"fullscreen":false},"runtime":{"renderPipeline":"deferred","fixedDeltaTime":0.02,"maxPhysicsStepsPerFrame":3,"enableScripting":false}})"))
+    if (!WriteText(descriptorPath, R"({"version":1,"name":"Sample","contentRoot":"Assets","cookedContentRoot":"Content","startupScene":"70a1e96c29ca4c9ab61d65d9f127c143","alwaysCook":[],"window":{"title":"Sample","width":800,"height":600,"fullscreen":false,"vSync":false},"runtime":{"renderPipeline":"deferred","fixedDeltaTime":0.02,"maxPhysicsStepsPerFrame":3,"enableScripting":false}})"))
         return Fail("failed to write valid descriptor");
 
     Project::ProjectDescriptor descriptor;
@@ -39,7 +39,7 @@ int main()
         return Fail("valid descriptor was rejected");
 
     Project::RuntimeBootConfig development;
-    if (!Project::BuildRuntimeBootConfig(descriptor, Project::RuntimeMode::DevelopmentGame, development, error) || !development.scanAssets || development.createMissingMeta || !development.enableHotReload || development.contentRoot != (root / "Assets").lexically_normal())
+    if (!Project::BuildRuntimeBootConfig(descriptor, Project::RuntimeMode::DevelopmentGame, development, error) || !development.scanAssets || development.createMissingMeta || !development.enableHotReload || development.window.vSync || development.contentRoot != (root / "Assets").lexically_normal())
         return Fail("development boot config projection is incorrect");
 
     Project::RuntimeBootConfig packaged;

@@ -34,6 +34,7 @@ namespace ChikaEngine::Platform
         glfwSetErrorCallback(GLFWErrorCallback);
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_VISIBLE, desc.visible ? GLFW_TRUE : GLFW_FALSE);
 
         m_window = glfwCreateWindow((int)desc.width, (int)desc.height, m_data.title.c_str(), nullptr, nullptr);
 

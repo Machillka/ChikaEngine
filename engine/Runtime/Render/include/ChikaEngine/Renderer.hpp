@@ -20,6 +20,7 @@ namespace ChikaEngine::Render
         uint32_t height = 1080;
         RHIBackendTypes backendType = RHIBackendTypes::Default;
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
+        bool vSync = true;
 #ifdef CHIKA_DEBUG
         bool enableValidation = true;
 #else
@@ -45,6 +46,11 @@ namespace ChikaEngine::Render
         void BeginFrame();
         void Tick(float deltaTime);
         void EndFrame();
+        /** @brief Returns false when the RHI could not acquire a render target for this frame. */
+        bool IsFrameActive() const
+        {
+            return m_frameActive;
+        }
 
         /** @brief 把不可变场景帧输入转交给 RenderPipeline，Renderer 不读取 Gameplay。 */
         void SubmitRenderWorldSnapshot(std::shared_ptr<const RenderWorldSnapshot> snapshot);
@@ -164,5 +170,6 @@ namespace ChikaEngine::Render
         Camera m_editorCamera;
         Asset::AssetManager* m_assetManager = nullptr;
         bool m_initialized = false;
+        bool m_frameActive = false;
     };
 } // namespace ChikaEngine::Render

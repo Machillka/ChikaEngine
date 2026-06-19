@@ -12,6 +12,7 @@ namespace ChikaEngine::Render
             .width = createInfo.width,
             .height = createInfo.height,
             .enableValidation = createInfo.enableValidation,
+            .vSync = createInfo.vSync,
         };
         m_rhi = RHIBackendFactory::CreateRHIDevice(createInfo.backendType, params);
         if (!m_rhi)
@@ -26,10 +27,14 @@ namespace ChikaEngine::Render
         m_rhi.reset();
     }
 
-    void RenderDeviceContext::BeginFrame()
+    bool RenderDeviceContext::BeginFrame()
     {
         if (m_rhi)
+        {
             m_rhi->BeginFrame();
+            return m_rhi->IsFrameActive();
+        }
+        return false;
     }
 
     void RenderDeviceContext::EndFrame()

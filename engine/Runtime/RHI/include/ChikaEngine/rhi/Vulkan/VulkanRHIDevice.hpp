@@ -30,6 +30,14 @@ namespace ChikaEngine::Render
         void Shutdown() override;
         void BeginFrame() override;
         void EndFrame() override;
+        bool IsFrameActive() const override
+        {
+            return !m_frameSkipped;
+        }
+        std::string_view GetDeviceName() const override
+        {
+            return m_deviceName;
+        }
         void Submit(IRHICommandList* cmdList) override;
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
@@ -217,6 +225,7 @@ namespace ChikaEngine::Render
         VkInstance m_instance = VK_NULL_HANDLE;
         VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+        std::string m_deviceName;
         VkDevice m_device = VK_NULL_HANDLE;
         VkQueue m_graphicsQueue = VK_NULL_HANDLE;
         uint32_t m_graphicsQueueFamily = 0;
@@ -227,6 +236,7 @@ namespace ChikaEngine::Render
 
         VkSampler m_defaultSampler = VK_NULL_HANDLE;
         bool m_enableValidation = true;
+        bool m_vSync = true;
         RenderFrameStatistics m_frameStatistics;
         std::vector<RenderPassGpuTiming> m_passGpuTimings;
 
@@ -242,6 +252,7 @@ namespace ChikaEngine::Render
             std::string name;
             uint32_t beginQuery = 0;
             uint32_t endQuery = 0;
+            uint64_t frameIndex = 0;
         };
         std::vector<TimestampScope> m_timestampScopes[MAX_FRAMES_IN_FLIGHT];
         float m_timestampPeriodNs = 1.0f;
