@@ -19,6 +19,7 @@ namespace ChikaEngine::Render
 
         m_assetManager = createInfo.assetManager;
         m_settings.pipelineMode = createInfo.pipelineMode;
+        m_settings.cpuMode = createInfo.cpuMode;
         m_deviceContext.Initialize({
             .windowHandle = createInfo.windowHandle,
             .width = createInfo.width,

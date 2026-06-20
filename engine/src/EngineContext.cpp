@@ -104,6 +104,7 @@ namespace ChikaEngine::Engine
                 .height = m_window->GetHeight(),
                 .backendType = createInfo.rendererBackend,
                 .pipelineMode = createInfo.renderPipeline,
+                .cpuMode = createInfo.renderCpuMode,
                 .vSync = createInfo.window.vSync,
             };
             m_renderer->Initialize(rendererInfo);

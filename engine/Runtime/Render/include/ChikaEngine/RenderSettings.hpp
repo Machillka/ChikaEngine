@@ -4,6 +4,12 @@
 
 namespace ChikaEngine::Render
 {
+    enum class RenderCpuMode
+    {
+        Serial,
+        Jobs,
+    };
+
     enum class RenderPipelineMode
     {
         Forward,
@@ -42,6 +48,12 @@ namespace ChikaEngine::Render
     struct RenderSettings
     {
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
+        RenderCpuMode cpuMode = RenderCpuMode::Jobs;
+        uint32_t parallelObjectThreshold = 2'048;
+        uint32_t visibilityGrainSize = 256;
+        uint32_t packetGrainSize = 256;
+        uint32_t parallelSortThreshold = 4'096;
+        uint32_t sortGrainSize = 1'024;
         float ambientIntensity = 0.12f;
         PostProcessSettings postProcess;
         ShadowSettings shadows;

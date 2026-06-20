@@ -21,8 +21,9 @@
 - Phase 0 completed on 2026-06-19: independent benchmark, deterministic workloads, delayed GPU correlation and the serial baseline are implemented.
 - Phase 1 completed on 2026-06-19: unified CPU/GPU profiler, editor timeline, Perfetto export and overhead gate are implemented.
 - Phase 2 completed on 2026-06-20: engine-owned Job System, dependencies, wait-help, profiler, Asset workload and read-only Renderer integration are implemented.
-- Raw results: `../results/baseline/`, `../results/profiler/`, `../results/jobs/`.
-- Next action: Step 3.1 Render serial oracle. Phase 3 must keep ResourceManager and RHI access off worker threads.
+- Phase 3 completed on 2026-06-20: serial oracle, frame instance/resource views, object-level Visibility/Packet jobs, deterministic opaque sort and CPU scaling gate are implemented.
+- Raw results: `../results/baseline/`, `../results/profiler/`, `../results/jobs/`, `../results/cpu-renderer/`.
+- Next action: Step 4.1 GPU capability/fallback contract. Before GPU-driven work, preserve the Phase 3 hashes as the CPU oracle and address persistent RenderScene storage when CPU preparation becomes the priority.
 
 ## Step Index
 

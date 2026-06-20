@@ -42,3 +42,11 @@ set_target_properties(ChikaJobBenchmark PROPERTIES
     VS_DEBUGGING_WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
 )
+
+add_executable(ChikaRenderCpuBenchmark src/RenderCpuBenchmark.cpp)
+target_link_libraries(ChikaRenderCpuBenchmark PRIVATE ChikaRender ChikaJobs nlohmann_json)
+target_compile_definitions(ChikaRenderCpuBenchmark PRIVATE CHIKA_RENDER_CPU_BENCHMARK_BUILD_TYPE="$<CONFIG>")
+set_target_properties(ChikaRenderCpuBenchmark PROPERTIES
+    VS_DEBUGGING_WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
+)

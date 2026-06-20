@@ -536,6 +536,16 @@ namespace ChikaEngine::Resource
         return *m_materials.Get(handle);
     }
 
+    const MeshGPU* ResourceManager::TryGetMesh(MeshHandle handle) const
+    {
+        return m_meshes.Get(handle);
+    }
+
+    const MaterialGPU* ResourceManager::TryGetMaterial(MaterialHandle handle) const
+    {
+        return m_materials.Get(handle);
+    }
+
     bool ResourceManager::Unload(MeshHandle handle)
     {
         MeshGPU* mesh = m_meshes.Get(handle);

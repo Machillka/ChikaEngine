@@ -4,6 +4,7 @@
 #include "ChikaEngine/benchmark/BenchmarkSceneFactory.hpp"
 #include "ChikaEngine/debug/console_sink.h"
 #include "ChikaEngine/debug/log_system.h"
+#include "ChikaEngine/jobs/JobSystem.hpp"
 #include "ChikaEngine/scene/SceneManager.hpp"
 #include "ChikaEngine/scene/scene.hpp"
 
@@ -48,6 +49,9 @@ namespace
             createInfo.createMissingMeta = false;
             createInfo.importAssets = true;
             createInfo.enableHotReload = false;
+            createInfo.renderCpuMode = m_options.mode == Benchmark::BenchmarkMode::Jobs ? Render::RenderCpuMode::Jobs : Render::RenderCpuMode::Serial;
+            createInfo.jobWorkerCount = m_options.workers;
+            createInfo.reservedJobThreads = 0;
             createInfo.createDefaultScene = false;
             createInfo.useEditorView = false;
             return createInfo;
@@ -78,8 +82,8 @@ namespace
             result.configuration = {
                 .scene = std::string(Benchmark::ToString(m_options.scene)),
                 .requestedMode = std::string(Benchmark::ToString(m_options.mode)),
-                .effectiveMode = "serial",
-                .workers = 1,
+                .effectiveMode = std::string(Benchmark::ToString(m_options.mode)),
+                .workers = GetEngineContext().GetJobSystem() ? GetEngineContext().GetJobSystem()->GetWorkerCount() : 0,
                 .warmupFrames = m_options.warmupFrames,
                 .sampleFrames = m_options.sampleFrames,
                 .flushFrames = m_options.flushFrames,
@@ -129,12 +133,27 @@ namespace
                 completedGpuFrame = completed;
             }
 
+            ChikaEngine::Jobs::JobSystemStatistics jobDelta;
+            if (const auto* jobs = GetEngineContext().GetJobSystem())
+            {
+                const auto current = jobs->GetStatistics();
+                jobDelta.queueWaitNanoseconds = current.queueWaitNanoseconds - m_previousJobStatistics.queueWaitNanoseconds;
+                jobDelta.executionNanoseconds = current.executionNanoseconds - m_previousJobStatistics.executionNanoseconds;
+                jobDelta.successfulSteals = current.successfulSteals - m_previousJobStatistics.successfulSteals;
+                jobDelta.workerUtilization = current.workerUtilization;
+                m_previousJobStatistics = current;
+            }
+
             m_runner->ObserveFrame({
                 .frameIndex = m_activeFrameIndex++,
                 .frameTimeMs = static_cast<double>(metrics.deltaTime) * 1000.0,
                 .engineTickCpuTimeMs = metrics.engineTickCpuTimeMs,
                 .renderGraphCpuTimeMs = renderGraphCpuTimeMs,
                 .renderStatistics = renderer->GetFrameStatistics(),
+                .jobQueueWaitNanoseconds = jobDelta.queueWaitNanoseconds,
+                .jobExecutionNanoseconds = jobDelta.executionNanoseconds,
+                .successfulJobSteals = jobDelta.successfulSteals,
+                .workerUtilization = jobDelta.workerUtilization,
                 .completedGpuFrame = completedGpuFrame,
             });
 
@@ -155,6 +174,7 @@ namespace
         std::unique_ptr<Benchmark::BenchmarkRunner> m_runner;
         uint64_t m_simulationFrame = 0;
         uint64_t m_activeFrameIndex = 0;
+        ChikaEngine::Jobs::JobSystemStatistics m_previousJobStatistics;
     };
 } // namespace
 
@@ -173,12 +193,12 @@ int main(int argc, const char* const* argv)
         std::cout << ChikaEngine::Benchmark::BenchmarkUsage();
         return 0;
     }
-    if (parsed.options.mode != ChikaEngine::Benchmark::BenchmarkMode::Serial)
+    if (parsed.options.mode == ChikaEngine::Benchmark::BenchmarkMode::Gpu)
     {
-        std::cerr << "Mode '" << ChikaEngine::Benchmark::ToString(parsed.options.mode) << "' is reserved for a later phase; Phase 0 only supports serial.\n";
+        std::cerr << "GPU mode is reserved for Phase 4.\n";
         return 3;
     }
-    if (parsed.options.workers != 1)
+    if (parsed.options.mode == ChikaEngine::Benchmark::BenchmarkMode::Serial && parsed.options.workers != 1)
     {
         std::cerr << "Serial mode requires --workers 1.\n";
         return 3;

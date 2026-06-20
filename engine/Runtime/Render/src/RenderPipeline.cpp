@@ -7,6 +7,7 @@
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/jobs/JobSystem.hpp"
+#include "ChikaEngine/profiler/ProfilerClock.hpp"
 #include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <algorithm>
 #include <array>
@@ -643,6 +644,23 @@ namespace ChikaEngine::Render
         m_frameStatistics.passCount = m_renderGraph->GetLastExecutedPassCount();
         m_frameStatistics.visibleObjectCount = m_visibleObjectCount;
         m_frameStatistics.culledObjectCount = m_culledObjectCount;
+        m_frameStatistics.staticOpaqueObjectCount = m_preparationDiagnostics.classification.staticOpaqueCount;
+        m_frameStatistics.skinnedObjectCount = m_preparationDiagnostics.classification.skinnedCount;
+        m_frameStatistics.transparentObjectCount = m_preparationDiagnostics.classification.transparentCount;
+        m_frameStatistics.invalidResourceObjectCount = m_preparationDiagnostics.classification.invalidResourceCount;
+        m_frameStatistics.preparationFallback = static_cast<uint32_t>(m_preparationDiagnostics.fallback);
+        m_frameStatistics.validationHashVersion = kRenderValidationHashVersion;
+        m_frameStatistics.visibleSetHash = m_preparationDiagnostics.hashes.visibleSet;
+        m_frameStatistics.packetHash = m_preparationDiagnostics.hashes.packets;
+        m_frameStatistics.batchHash = m_preparationDiagnostics.hashes.batches;
+        m_frameStatistics.drawInputHash = m_preparationDiagnostics.hashes.drawInput;
+        m_frameStatistics.preparationCpuTimeMs = m_preparationDiagnostics.totalCpuTimeMs;
+        m_frameStatistics.sceneViewCpuTimeMs = m_preparationDiagnostics.sceneViewCpuTimeMs;
+        m_frameStatistics.resourceViewCpuTimeMs = m_preparationDiagnostics.resourceViewCpuTimeMs;
+        m_frameStatistics.visibilityCpuTimeMs = m_preparationDiagnostics.visibilityCpuTimeMs;
+        m_frameStatistics.packetCpuTimeMs = m_preparationDiagnostics.packetCpuTimeMs;
+        m_frameStatistics.sortCpuTimeMs = m_preparationDiagnostics.sortCpuTimeMs;
+        m_frameStatistics.renderJobsUsed = m_preparationDiagnostics.jobsUsed;
         const std::array<const RenderQueue*, 3> queues{
             &m_renderQueues.shadow,
             m_settings->pipelineMode == RenderPipelineMode::Deferred ? &m_renderQueues.gbufferOpaque : &m_renderQueues.forwardOpaque,
@@ -805,6 +823,7 @@ namespace ChikaEngine::Render
         m_renderQueues = {};
         m_visibleObjectCount = 0;
         m_culledObjectCount = 0;
+        m_preparationDiagnostics = {};
         if (!m_snapshot)
             return;
 
@@ -812,8 +831,6 @@ namespace ChikaEngine::Render
         if (!primaryView)
             return;
 
-        VisibilityResult mainVisibility;
-        VisibilityResult shadowVisibility;
         RenderView shadowView;
         if (!m_snapshot->lights.empty())
         {
@@ -826,42 +843,29 @@ namespace ChikaEngine::Render
         else
             shadowView = *primaryView;
 
-        const bool parallelVisibility = m_jobSystem && m_snapshot->objects.size() >= 2'048;
-        if (parallelVisibility)
-        {
-            const RenderWorldSnapshot* snapshot = m_snapshot.get();
-            const Jobs::JobHandle mainJob = m_jobSystem->Schedule("Renderer.Visibility.Main", [snapshot, primaryView, &mainVisibility] { mainVisibility = BuildVisibility(*snapshot, *primaryView); });
-            const Jobs::JobHandle shadowJob = m_jobSystem->Schedule("Renderer.Visibility.Shadow", [snapshot, &shadowView, &shadowVisibility] { shadowVisibility = BuildVisibility(*snapshot, shadowView, true); });
-            bool parallelSucceeded = mainJob.IsValid() && shadowJob.IsValid();
-            for (const Jobs::JobHandle handle : { mainJob, shadowJob })
-            {
-                if (!handle.IsValid())
-                    continue;
-                try
-                {
-                    m_jobSystem->Wait(handle);
-                }
-                catch (...)
-                {
-                    parallelSucceeded = false;
-                }
-                m_jobSystem->Release(handle);
-            }
-            if (!parallelSucceeded)
-            {
-                mainVisibility = BuildVisibility(*m_snapshot, *primaryView);
-                shadowVisibility = BuildVisibility(*m_snapshot, shadowView, true);
-            }
-        }
-        else
-        {
-            mainVisibility = BuildVisibility(*m_snapshot, *primaryView);
-            shadowVisibility = BuildVisibility(*m_snapshot, shadowView, true);
-        }
+        const uint64_t resourceBegin = Profiler::ProfilerClock::NowNanoseconds();
+        const RenderResourceView resourceView = RenderResourceView::Build(*m_snapshot, *m_resourceMgr);
+        const double resourceViewCpuTimeMs = static_cast<double>(Profiler::ProfilerClock::NowNanoseconds() - resourceBegin) / 1'000'000.0;
 
-        m_visibleObjectCount = mainVisibility.visibleObjectCount;
-        m_culledObjectCount = mainVisibility.culledObjectCount;
-        m_renderQueues = BuildRenderQueues(mainVisibility, shadowVisibility, *primaryView, *m_resourceMgr);
+        RenderPreparationResult preparation = PrepareRenderData(m_snapshot,
+                                                                *primaryView,
+                                                                shadowView,
+                                                                resourceView,
+                                                                m_jobSystem,
+                                                                {
+                                                                    .mode = m_settings->cpuMode,
+                                                                    .minimumObjects = m_settings->parallelObjectThreshold,
+                                                                    .visibilityGrainSize = m_settings->visibilityGrainSize,
+                                                                    .packetGrainSize = m_settings->packetGrainSize,
+                                                                    .sortMinimumPackets = m_settings->parallelSortThreshold,
+                                                                    .sortGrainSize = m_settings->sortGrainSize,
+                                                                });
+        m_visibleObjectCount = preparation.mainVisibility.visibleObjectCount;
+        m_culledObjectCount = preparation.mainVisibility.culledObjectCount;
+        m_renderQueues = std::move(preparation.queues);
+        m_preparationDiagnostics = preparation.diagnostics;
+        m_preparationDiagnostics.resourceViewCpuTimeMs = resourceViewCpuTimeMs;
+        m_preparationDiagnostics.totalCpuTimeMs += resourceViewCpuTimeMs;
     }
 
     /**

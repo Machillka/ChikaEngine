@@ -26,6 +26,7 @@ namespace ChikaEngine::Render
         uint32_t height = 1080;
         RHIBackendTypes backendType = RHIBackendTypes::Default;
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
+        RenderCpuMode cpuMode = RenderCpuMode::Jobs;
         bool vSync = true;
 #ifdef CHIKA_DEBUG
         bool enableValidation = true;
@@ -91,6 +92,16 @@ namespace ChikaEngine::Render
         RenderPipelineMode GetPipelineMode() const
         {
             return m_settings.pipelineMode;
+        }
+        /** @brief Selects the serial oracle or the jobs-based renderer preparation path. */
+        void SetCpuMode(RenderCpuMode mode)
+        {
+            m_settings.cpuMode = mode;
+        }
+        /** @brief Returns the active renderer CPU preparation policy. */
+        RenderCpuMode GetCpuMode() const
+        {
+            return m_settings.cpuMode;
         }
         /** @brief 返回当前渲染质量配置的只读快照，供 Editor 展示。 */
         const RenderSettings& GetSettings() const

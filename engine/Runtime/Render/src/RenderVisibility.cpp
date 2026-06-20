@@ -52,6 +52,13 @@ namespace ChikaEngine::Render
         return true;
     }
 
+    bool IsRenderInstanceVisible(const RenderInstanceData& instance, const RenderView& view, const ViewFrustum& frustum, bool shadowCastersOnly)
+    {
+        const bool layerVisible = (instance.layerMask & view.layerMask) != 0;
+        const bool passVisible = HasFlag(instance.flags, RenderObjectFlags::Visible) && (!shadowCastersOnly || HasFlag(instance.flags, RenderObjectFlags::CastShadow));
+        return layerVisible && passVisible && frustum.Intersects(instance.bounds);
+    }
+
     VisibilityResult BuildVisibility(const RenderWorldSnapshot& snapshot, const RenderView& view, bool shadowCastersOnly)
     {
         CHIKA_PROFILE_SCOPE("Renderer.Visibility");
@@ -72,6 +79,29 @@ namespace ChikaEngine::Render
             }
             else
                 ++result.culledObjectCount;
+        }
+        return result;
+    }
+
+    VisibilityResult BuildVisibilitySerial(const RenderSceneView& scene, const RenderView& view, bool shadowCastersOnly)
+    {
+        CHIKA_PROFILE_SCOPE("Renderer.Visibility.Serial");
+        VisibilityResult result;
+        result.visibleObjects.reserve(scene.GetInstances().size());
+        const ViewFrustum frustum = ViewFrustum::FromViewProjection(view.viewProjection);
+        for (const RenderInstanceData& instance : scene.GetInstances())
+        {
+            ++result.testedObjectCount;
+            if (IsRenderInstanceVisible(instance, view, frustum, shadowCastersOnly))
+            {
+                if (const RenderObjectSnapshot* object = scene.GetSourceObject(instance))
+                {
+                    result.visibleObjects.push_back(object);
+                    ++result.visibleObjectCount;
+                    continue;
+                }
+            }
+            ++result.culledObjectCount;
         }
         return result;
     }

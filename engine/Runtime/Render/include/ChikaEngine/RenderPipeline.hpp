@@ -5,6 +5,7 @@
 #include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RenderGraph.hpp"
 #include "ChikaEngine/RenderGraphBlackboard.hpp"
+#include "ChikaEngine/RenderPreparation.hpp"
 #include "ChikaEngine/RenderQueue.hpp"
 #include "ChikaEngine/RenderSettings.hpp"
 #include "ChikaEngine/RenderWorld.hpp"
@@ -156,6 +157,7 @@ namespace ChikaEngine::Render
         uint32_t m_instanceBufferIndex = 0;
         uint32_t m_visibleObjectCount = 0;
         uint32_t m_culledObjectCount = 0;
+        RenderPreparationDiagnostics m_preparationDiagnostics;
 
         uint32_t m_width = 0;
         uint32_t m_height = 0;
