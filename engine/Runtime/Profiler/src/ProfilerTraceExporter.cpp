@@ -88,7 +88,7 @@ namespace ChikaEngine::Profiler
                 }
                 for (const ProfilerInstant& instant : capture->instants)
                 {
-                    events.push_back({ { "name", ResolveName(instant.nameId) }, { "cat", "instant" }, { "ph", "i" }, { "s", "t" }, { "pid", kCpuProcessId }, { "tid", instant.threadId }, { "ts", ToMicroseconds(instant.timestampNs) } });
+                    events.push_back({ { "name", ResolveName(instant.nameId) }, { "cat", "instant" }, { "ph", "i" }, { "s", "t" }, { "pid", kCpuProcessId }, { "tid", instant.threadId }, { "ts", ToMicroseconds(instant.timestampNs) }, { "args", { { "payload", instant.payload } } } });
                 }
 
                 std::map<uint32_t, uint64_t> gpuCursor;

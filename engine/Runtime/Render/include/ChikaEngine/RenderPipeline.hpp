@@ -15,6 +15,11 @@
 #include <memory>
 #include <unordered_map>
 
+namespace ChikaEngine::Jobs
+{
+    class JobSystem;
+}
+
 namespace ChikaEngine::Render
 {
     using RenderOverlayCallback = std::function<void(IRHICommandList*)>;
@@ -65,6 +70,7 @@ namespace ChikaEngine::Render
     {
         IRHIDevice* rhi = nullptr;
         Asset::AssetManager* assetManager = nullptr;
+        Jobs::JobSystem* jobSystem = nullptr;
         Resource::ResourceManager* resourceManager = nullptr;
         RenderSettings* settings = nullptr;
         uint32_t width = 0;
@@ -133,6 +139,7 @@ namespace ChikaEngine::Render
         IRHIDevice* m_rhi = nullptr;
         Asset::AssetManager* m_assetMgr = nullptr;
         Resource::ResourceManager* m_resourceMgr = nullptr;
+        Jobs::JobSystem* m_jobSystem = nullptr;
         RenderSettings* m_settings = nullptr;
         std::unique_ptr<RenderGraph> m_renderGraph;
         std::shared_ptr<const RenderWorldSnapshot> m_snapshot;

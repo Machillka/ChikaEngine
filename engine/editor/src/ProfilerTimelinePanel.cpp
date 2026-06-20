@@ -130,6 +130,7 @@ namespace ChikaEngine::Editor
         const float maximumPan = std::max(0.0f, 1.0f - 1.0f / m_zoom);
         ImGui::SliderFloat("Pan", &m_pan, 0.0f, maximumPan, "%.3f");
         DrawTimeline(*m_selected);
+        DrawCounters(*m_selected);
         DrawHotspots(*m_selected);
         ImGui::End();
     }
@@ -180,6 +181,27 @@ namespace ChikaEngine::Editor
             }
         }
 
+        const uint64_t viewEnd = viewStart + viewDuration;
+        for (const Profiler::ProfilerInstant& instant : capture.instants)
+        {
+            const auto laneIterator = laneByThread.find(instant.threadId);
+            if (laneIterator == laneByThread.end() || instant.timestampNs < viewStart || instant.timestampNs > viewEnd)
+                continue;
+            const float x = static_cast<float>(instant.timestampNs - viewStart) / static_cast<float>(viewDuration) * width;
+            const float laneTop = origin.y + static_cast<float>(laneIterator->second * (maximumDepth + 2u)) * rowHeight;
+            const ImVec2 markerTop(origin.x + x, laneTop + 2.0f);
+            const ImVec2 markerBottom(origin.x + x, laneTop + rowHeight - 2.0f);
+            drawList->AddLine(markerTop, markerBottom, ZoneColor(instant.nameId, false), 2.0f);
+            drawList->AddTriangleFilled(ImVec2(markerTop.x - 3.0f, markerTop.y), ImVec2(markerTop.x + 3.0f, markerTop.y), ImVec2(markerTop.x, markerTop.y + 5.0f), ZoneColor(instant.nameId, false));
+            if (ImGui::IsMouseHoveringRect(ImVec2(markerTop.x - 4.0f, markerTop.y), ImVec2(markerBottom.x + 4.0f, markerBottom.y)))
+            {
+                ImGui::BeginTooltip();
+                ImGui::TextUnformatted(Profiler::ProfilerNameRegistry::Instance().Resolve(instant.nameId).c_str());
+                ImGui::Text("Payload 0x%016llx", static_cast<unsigned long long>(instant.payload));
+                ImGui::EndTooltip();
+            }
+        }
+
         uint64_t gpuCursor = 0;
         for (const Profiler::ProfilerGpuZone& zone : capture.gpuZones)
         {
@@ -188,6 +210,36 @@ namespace ChikaEngine::Editor
             const float y = origin.y + cpuHeight + rowHeight * 0.25f;
             drawList->AddRectFilled(ImVec2(origin.x + x, y), ImVec2(origin.x + x + zoneWidth, y + rowHeight - 2.0f), ZoneColor(zone.nameId, !zone.valid), 2.0f);
             gpuCursor += zone.durationNs;
+        }
+    }
+
+    void ProfilerTimelinePanel::DrawCounters(const Profiler::ProfilerFrameCapture& capture)
+    {
+        if (capture.counters.empty() || !ImGui::CollapsingHeader("Counters"))
+            return;
+
+        std::unordered_map<uint32_t, const Profiler::ProfilerCounter*> latestByName;
+        for (const Profiler::ProfilerCounter& counter : capture.counters)
+        {
+            const auto current = latestByName.find(counter.nameId);
+            if (current == latestByName.end() || current->second->timestampNs < counter.timestampNs)
+                latestByName[counter.nameId] = &counter;
+        }
+
+        if (ImGui::BeginTable("ProfilerCounters", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Counter");
+            ImGui::TableSetupColumn("Latest value");
+            ImGui::TableHeadersRow();
+            for (const auto& [nameId, counter] : latestByName)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::TextUnformatted(Profiler::ProfilerNameRegistry::Instance().Resolve(nameId).c_str());
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text("%.3f", counter->value);
+            }
+            ImGui::EndTable();
         }
     }
 

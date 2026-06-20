@@ -37,6 +37,7 @@ namespace ChikaEngine::Profiler
         uint32_t nameId = 0;
         uint32_t threadId = 0;
         uint64_t timestampNs = 0;
+        uint64_t payload = 0;
     };
 
     struct ProfilerGpuZone

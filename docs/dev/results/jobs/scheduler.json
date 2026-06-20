@@ -1,0 +1,521 @@
+{
+  "buildType": "Release",
+  "hardwareThreads": 24,
+  "repeats": 5,
+  "results": [
+    {
+      "modes": [
+        {
+          "medianMs": 0.128,
+          "mode": "serial",
+          "samplesMs": [
+            0.1287,
+            0.128,
+            0.128,
+            0.1321,
+            0.128
+          ],
+          "throughputJobsPerSecond": 1000000.0,
+          "workers": 1
+        },
+        {
+          "medianMs": 0.1471,
+          "mode": "std-async",
+          "samplesMs": [
+            0.3464,
+            0.172,
+            0.1335,
+            0.1249,
+            0.1471
+          ],
+          "speedupVsSerial": 0.8701563562202583,
+          "throughputJobsPerSecond": 870156.3562202583,
+          "workers": 128
+        },
+        {
+          "medianMs": 0.6547,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            1.0112,
+            0.5449,
+            0.6547,
+            0.6693,
+            0.5373
+          ],
+          "speedupVsSerial": 0.19550939361539638,
+          "statistics": {
+            "executionNanoseconds": 139500,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 56746800,
+            "sleepCount": 1,
+            "stealAttempts": 0,
+            "successfulSteals": 0,
+            "workerUtilization": 24.915163422039647
+          },
+          "throughputJobsPerSecond": 195509.3936153964,
+          "workers": 1
+        },
+        {
+          "medianMs": 0.5425,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            0.55,
+            0.5416,
+            0.5298,
+            0.5461,
+            0.5425
+          ],
+          "speedupVsSerial": 0.2359447004608295,
+          "statistics": {
+            "executionNanoseconds": 139800,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 57357200,
+            "sleepCount": 1,
+            "stealAttempts": 1,
+            "successfulSteals": 0,
+            "workerUtilization": 12.16710182767624
+          },
+          "throughputJobsPerSecond": 235944.70046082948,
+          "workers": 2
+        },
+        {
+          "medianMs": 0.5756,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            0.7262,
+            0.5756,
+            0.5632,
+            0.6209,
+            0.5613
+          ],
+          "speedupVsSerial": 0.22237665045170257,
+          "statistics": {
+            "executionNanoseconds": 140800,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 58062300,
+            "sleepCount": 1,
+            "stealAttempts": 3,
+            "successfulSteals": 0,
+            "workerUtilization": 5.68016782314023
+          },
+          "throughputJobsPerSecond": 222376.65045170256,
+          "workers": 4
+        },
+        {
+          "medianMs": 0.5183,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            0.518,
+            0.5137,
+            0.68,
+            0.5721,
+            0.5183
+          ],
+          "speedupVsSerial": 0.24696121937102067,
+          "statistics": {
+            "executionNanoseconds": 140300,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 53503100,
+            "sleepCount": 1,
+            "stealAttempts": 7,
+            "successfulSteals": 0,
+            "workerUtilization": 2.8627979105452175
+          },
+          "throughputJobsPerSecond": 246961.21937102065,
+          "workers": 8
+        }
+      ],
+      "taskMicroseconds": 1
+    },
+    {
+      "modes": [
+        {
+          "medianMs": 1.2806,
+          "mode": "serial",
+          "samplesMs": [
+            1.2852,
+            1.28,
+            1.2806,
+            1.28,
+            1.2811
+          ],
+          "throughputJobsPerSecond": 99953.1469623614,
+          "workers": 1
+        },
+        {
+          "medianMs": 0.2301,
+          "mode": "std-async",
+          "samplesMs": [
+            0.295,
+            0.2794,
+            0.2301,
+            0.1899,
+            0.1994
+          ],
+          "speedupVsSerial": 5.565406345067362,
+          "throughputJobsPerSecond": 556279.8783137766,
+          "workers": 128
+        },
+        {
+          "medianMs": 1.702,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            1.7008,
+            1.7685,
+            1.7427,
+            1.702,
+            1.693
+          ],
+          "speedupVsSerial": 0.7524089306698002,
+          "statistics": {
+            "executionNanoseconds": 1294600,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 130040400,
+            "sleepCount": 1,
+            "stealAttempts": 0,
+            "successfulSteals": 0,
+            "workerUtilization": 75.30246626337832
+          },
+          "throughputJobsPerSecond": 75205.64042303173,
+          "workers": 1
+        },
+        {
+          "medianMs": 1.2489,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            1.2489,
+            1.2246,
+            1.2365,
+            1.2526,
+            1.2504
+          ],
+          "speedupVsSerial": 1.0253823364560815,
+          "statistics": {
+            "executionNanoseconds": 1287800,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 110444300,
+            "sleepCount": 2,
+            "stealAttempts": 2,
+            "successfulSteals": 0,
+            "workerUtilization": 50.007766387076735
+          },
+          "throughputJobsPerSecond": 102490.19136840421,
+          "workers": 2
+        },
+        {
+          "medianMs": 1.2072,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            1.191,
+            1.2973,
+            1.2924,
+            1.2072,
+            1.2028
+          ],
+          "speedupVsSerial": 1.0608018555334657,
+          "statistics": {
+            "executionNanoseconds": 1286000,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 107595600,
+            "sleepCount": 3,
+            "stealAttempts": 9,
+            "successfulSteals": 0,
+            "workerUtilization": 25.513848107293075
+          },
+          "throughputJobsPerSecond": 106030.48376408216,
+          "workers": 4
+        },
+        {
+          "medianMs": 1.1962,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            1.2379,
+            1.2085,
+            1.1752,
+            1.1962,
+            1.17
+          ],
+          "speedupVsSerial": 1.0705567630830966,
+          "statistics": {
+            "executionNanoseconds": 1315100,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 105086400,
+            "sleepCount": 3,
+            "stealAttempts": 21,
+            "successfulSteals": 0,
+            "workerUtilization": 13.021823510773132
+          },
+          "throughputJobsPerSecond": 107005.51747199465,
+          "workers": 8
+        }
+      ],
+      "taskMicroseconds": 10
+    },
+    {
+      "modes": [
+        {
+          "medianMs": 12.8936,
+          "mode": "serial",
+          "samplesMs": [
+            12.9648,
+            12.8936,
+            12.8137,
+            12.916,
+            12.8121
+          ],
+          "throughputJobsPerSecond": 9927.405844760191,
+          "workers": 1
+        },
+        {
+          "medianMs": 0.7324,
+          "mode": "std-async",
+          "samplesMs": [
+            0.9666,
+            0.751,
+            0.7155,
+            0.7137,
+            0.7324
+          ],
+          "speedupVsSerial": 17.60458765701802,
+          "throughputJobsPerSecond": 174767.88640087383,
+          "workers": 128
+        },
+        {
+          "medianMs": 13.3226,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            13.4941,
+            13.2965,
+            13.2551,
+            13.3226,
+            13.3506
+          ],
+          "speedupVsSerial": 0.9677990782579977,
+          "statistics": {
+            "executionNanoseconds": 12925100,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 867912200,
+            "sleepCount": 1,
+            "stealAttempts": 0,
+            "successfulSteals": 0,
+            "workerUtilization": 96.61098030421945
+          },
+          "throughputJobsPerSecond": 9607.73422605197,
+          "workers": 1
+        },
+        {
+          "medianMs": 7.066,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            7.0256,
+            7.007,
+            7.0926,
+            7.066,
+            7.186
+          ],
+          "speedupVsSerial": 1.8247381828474383,
+          "statistics": {
+            "executionNanoseconds": 12860900,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 497073400,
+            "sleepCount": 2,
+            "stealAttempts": 2,
+            "successfulSteals": 0,
+            "workerUtilization": 89.00153631091611
+          },
+          "throughputJobsPerSecond": 18114.91650155675,
+          "workers": 2
+        },
+        {
+          "medianMs": 4.2051,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            4.3754,
+            4.2657,
+            4.2,
+            4.2051,
+            4.1835
+          ],
+          "speedupVsSerial": 3.0661815414615585,
+          "statistics": {
+            "executionNanoseconds": 12812600,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 310269300,
+            "sleepCount": 4,
+            "stealAttempts": 12,
+            "successfulSteals": 0,
+            "workerUtilization": 75.47834487958905
+          },
+          "throughputJobsPerSecond": 30439.22855580129,
+          "workers": 4
+        },
+        {
+          "medianMs": 3.292,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            3.2445,
+            3.3342,
+            3.292,
+            3.3093,
+            3.2656
+          ],
+          "speedupVsSerial": 3.9166464155528553,
+          "statistics": {
+            "executionNanoseconds": 12810900,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 272388000,
+            "sleepCount": 8,
+            "stealAttempts": 56,
+            "successfulSteals": 0,
+            "workerUtilization": 47.70929539699091
+          },
+          "throughputJobsPerSecond": 38882.13851761847,
+          "workers": 8
+        }
+      ],
+      "taskMicroseconds": 100
+    },
+    {
+      "modes": [
+        {
+          "medianMs": 128.0002,
+          "mode": "serial",
+          "samplesMs": [
+            128.0001,
+            128.0,
+            128.0004,
+            128.0874,
+            128.0002
+          ],
+          "throughputJobsPerSecond": 999.9984375024413,
+          "workers": 1
+        },
+        {
+          "medianMs": 6.1411,
+          "mode": "std-async",
+          "samplesMs": [
+            6.1739,
+            6.1425,
+            6.1109,
+            6.1411,
+            6.1207
+          ],
+          "speedupVsSerial": 20.843203986256537,
+          "throughputJobsPerSecond": 20843.17141880119,
+          "workers": 128
+        },
+        {
+          "medianMs": 128.5623,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            128.5472,
+            128.5623,
+            128.5269,
+            128.6725,
+            128.5863
+          ],
+          "speedupVsSerial": 0.9956278006849598,
+          "statistics": {
+            "executionNanoseconds": 128041900,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 8191394700,
+            "sleepCount": 1,
+            "stealAttempts": 0,
+            "successfulSteals": 0,
+            "workerUtilization": 99.54434493267406
+          },
+          "throughputJobsPerSecond": 995.626245018952,
+          "workers": 1
+        },
+        {
+          "medianMs": 64.8539,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            64.8539,
+            64.8297,
+            64.8079,
+            64.8632,
+            64.9495
+          ],
+          "speedupVsSerial": 1.9736700491412238,
+          "statistics": {
+            "executionNanoseconds": 128281700,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 4109664400,
+            "sleepCount": 2,
+            "stealAttempts": 2,
+            "successfulSteals": 0,
+            "workerUtilization": 98.6799007367817
+          },
+          "throughputJobsPerSecond": 1973.6669652865905,
+          "workers": 2
+        },
+        {
+          "medianMs": 33.4274,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            33.4947,
+            33.4365,
+            33.4274,
+            33.4099,
+            33.4013
+          ],
+          "speedupVsSerial": 3.829199997606754,
+          "statistics": {
+            "executionNanoseconds": 128018800,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 2099777500,
+            "sleepCount": 4,
+            "stealAttempts": 12,
+            "successfulSteals": 0,
+            "workerUtilization": 95.64319568712533
+          },
+          "throughputJobsPerSecond": 3829.1940144911064,
+          "workers": 4
+        },
+        {
+          "medianMs": 18.1649,
+          "mode": "chika-jobs",
+          "samplesMs": [
+            18.1286,
+            18.2697,
+            18.2646,
+            18.1416,
+            18.1649
+          ],
+          "speedupVsSerial": 7.046567831367088,
+          "statistics": {
+            "executionNanoseconds": 128014500,
+            "injectionPops": 128,
+            "localPops": 1,
+            "queueWaitNanoseconds": 1173934300,
+            "sleepCount": 8,
+            "stealAttempts": 56,
+            "successfulSteals": 0,
+            "workerUtilization": 87.4506779392396
+          },
+          "throughputJobsPerSecond": 7046.556821122055,
+          "workers": 8
+        }
+      ],
+      "taskMicroseconds": 1000
+    }
+  ],
+  "schemaVersion": 1,
+  "tasksPerRun": 128
+}

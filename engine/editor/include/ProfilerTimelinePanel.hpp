@@ -29,7 +29,13 @@ namespace ChikaEngine::Editor
         }
 
       private:
+        /** @brief Draws CPU/GPU zones and causal instant markers on stable thread lanes. */
         void DrawTimeline(const Profiler::ProfilerFrameCapture& capture);
+
+        /** @brief Shows the latest value of each counter captured in the selected frame. */
+        void DrawCounters(const Profiler::ProfilerFrameCapture& capture);
+
+        /** @brief Aggregates CPU zones by name to expose exclusive-time hotspots. */
         void DrawHotspots(const Profiler::ProfilerFrameCapture& capture);
 
         std::vector<std::shared_ptr<const Profiler::ProfilerFrameCapture>> m_frames;

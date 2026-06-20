@@ -9,6 +9,16 @@
 
 namespace ChikaEngine::Profiler
 {
+    struct ProfilerNameHash
+    {
+        using is_transparent = void;
+
+        size_t operator()(std::string_view value) const noexcept
+        {
+            return std::hash<std::string_view>{}(value);
+        }
+    };
+
     /**
      * @brief Interns profiler names once and exposes stable process-local IDs.
      *
@@ -27,7 +37,7 @@ namespace ChikaEngine::Profiler
         ProfilerNameRegistry();
 
         mutable std::mutex m_mutex;
-        std::unordered_map<std::string, uint32_t> m_ids;
+        std::unordered_map<std::string, uint32_t, ProfilerNameHash, std::equal_to<>> m_ids;
         std::vector<std::string> m_names;
     };
 } // namespace ChikaEngine::Profiler

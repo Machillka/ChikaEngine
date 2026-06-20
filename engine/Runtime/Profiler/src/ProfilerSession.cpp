@@ -147,7 +147,7 @@ namespace ChikaEngine::Profiler
         Record(event);
     }
 
-    void ProfilerSession::RecordInstant(uint32_t nameId)
+    void ProfilerSession::RecordInstant(uint32_t nameId, uint64_t payload)
     {
         if (!IsEnabled())
             return;
@@ -155,6 +155,7 @@ namespace ChikaEngine::Profiler
         event.timestampNs = ProfilerClock::NowNanoseconds();
         event.nameId = nameId;
         event.type = ProfilerEventType::Instant;
+        event.payload = payload;
         Record(event);
     }
 

@@ -21,6 +21,7 @@ target_link_libraries(${TARGET_NAME}
         ChikaThirdParty
         ChikaCore
         ChikaProfiler
+        ChikaJobs
         ChikaAsset
         ChikaRHI
         ChikaResource

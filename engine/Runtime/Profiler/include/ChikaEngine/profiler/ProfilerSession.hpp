@@ -69,7 +69,7 @@ namespace ChikaEngine::Profiler
         void RecordCounter(uint32_t nameId, double value);
 
         /** @brief Emits a zero-duration point event into the current frame. */
-        void RecordInstant(uint32_t nameId);
+        void RecordInstant(uint32_t nameId, uint64_t payload = 0);
 
         /** @brief Correlates delayed GPU query results with their originating CPU frame ID. */
         void SubmitGpuTimings(std::span<const ProfilerGpuTiming> timings);

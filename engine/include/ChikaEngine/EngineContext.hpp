@@ -23,6 +23,11 @@ namespace ChikaEngine::Platform
     class IWindow;
 }
 
+namespace ChikaEngine::Jobs
+{
+    class JobSystem;
+}
+
 namespace ChikaEngine::Engine
 {
     struct EngineContextCreateInfo
@@ -36,6 +41,9 @@ namespace ChikaEngine::Engine
         Render::RenderPipelineMode renderPipeline = Render::RenderPipelineMode::Forward;
         float fixedDeltaTime = 1.0f / 60.0f;
         uint32_t maxPhysicsStepsPerFrame = 4;
+        bool enableJobs = true;
+        uint32_t jobWorkerCount = 0;
+        uint32_t reservedJobThreads = 2;
         Project::RuntimeMode runtimeMode = Project::RuntimeMode::Editor;
         std::filesystem::path contentRoot = "Assets";
         bool createContentRoot = true;
@@ -83,6 +91,11 @@ namespace ChikaEngine::Engine
             return m_renderer.get();
         }
 
+        Jobs::JobSystem* GetJobSystem() const
+        {
+            return m_jobSystem.get();
+        }
+
         Framework::Scene* GetScene() const;
 
         Framework::SceneManager* GetSceneManager() const
@@ -99,6 +112,7 @@ namespace ChikaEngine::Engine
         EngineContextCreateInfo m_createInfo;
         std::unique_ptr<Platform::IWindow> m_window;
         std::unique_ptr<Asset::AssetManager> m_assetManager;
+        std::unique_ptr<Jobs::JobSystem> m_jobSystem;
         std::unique_ptr<Render::Renderer> m_renderer;
         std::unique_ptr<Framework::SceneManager> m_sceneManager;
         bool m_initialized = false;

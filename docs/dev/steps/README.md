@@ -19,8 +19,10 @@
 ## Current Status
 
 - Phase 0 completed on 2026-06-19: independent benchmark, deterministic workloads, delayed GPU correlation and the serial baseline are implemented.
-- Raw results and analysis: `../results/baseline/`.
-- Next action: Step 1.1 Profiler Event Contract. Do not start Job System or parallel Renderer work before profiler overhead and frame-correlation gates exist.
+- Phase 1 completed on 2026-06-19: unified CPU/GPU profiler, editor timeline, Perfetto export and overhead gate are implemented.
+- Phase 2 completed on 2026-06-20: engine-owned Job System, dependencies, wait-help, profiler, Asset workload and read-only Renderer integration are implemented.
+- Raw results: `../results/baseline/`, `../results/profiler/`, `../results/jobs/`.
+- Next action: Step 3.1 Render serial oracle. Phase 3 must keep ResourceManager and RHI access off worker threads.
 
 ## Step Index
 
