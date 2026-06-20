@@ -18,7 +18,7 @@ namespace ChikaEngine::Profiler
         if (name.empty())
             return 0;
         std::lock_guard lock(m_mutex);
-        const auto existing = m_ids.find(std::string(name));
+        const auto existing = m_ids.find(name);
         if (existing != m_ids.end())
             return existing->second;
         const uint32_t id = static_cast<uint32_t>(m_names.size());

@@ -36,6 +36,7 @@ namespace ChikaEngine::Render
         m_pipeline.Initialize({
             .rhi = m_deviceContext.GetRHI(),
             .assetManager = m_assetManager,
+            .jobSystem = createInfo.jobSystem,
             .resourceManager = m_resourceSystem.GetResourceManager(),
             .settings = &m_settings,
             .width = createInfo.width,

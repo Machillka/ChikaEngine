@@ -6,27 +6,10 @@
 #include "ChikaEngine/ShaderTemplateLoader.hpp"
 #include "ChikaEngine/TextureLoader.hpp"
 #include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/jobs/JobSystem.hpp"
 
 namespace ChikaEngine::Asset
 {
-    namespace
-    {
-        template <typename Handle, typename Data, typename Loader> Handle LoadCached(const std::string& cachePath, const std::string& loadPath, Core::SlotMap<Handle, Data>& slots, std::unordered_map<std::string, Handle>& cache, Loader&& loader)
-        {
-            const auto cached = cache.find(cachePath);
-            if (cached != cache.end())
-                return cached->second;
-
-            auto data = loader(loadPath);
-            if (!data)
-                return Handle::Invalid();
-
-            const Handle handle = slots.Create(*data);
-            cache[cachePath] = handle;
-            return handle;
-        }
-    } // namespace
-
     AssetManager::~AssetManager()
     {
         Shutdown();
@@ -46,6 +29,7 @@ namespace ChikaEngine::Asset
         {
             std::lock_guard asyncLock(m_asyncMutex);
             m_shuttingDown = false;
+            m_jobSystem = createInfo.jobSystem;
         }
         m_importers = ImporterRegistry::CreateDefault();
         m_enableImporting = createInfo.importAssets;
@@ -67,6 +51,11 @@ namespace ChikaEngine::Asset
             std::unique_lock lock(m_asyncMutex);
             m_shuttingDown = true;
             m_asyncCondition.wait(lock, [this] { return m_activeAsyncLoads == 0; });
+            m_textureAsyncRequests.clear();
+            m_meshAsyncRequests.clear();
+            m_shaderAsyncRequests.clear();
+            m_materialAsyncRequests.clear();
+            m_jobSystem = nullptr;
         }
         UnloadAll();
         m_database.Shutdown();
@@ -123,62 +112,32 @@ namespace ChikaEngine::Asset
 
     MeshHandle AssetManager::LoadMesh(const std::string& path)
     {
-        std::lock_guard lock(m_assetMutex);
-        const std::string cachePath = NormalizeCachePath(path);
-        const std::string loadPath = ResolveImportedPath(path);
-        const auto handle = LoadCached(cachePath, loadPath, m_meshes, m_meshPathCache, MeshLoader::Load);
-        TrackLoadedFile(cachePath, loadPath);
-        return handle;
+        return LoadCachedAsset(path, m_meshes, m_meshPathCache, MeshLoader::Load);
     }
 
     TextureHandle AssetManager::LoadTexture(const std::string& path)
     {
-        std::lock_guard lock(m_assetMutex);
-        const std::string cachePath = NormalizeCachePath(path);
-        const std::string loadPath = ResolveImportedPath(path);
-        const auto handle = LoadCached(cachePath, loadPath, m_textures, m_texturePathCache, TextureLoader::Load);
-        TrackLoadedFile(cachePath, loadPath);
-        return handle;
+        return LoadCachedAsset(path, m_textures, m_texturePathCache, TextureLoader::Load);
     }
 
     ShaderHandle AssetManager::LoadShader(const std::string& path)
     {
-        std::lock_guard lock(m_assetMutex);
-        const std::string cachePath = NormalizeCachePath(path);
-        const std::string loadPath = ResolveImportedPath(path);
-        const auto handle = LoadCached(cachePath, loadPath, m_shaders, m_shaderPathCache, ShaderLoader::Load);
-        TrackLoadedFile(cachePath, loadPath);
-        return handle;
+        return LoadCachedAsset(path, m_shaders, m_shaderPathCache, ShaderLoader::Load);
     }
 
     ShaderTemplateHandle AssetManager::LoadShaderTemplate(const std::string& path)
     {
-        std::lock_guard lock(m_assetMutex);
-        const std::string cachePath = NormalizeCachePath(path);
-        const std::string loadPath = ResolveImportedPath(path);
-        const auto handle = LoadCached(cachePath, loadPath, m_shaderTemplates, m_shaderTemplatePathCache, ShaderTemplateLoader::Load);
-        TrackLoadedFile(cachePath, loadPath);
-        return handle;
+        return LoadCachedAsset(path, m_shaderTemplates, m_shaderTemplatePathCache, ShaderTemplateLoader::Load);
     }
 
     MaterialHandle AssetManager::LoadMaterial(const std::string& path)
     {
-        std::lock_guard lock(m_assetMutex);
-        const std::string cachePath = NormalizeCachePath(path);
-        const std::string loadPath = ResolveImportedPath(path);
-        const auto handle = LoadCached(cachePath, loadPath, m_materials, m_materialPathCache, MaterialLoader::Load);
-        TrackLoadedFile(cachePath, loadPath);
-        return handle;
+        return LoadCachedAsset(path, m_materials, m_materialPathCache, MaterialLoader::Load);
     }
 
     AnimationClipHandle AssetManager::LoadAnimationClip(const std::string& path)
     {
-        std::lock_guard lock(m_assetMutex);
-        const std::string cachePath = NormalizeCachePath(path);
-        const std::string loadPath = ResolveImportedPath(path);
-        const auto handle = LoadCached(cachePath, loadPath, m_animationClips, m_animationClipPathCache, AnimationLoader::Load);
-        TrackLoadedFile(cachePath, loadPath);
-        return handle;
+        return LoadCachedAsset(path, m_animationClips, m_animationClipPathCache, AnimationLoader::Load);
     }
 
     TextureHandle AssetManager::LoadTexture(const AssetGuid& guid)
@@ -282,42 +241,98 @@ namespace ChikaEngine::Asset
 
     std::shared_future<TextureHandle> AssetManager::LoadTextureAsync(std::string path)
     {
-        return LaunchAsync<TextureHandle>([this, path = std::move(path)] { return LoadTexture(path); });
+        const std::string key = NormalizeCachePath(path);
+        return LaunchAsync<TextureHandle>("Asset.LoadTexture",
+                                          key,
+                                          m_textureAsyncRequests,
+                                          [this, path = std::move(path)]
+                                          {
+                                              const TextureHandle handle = LoadTexture(path);
+                                              if (!handle.IsValid())
+                                                  throw std::runtime_error("failed to load texture: " + path);
+                                              return handle;
+                                          });
     }
 
     std::shared_future<MeshHandle> AssetManager::LoadMeshAsync(std::string path)
     {
-        return LaunchAsync<MeshHandle>([this, path = std::move(path)] { return LoadMesh(path); });
+        const std::string key = NormalizeCachePath(path);
+        return LaunchAsync<MeshHandle>("Asset.LoadMesh",
+                                       key,
+                                       m_meshAsyncRequests,
+                                       [this, path = std::move(path)]
+                                       {
+                                           const MeshHandle handle = LoadMesh(path);
+                                           if (!handle.IsValid())
+                                               throw std::runtime_error("failed to load mesh: " + path);
+                                           return handle;
+                                       });
     }
 
     std::shared_future<ShaderHandle> AssetManager::LoadShaderAsync(std::string path)
     {
-        return LaunchAsync<ShaderHandle>([this, path = std::move(path)] { return LoadShader(path); });
+        const std::string key = NormalizeCachePath(path);
+        return LaunchAsync<ShaderHandle>("Asset.LoadShader",
+                                         key,
+                                         m_shaderAsyncRequests,
+                                         [this, path = std::move(path)]
+                                         {
+                                             const ShaderHandle handle = LoadShader(path);
+                                             if (!handle.IsValid())
+                                                 throw std::runtime_error("failed to load shader: " + path);
+                                             return handle;
+                                         });
     }
 
     std::shared_future<MaterialHandle> AssetManager::LoadMaterialAsync(std::string path)
     {
-        return LaunchAsync<MaterialHandle>([this, path = std::move(path)] { return LoadMaterial(path); });
+        const std::string key = NormalizeCachePath(path);
+        return LaunchAsync<MaterialHandle>("Asset.LoadMaterial",
+                                           key,
+                                           m_materialAsyncRequests,
+                                           [this, path = std::move(path)]
+                                           {
+                                               const MaterialHandle handle = LoadMaterial(path);
+                                               if (!handle.IsValid())
+                                                   throw std::runtime_error("failed to load material: " + path);
+                                               return handle;
+                                           });
     }
 
     bool AssetManager::Unload(TextureHandle handle)
     {
-        return UnloadFromCache(handle, m_textures, m_texturePathCache);
+        std::string unloadedPath;
+        const bool unloaded = UnloadFromCache(handle, m_textures, m_texturePathCache, &unloadedPath);
+        if (unloaded)
+            ClearAsyncRequest(m_textureAsyncRequests, unloadedPath);
+        return unloaded;
     }
 
     bool AssetManager::Unload(MeshHandle handle)
     {
-        return UnloadFromCache(handle, m_meshes, m_meshPathCache);
+        std::string unloadedPath;
+        const bool unloaded = UnloadFromCache(handle, m_meshes, m_meshPathCache, &unloadedPath);
+        if (unloaded)
+            ClearAsyncRequest(m_meshAsyncRequests, unloadedPath);
+        return unloaded;
     }
 
     bool AssetManager::Unload(ShaderHandle handle)
     {
-        return UnloadFromCache(handle, m_shaders, m_shaderPathCache);
+        std::string unloadedPath;
+        const bool unloaded = UnloadFromCache(handle, m_shaders, m_shaderPathCache, &unloadedPath);
+        if (unloaded)
+            ClearAsyncRequest(m_shaderAsyncRequests, unloadedPath);
+        return unloaded;
     }
 
     bool AssetManager::Unload(MaterialHandle handle)
     {
-        return UnloadFromCache(handle, m_materials, m_materialPathCache);
+        std::string unloadedPath;
+        const bool unloaded = UnloadFromCache(handle, m_materials, m_materialPathCache, &unloadedPath);
+        if (unloaded)
+            ClearAsyncRequest(m_materialAsyncRequests, unloadedPath);
+        return unloaded;
     }
 
     bool AssetManager::Unload(ShaderTemplateHandle handle)
@@ -384,11 +399,20 @@ namespace ChikaEngine::Asset
         return m_animationClips.Get(handle);
     }
 
-    void AssetManager::FinishAsyncLoad()
+    bool AssetManager::ScheduleAssetJob(std::string_view name, std::function<void()> function)
     {
-        std::lock_guard lock(m_asyncMutex);
-        --m_activeAsyncLoads;
-        m_asyncCondition.notify_all();
+        if (!m_jobSystem)
+            return false;
+        auto sharedFunction = std::make_shared<std::function<void()>>(std::move(function));
+        const Jobs::JobHandle handle = m_jobSystem->Schedule(name, [sharedFunction] { (*sharedFunction)(); });
+        if (!handle.IsValid())
+            return false;
+        if (m_jobSystem->GetState(handle) == Jobs::JobState::Cancelled)
+        {
+            m_jobSystem->Release(handle);
+            return false;
+        }
+        return m_jobSystem->Detach(handle);
     }
 
     std::string AssetManager::NormalizeCachePath(const std::string& path) const

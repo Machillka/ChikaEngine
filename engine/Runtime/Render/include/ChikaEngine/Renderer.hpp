@@ -10,12 +10,18 @@
 #include <cstdint>
 #include <memory>
 
+namespace ChikaEngine::Jobs
+{
+    class JobSystem;
+}
+
 namespace ChikaEngine::Render
 {
     struct RendererCreateInfo
     {
         void* windowHandle = nullptr;
         Asset::AssetManager* assetManager = nullptr;
+        Jobs::JobSystem* jobSystem = nullptr;
         uint32_t width = 1920;
         uint32_t height = 1080;
         RHIBackendTypes backendType = RHIBackendTypes::Default;

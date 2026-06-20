@@ -83,7 +83,7 @@ namespace ChikaEngine::Profiler
                     break;
                 }
                 case ProfilerEventType::Instant:
-                    capture->instants.push_back({ event.nameId, threadId, event.timestampNs });
+                    capture->instants.push_back({ event.nameId, threadId, event.timestampNs, event.payload });
                     break;
                 default:
                     break;

@@ -3,7 +3,7 @@
 ## Metadata
 
 - Date: 2026-06-19
-- Status: Future Plan
+- Status: Phase 2 Complete (2026-06-20)
 - Depends on: Unified Profiler event contract
 - Priority: P0
 
@@ -11,12 +11,12 @@
 
 建立由 EngineContext 管理生命周期、可表达依赖、可被 Profiler 观察的通用 Job System，并用 Renderer 与 Asset 工作负载证明它不是独立并发练习。
 
-## 当前边界
+## 当前实现边界
 
-- `Core/threads/TSQueue` 目前为空，没有引擎级 Worker Pool。
-- AssetManager 的异步 API 使用每次 `std::async`，缺少统一线程预算、优先级和关闭语义。
-- Jolt 使用自己的 JobSystemThreadPool，不应直接当作引擎通用调度器。
-- Visibility、Render Queue 和 Render Bridge 主要串行执行。
+- `ChikaJobs` 已提供有界 Job Storage、generation handle、injection/local queue、work stealing、依赖、Parent/Child、wait-help 和两种关闭策略。
+- AssetManager 已移除直接 `std::async`；CPU 读取/解析使用注入 JobSystem，GPU 上传仍留在 Resource/Render 线程边界。
+- Renderer 当前只并发主视图和阴影视图两个完整 Visibility 工作；对象级分块、Packet、Sort 仍属于 Phase 3。
+- Jolt 保持自己的线程池，首版不强行统一物理调度器。
 
 ## 设计原则
 
@@ -105,4 +105,23 @@ Job Completion Counter
 - 首版不统一替换 Jolt 内部 Job System。
 - 首版不做复杂 Priority Inheritance、NUMA 和跨进程调度。
 - 不在没有数据支持时实现 Lock-free MPMC 结构。
+
+## Phase 2 Delivery Summary
+
+```text
+EngineContext
+  -> JobSystem (owns workers and bounded storage)
+  -> AssetManager (submits CPU load jobs)
+  -> Renderer (submits read-only visibility jobs)
+
+External submit -> Injection FIFO
+Worker child    -> Local LIFO
+Idle worker     -> Remote FIFO steal -> Condition Variable sleep
+Completion      -> Dependents / Parent counter / Waiter notification
+```
+
+- 正确性：100 万短任务无丢失/重复；Chain、Diamond、Fan-in/Fan-out、异常、Cancel、Drain 和 generation 测试通过。
+- 可观测性：Worker lane、Job Zone、因果 instant、queue/worker counter 和 Perfetto payload 已接入统一 Profiler。
+- 性能：原始 Release 结果位于 `docs/dev/results/jobs/scheduler.json`；当前有锁实现的合理粒度约从 100 us 开始，不能用于 1 us 碎任务。
+- 下一步：Phase 3 先建立串行 Render oracle 和 data-oriented instance view，再做对象级 Parallel Visibility；不要继续扩大 Phase 2 的调度 API。
 

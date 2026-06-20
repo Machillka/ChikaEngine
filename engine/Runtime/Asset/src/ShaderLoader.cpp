@@ -14,6 +14,8 @@ namespace ChikaEngine::Asset
         data->path = path;
 
         std::ifstream file(path, std::ios::binary);
+        if (!file)
+            return nullptr;
         data->spirv = std::vector<uint8_t>(std::istreambuf_iterator<char>(file), {});
 
         // Reflection 属于导入产物；缺失时仍允许加载旧/外部 SPIR-V，但不会进入 Reflection Pipeline 路径。

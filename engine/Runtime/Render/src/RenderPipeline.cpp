@@ -6,6 +6,7 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/math/mat4.h"
 #include "ChikaEngine/math/vector3.h"
+#include "ChikaEngine/jobs/JobSystem.hpp"
 #include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <algorithm>
 #include <array>
@@ -34,6 +35,7 @@ namespace ChikaEngine::Render
         m_viewportWidth = createInfo.width;
         m_viewportHeight = createInfo.height;
         m_assetMgr = createInfo.assetManager;
+        m_jobSystem = createInfo.jobSystem;
         m_resourceMgr = createInfo.resourceManager;
         m_rhi = createInfo.rhi;
         m_settings = createInfo.settings;
@@ -810,19 +812,52 @@ namespace ChikaEngine::Render
         if (!primaryView)
             return;
 
-        const VisibilityResult mainVisibility = BuildVisibility(*m_snapshot, *primaryView);
+        VisibilityResult mainVisibility;
         VisibilityResult shadowVisibility;
+        RenderView shadowView;
         if (!m_snapshot->lights.empty())
         {
             const RenderLightProxy& light = m_snapshot->lights.front().proxy;
-            RenderView shadowView{
+            shadowView = {
                 .viewProjection = light.viewProjection,
                 .layerMask = light.layerMask,
             };
-            shadowVisibility = BuildVisibility(*m_snapshot, shadowView, true);
         }
         else
-            shadowVisibility = BuildVisibility(*m_snapshot, *primaryView, true);
+            shadowView = *primaryView;
+
+        const bool parallelVisibility = m_jobSystem && m_snapshot->objects.size() >= 2'048;
+        if (parallelVisibility)
+        {
+            const RenderWorldSnapshot* snapshot = m_snapshot.get();
+            const Jobs::JobHandle mainJob = m_jobSystem->Schedule("Renderer.Visibility.Main", [snapshot, primaryView, &mainVisibility] { mainVisibility = BuildVisibility(*snapshot, *primaryView); });
+            const Jobs::JobHandle shadowJob = m_jobSystem->Schedule("Renderer.Visibility.Shadow", [snapshot, &shadowView, &shadowVisibility] { shadowVisibility = BuildVisibility(*snapshot, shadowView, true); });
+            bool parallelSucceeded = mainJob.IsValid() && shadowJob.IsValid();
+            for (const Jobs::JobHandle handle : { mainJob, shadowJob })
+            {
+                if (!handle.IsValid())
+                    continue;
+                try
+                {
+                    m_jobSystem->Wait(handle);
+                }
+                catch (...)
+                {
+                    parallelSucceeded = false;
+                }
+                m_jobSystem->Release(handle);
+            }
+            if (!parallelSucceeded)
+            {
+                mainVisibility = BuildVisibility(*m_snapshot, *primaryView);
+                shadowVisibility = BuildVisibility(*m_snapshot, shadowView, true);
+            }
+        }
+        else
+        {
+            mainVisibility = BuildVisibility(*m_snapshot, *primaryView);
+            shadowVisibility = BuildVisibility(*m_snapshot, shadowView, true);
+        }
 
         m_visibleObjectCount = mainVisibility.visibleObjectCount;
         m_culledObjectCount = mainVisibility.culledObjectCount;
@@ -901,6 +936,7 @@ namespace ChikaEngine::Render
         m_snapshot.reset();
         m_renderGraph.reset();
         m_resourceMgr = nullptr;
+        m_jobSystem = nullptr;
         m_rhi = nullptr;
         m_assetMgr = nullptr;
         m_settings = nullptr;

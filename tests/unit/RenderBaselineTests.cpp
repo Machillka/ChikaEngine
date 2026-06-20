@@ -10,6 +10,7 @@
 #include "ChikaEngine/RenderWorld.hpp"
 #include "ChikaEngine/Renderer.hpp"
 #include "ChikaEngine/debug/Gizmo.hpp"
+#include "ChikaEngine/jobs/JobSystem.hpp"
 #include "ChikaEngine/math/Bounds.hpp"
 #include "ChikaEngine/profiler/ProfilerName.hpp"
 #include "ChikaEngine/profiler/ProfilerSession.hpp"
@@ -401,6 +402,63 @@ namespace
     }
 
     /**
+     * @brief 验证只读 RenderWorldSnapshot 可由 Job 并行消费且结果与串行路径一致。
+     *
+     * Phase 2 只并行两个独立 View 的纯 Visibility 工作，不允许 Worker 访问 ResourceManager 或 RHI。
+     */
+    void TestParallelVisibilityMatchesSerial()
+    {
+        using namespace ChikaEngine;
+        using namespace ChikaEngine::Render;
+
+        RenderWorldSnapshot snapshot;
+        snapshot.objects.reserve(4'096);
+        for (uint32_t index = 0; index < 4'096; ++index)
+        {
+            RenderObjectProxy proxy;
+            proxy.bounds = {
+                .center = { index % 3 == 0 ? 4.0f : 0.0f, 0.0f, 0.5f },
+                .extents = { 0.1f, 0.1f, 0.1f },
+                .sphereRadius = 0.2f,
+                .valid = true,
+            };
+            if (index % 5 == 0)
+                proxy.flags = RenderObjectFlags::Visible;
+            snapshot.objects.push_back({ RenderObjectHandle::FromParts(index + 1, 1), std::move(proxy) });
+        }
+
+        const RenderView view{ .viewProjection = Math::Mat4::Identity() };
+        const VisibilityResult serialMain = BuildVisibility(snapshot, view);
+        const VisibilityResult serialShadow = BuildVisibility(snapshot, view, true);
+
+        Jobs::JobSystem jobs;
+        Check(jobs.Initialize({ .workerCount = 4 }), "parallel visibility scheduler initializes");
+        VisibilityResult parallelMain;
+        VisibilityResult parallelShadow;
+        const Jobs::JobHandle mainJob = jobs.Schedule("Test.Visibility.Main", [&] { parallelMain = BuildVisibility(snapshot, view); });
+        const Jobs::JobHandle shadowJob = jobs.Schedule("Test.Visibility.Shadow", [&] { parallelShadow = BuildVisibility(snapshot, view, true); });
+        jobs.Wait(mainJob);
+        jobs.Wait(shadowJob);
+
+        const auto sameHandles = [](const VisibilityResult& lhs, const VisibilityResult& rhs)
+        {
+            if (lhs.visibleObjects.size() != rhs.visibleObjects.size())
+                return false;
+            for (size_t index = 0; index < lhs.visibleObjects.size(); ++index)
+            {
+                if (lhs.visibleObjects[index]->handle != rhs.visibleObjects[index]->handle)
+                    return false;
+            }
+            return true;
+        };
+        Check(sameHandles(serialMain, parallelMain), "parallel main visibility must match serial order and membership");
+        Check(sameHandles(serialShadow, parallelShadow), "parallel shadow visibility must match serial order and membership");
+        jobs.Release(mainJob);
+        jobs.Release(shadowJob);
+        jobs.Shutdown();
+    }
+
+    /**
      * @brief 验证 Opaque 稳定排序会把相同状态 Packet 合并成可实例化 Batch。
      */
     void TestRenderQueueSortAndBatch()
@@ -755,6 +813,7 @@ int main()
     TestRenderWorldLifecycleAndSnapshot();
     TestBoundsTransform();
     TestFrustumVisibility();
+    TestParallelVisibilityMatchesSerial();
     TestRenderQueueSortAndBatch();
     TestRenderDebugVisualization();
     TestRHIStatisticsAndNames();

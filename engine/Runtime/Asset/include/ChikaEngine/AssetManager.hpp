@@ -31,6 +31,11 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+namespace ChikaEngine::Jobs
+{
+    class JobSystem;
+}
+
 namespace ChikaEngine::Asset
 {
     struct AssetReloadEvent
@@ -49,6 +54,7 @@ namespace ChikaEngine::Asset
         bool createMissingMeta = true;
         bool importAssets = true;
         bool enableHotReload = true;
+        Jobs::JobSystem* jobSystem = nullptr;
     };
 
     class AssetManager
@@ -134,42 +140,98 @@ namespace ChikaEngine::Asset
         const AnimationClipData* GetAnimationClip(AnimationClipHandle h) const;
 
       private:
-        template <typename Result, typename Function> std::shared_future<Result> LaunchAsync(Function&& function)
+        template <typename Result, typename Function> std::shared_future<Result> LaunchAsync(std::string_view jobName, std::string cacheKey, std::unordered_map<std::string, std::shared_future<Result>>& requests, Function&& function)
         {
+            auto promise = std::make_shared<std::promise<Result>>();
+            std::shared_future<Result> future = promise->get_future().share();
             {
                 std::lock_guard lock(m_asyncMutex);
                 if (m_shuttingDown)
                     throw std::runtime_error("AssetManager is shutting down");
+                const auto existing = requests.find(cacheKey);
+                if (existing != requests.end())
+                    return existing->second;
                 ++m_activeAsyncLoads;
+                requests.emplace(cacheKey, future);
             }
 
-            try
+            auto task = [this, promise, requestKey = cacheKey, &requests, function = std::forward<Function>(function)](bool propagateFailure) mutable
             {
-                return std::async(std::launch::async,
-                                  [this, function = std::forward<Function>(function)]() mutable -> Result
-                                  {
-                                      try
-                                      {
-                                          Result result = function();
-                                          FinishAsyncLoad();
-                                          return result;
-                                      }
-                                      catch (...)
-                                      {
-                                          FinishAsyncLoad();
-                                          throw;
-                                      }
-                                  })
-                    .share();
-            }
-            catch (...)
+                try
+                {
+                    promise->set_value(function());
+                    FinishAsyncLoad(requests, requestKey, false);
+                }
+                catch (...)
+                {
+                    const std::exception_ptr exception = std::current_exception();
+                    FinishAsyncLoad(requests, requestKey, true);
+                    promise->set_exception(exception);
+                    if (propagateFailure)
+                        std::rethrow_exception(exception);
+                }
+            };
+
+            if (!m_jobSystem)
             {
-                FinishAsyncLoad();
-                throw;
+                task(false);
+                return future;
             }
+
+            if (!ScheduleAssetJob(jobName, [task = std::move(task)]() mutable { task(true); }))
+            {
+                FinishAsyncLoad(requests, cacheKey, true);
+                promise->set_exception(std::make_exception_ptr(std::runtime_error("JobSystem rejected asset load")));
+                return future;
+            }
+            return future;
         }
 
-        void FinishAsyncLoad();
+        /** @brief Completes async accounting and removes failed requests so callers may retry them. */
+        template <typename Result> void FinishAsyncLoad(std::unordered_map<std::string, std::shared_future<Result>>& requests, const std::string& cacheKey, bool eraseRequest)
+        {
+            std::lock_guard lock(m_asyncMutex);
+            if (eraseRequest)
+                requests.erase(cacheKey);
+            --m_activeAsyncLoads;
+            m_asyncCondition.notify_all();
+        }
+
+        /** @brief Invalidates one successful request future when its underlying handle is unloaded. */
+        template <typename Result> void ClearAsyncRequest(std::unordered_map<std::string, std::shared_future<Result>>& requests, const std::string& cacheKey)
+        {
+            std::lock_guard lock(m_asyncMutex);
+            requests.erase(cacheKey);
+        }
+
+        template <typename Handle, typename Data, typename Loader> Handle LoadCachedAsset(const std::string& path, Core::SlotMap<Handle, Data>& slots, std::unordered_map<std::string, Handle>& cache, Loader&& loader)
+        {
+            std::string cachePath;
+            std::string loadPath;
+            {
+                std::lock_guard lock(m_assetMutex);
+                cachePath = NormalizeCachePath(path);
+                const auto cached = cache.find(cachePath);
+                if (cached != cache.end())
+                    return cached->second;
+                loadPath = ResolveImportedPath(path);
+            }
+
+            auto data = loader(loadPath);
+            if (!data)
+                return Handle::Invalid();
+
+            std::lock_guard lock(m_assetMutex);
+            const auto cached = cache.find(cachePath);
+            if (cached != cache.end())
+                return cached->second;
+            const Handle handle = slots.Create(*data);
+            cache[cachePath] = handle;
+            TrackLoadedFile(cachePath, loadPath);
+            return handle;
+        }
+
+        bool ScheduleAssetJob(std::string_view name, std::function<void()> function);
         std::string NormalizeCachePath(const std::string& path) const;
         std::string ResolveImportedPath(const std::string& path);
         void TrackLoadedFile(const std::string& cachePath, const std::string& loadPath);
@@ -208,7 +270,7 @@ namespace ChikaEngine::Asset
             return reloadCount;
         }
 
-        template <typename Handle, typename Data> bool UnloadFromCache(Handle handle, Core::SlotMap<Handle, Data>& slots, std::unordered_map<std::string, Handle>& cache)
+        template <typename Handle, typename Data> bool UnloadFromCache(Handle handle, Core::SlotMap<Handle, Data>& slots, std::unordered_map<std::string, Handle>& cache, std::string* unloadedPath = nullptr)
         {
             std::lock_guard lock(m_assetMutex);
             if (!slots.Get(handle))
@@ -217,6 +279,8 @@ namespace ChikaEngine::Asset
             {
                 if (it->second == handle)
                 {
+                    if (unloadedPath && unloadedPath->empty())
+                        *unloadedPath = it->first;
                     m_loadedWriteTimes.erase(it->first);
                     it = cache.erase(it);
                 }
@@ -243,6 +307,11 @@ namespace ChikaEngine::Asset
         std::condition_variable m_asyncCondition;
         size_t m_activeAsyncLoads = 0;
         bool m_shuttingDown = false;
+        Jobs::JobSystem* m_jobSystem = nullptr;
+        std::unordered_map<std::string, std::shared_future<TextureHandle>> m_textureAsyncRequests;
+        std::unordered_map<std::string, std::shared_future<MeshHandle>> m_meshAsyncRequests;
+        std::unordered_map<std::string, std::shared_future<ShaderHandle>> m_shaderAsyncRequests;
+        std::unordered_map<std::string, std::shared_future<MaterialHandle>> m_materialAsyncRequests;
 
         Core::SlotMap<TextureHandle, TextureData> m_textures;
         Core::SlotMap<MeshHandle, MeshData> m_meshes;

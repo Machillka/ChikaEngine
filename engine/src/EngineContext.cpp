@@ -9,6 +9,7 @@
 #include "ChikaEngine/Window/WindowFactory.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
+#include "ChikaEngine/jobs/JobSystem.hpp"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include "ChikaEngine/scene/SceneManager.hpp"
@@ -67,6 +68,17 @@ namespace ChikaEngine::Engine
                 }
             }
 
+            if (createInfo.enableJobs)
+            {
+                m_jobSystem = std::make_unique<Jobs::JobSystem>();
+                if (!m_jobSystem->Initialize({ .workerCount = createInfo.jobWorkerCount, .reservedThreads = createInfo.reservedJobThreads }))
+                {
+                    LOG_ERROR("EngineContext", "Failed to initialize job system");
+                    Shutdown();
+                    return false;
+                }
+            }
+
             m_assetManager = std::make_unique<Asset::AssetManager>();
             if (!m_assetManager->Initialize({
                     .assetRoot = createInfo.contentRoot,
@@ -75,6 +87,7 @@ namespace ChikaEngine::Engine
                     .createMissingMeta = createInfo.createMissingMeta,
                     .importAssets = createInfo.importAssets,
                     .enableHotReload = createInfo.enableHotReload,
+                    .jobSystem = m_jobSystem.get(),
                 }))
             {
                 LOG_ERROR("EngineContext", "Failed to initialize asset manager");
@@ -86,6 +99,7 @@ namespace ChikaEngine::Engine
             Render::RendererCreateInfo rendererInfo{
                 .windowHandle = m_window->GetNativeHandle(),
                 .assetManager = m_assetManager.get(),
+                .jobSystem = m_jobSystem.get(),
                 .width = m_window->GetWidth(),
                 .height = m_window->GetHeight(),
                 .backendType = createInfo.rendererBackend,
@@ -142,6 +156,12 @@ namespace ChikaEngine::Engine
 
         m_assetManager.reset();
 
+        if (m_jobSystem)
+        {
+            m_jobSystem->Shutdown(Jobs::JobShutdownPolicy::Drain);
+            m_jobSystem.reset();
+        }
+
         if (m_scriptsInitialized)
         {
             Scripts::ScriptsSystem::Instance().Shutdown();
@@ -183,6 +203,8 @@ namespace ChikaEngine::Engine
             Input::InputSystem::Update();
         if (m_assetManager && m_createInfo.enableHotReload)
             m_assetManager->TickHotReload();
+        if (m_jobSystem)
+            m_jobSystem->PumpMainThreadJobs();
 
         return m_timeInitialized ? Time::TimeSystem::GetDeltaTime() : 0.0f;
     }
