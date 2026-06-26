@@ -22,8 +22,9 @@
 - Phase 1 completed on 2026-06-19: unified CPU/GPU profiler, editor timeline, Perfetto export and overhead gate are implemented.
 - Phase 2 completed on 2026-06-20: engine-owned Job System, dependencies, wait-help, profiler, Asset workload and read-only Renderer integration are implemented.
 - Phase 3 completed on 2026-06-20: serial oracle, frame instance/resource views, object-level Visibility/Packet jobs, deterministic opaque sort and CPU scaling gate are implemented.
-- Raw results: `../results/baseline/`, `../results/profiler/`, `../results/jobs/`, `../results/cpu-renderer/`.
-- Next action: Step 4.1 GPU capability/fallback contract. Before GPU-driven work, preserve the Phase 3 hashes as the CPU oracle and address persistent RenderScene storage when CPU preparation becomes the priority.
+- Phase 4 completed on 2026-06-26: RHI capability/fallback, GPU-driven data contract, compute shader asset, RenderGraph reset/cull/consumer flow, visible-list shader indirection, indirect draw submission, CPU/GPU oracle, editor diagnostics and benchmark schema v3 are implemented. Static opaque GPU-driven correctness passes on `state-diversity`; Release performance matrix remains Phase 6 work.
+- Raw results: `../results/baseline/`, `../results/profiler/`, `../results/jobs/`, `../results/cpu-renderer/`, `../results/gpu-driven/`.
+- Next action: choose one Phase 5 renderer depth item only after collecting Release benchmark data; likely candidates are Hi-Z occlusion or secondary command recording depending on measured bottleneck.
 
 ## Step Index
 

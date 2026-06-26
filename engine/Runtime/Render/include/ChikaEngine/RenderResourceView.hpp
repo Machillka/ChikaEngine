@@ -10,6 +10,15 @@
 
 namespace ChikaEngine::Render
 {
+    struct RenderMeshMetadata
+    {
+        Resource::MeshHandle handle;
+        uint32_t indexCount = 0;
+        uint32_t firstIndex = 0;
+        int32_t vertexOffset = 0;
+        bool isUint32 = true;
+    };
+
     struct RenderMaterialMetadata
     {
         Resource::MaterialHandle handle;
@@ -24,17 +33,20 @@ namespace ChikaEngine::Render
       public:
         RenderResourceView() = default;
         RenderResourceView(std::vector<Resource::MeshHandle> meshes, std::vector<RenderMaterialMetadata> materials);
+        RenderResourceView(std::vector<RenderMeshMetadata> meshes, std::vector<RenderMaterialMetadata> materials);
 
         /** @brief Copies only packet-generation metadata on the owner thread before jobs start. */
         static RenderResourceView Build(const RenderWorldSnapshot& snapshot, const Resource::ResourceManager& resources);
 
         /** @brief Tests whether owner-thread validation accepted this mesh for the frame. */
         bool ContainsMesh(Resource::MeshHandle handle) const;
+        /** @brief Returns copied mesh metadata without consulting ResourceManager. */
+        const RenderMeshMetadata* FindMesh(Resource::MeshHandle handle) const;
         /** @brief Returns copied material metadata without consulting ResourceManager. */
         const RenderMaterialMetadata* FindMaterial(Resource::MaterialHandle handle) const;
 
       private:
-        std::unordered_set<Resource::MeshHandle> m_meshes;
+        std::unordered_map<Resource::MeshHandle, RenderMeshMetadata> m_meshes;
         std::unordered_map<Resource::MaterialHandle, RenderMaterialMetadata> m_materials;
     };
 } // namespace ChikaEngine::Render

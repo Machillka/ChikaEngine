@@ -35,6 +35,11 @@ int main()
     if (!validOptions.success || validOptions.options.scene != Benchmark::BenchmarkSceneId::Dynamic5K || validOptions.options.sampleFrames != 3)
         return Fail("valid benchmark CLI was rejected");
 
+    const char* gpuArguments[] = { "ChikaBenchmark", "--scene", "instance-1k", "--mode", "gpu", "--workers", "2", "--frames", "1" };
+    const auto gpuOptions = Benchmark::ParseBenchmarkOptions(static_cast<int>(std::size(gpuArguments)), gpuArguments);
+    if (!gpuOptions.success || gpuOptions.options.mode != Benchmark::BenchmarkMode::Gpu)
+        return Fail("GPU benchmark mode was rejected by the CLI parser");
+
     const char* invalidArguments[] = { "ChikaBenchmark", "--scene", "typo" };
     if (Benchmark::ParseBenchmarkOptions(static_cast<int>(std::size(invalidArguments)), invalidArguments).success)
         return Fail("invalid benchmark scene was accepted");

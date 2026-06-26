@@ -1,0 +1,121 @@
+#version 450
+
+// GPU-driven visibility prototype.
+// Descriptor frequency convention: set 0 = frame/view, set 1 = material, set 2 = object/pass data.
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform GpuCullFrame
+{
+    vec4 frustumPlanes[6];
+    uint objectCount;
+    uint instanceCapacity;
+    uint visibleCapacity;
+    uint drawGroupCount;
+} frameData;
+
+struct GpuInstanceData
+{
+    mat4 model;
+    vec4 boundsCenterRadius;
+    vec4 boundsExtentsFlags;
+    uint drawGroupIndex;
+    uint objectId;
+    uint meshId;
+    uint materialId;
+};
+
+layout(set = 2, binding = 0, std430) readonly buffer InstanceBuffer
+{
+    GpuInstanceData instances[];
+} gpuInstances;
+
+struct GpuDrawGroup
+{
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int vertexOffset;
+    uint firstInstance;
+    uint visibleOffset;
+    uint visibleCount;
+    uint pipelineId;
+    uint meshId;
+    uint materialId;
+    uint reserved0;
+    uint reserved1;
+};
+
+layout(set = 2, binding = 1, std430) readonly buffer DrawGroupBuffer
+{
+    GpuDrawGroup groups[];
+} gpuDrawGroups;
+
+layout(set = 2, binding = 2, std430) writeonly buffer VisibilityFlags
+{
+    uint visibilityFlags[];
+} gpuVisibility;
+
+layout(set = 2, binding = 3, std430) writeonly buffer VisibleInstances
+{
+    uint visibleInstanceIndices[];
+} gpuVisibleInstances;
+
+struct GpuIndexedIndirectCommand
+{
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int vertexOffset;
+    uint firstInstance;
+};
+
+layout(set = 2, binding = 4, std430) buffer IndirectArguments
+{
+    GpuIndexedIndirectCommand commands[];
+} gpuIndirectArgs;
+
+layout(push_constant) uniform GpuCullPushConstants
+{
+    uint baseInstance;
+    uint count;
+} pc;
+
+bool BoundsVisible(vec3 center, vec3 extents)
+{
+    for (uint planeIndex = 0; planeIndex < 6; ++planeIndex)
+    {
+        vec4 plane = frameData.frustumPlanes[planeIndex];
+        float radius = dot(abs(plane.xyz), extents);
+        float distance = dot(plane.xyz, center) + plane.w;
+        if (distance + radius < 0.0)
+            return false;
+    }
+    return true;
+}
+
+void main()
+{
+    uint localIndex = gl_GlobalInvocationID.x;
+    if (localIndex >= pc.count)
+        return;
+
+    uint instanceIndex = pc.baseInstance + localIndex;
+    if (instanceIndex >= frameData.objectCount || instanceIndex >= frameData.instanceCapacity)
+        return;
+
+    GpuInstanceData instance = gpuInstances.instances[instanceIndex];
+    bool visible = BoundsVisible(instance.boundsCenterRadius.xyz, instance.boundsExtentsFlags.xyz);
+    gpuVisibility.visibilityFlags[instanceIndex] = visible ? 1u : 0u;
+    if (!visible)
+        return;
+
+    if (instance.drawGroupIndex >= frameData.drawGroupCount)
+        return;
+
+    GpuDrawGroup group = gpuDrawGroups.groups[instance.drawGroupIndex];
+    uint localVisibleIndex = atomicAdd(gpuIndirectArgs.commands[instance.drawGroupIndex].instanceCount, 1u);
+    uint outputIndex = group.visibleOffset + localVisibleIndex;
+    if (localVisibleIndex < group.instanceCount && outputIndex < frameData.visibleCapacity)
+        gpuVisibleInstances.visibleInstanceIndices[outputIndex] = instanceIndex;
+}

@@ -126,6 +126,36 @@ namespace ChikaEngine::Resource
         }
 
         /**
+         * @brief Resolves a descriptor by name first, then by the reflected slot contract.
+         *
+         * Some SPIR-V reflection backends report storage-buffer instance names differently. The fallback
+         * still validates set/binding/type against Reflection, so runtime code does not reintroduce hardcoded
+         * layouts that bypass shader introspection.
+         */
+        Render::ResourceBindingHandle ResolveResourceBindingOrSlot(const Shader::ShaderProgramInterface& interface, std::string_view resourceName, uint32_t set, uint32_t binding, Shader::ShaderDescriptorType type)
+        {
+            Render::ResourceBindingHandle resolved = Render::ResolveResourceBinding(interface, resourceName);
+            if (resolved.IsValid())
+                return resolved;
+
+            const auto found = std::ranges::find_if(interface.resources,
+                                                    [&](const Shader::ShaderResourceBinding& resource)
+                                                    {
+                                                        return resource.set == set && resource.binding == binding && resource.type == type;
+                                                    });
+            if (found == interface.resources.end())
+                return {};
+
+            return {
+                .name = found->name.empty() ? std::string(resourceName) : found->name,
+                .set = found->set,
+                .binding = found->binding,
+                .type = found->type,
+                .arrayCount = found->arrayCount,
+            };
+        }
+
+        /**
          * @brief 在材质创建阶段解析逐 Draw 动态资源，避免 Renderer 热路径查询 Reflection 名称。
          */
         MaterialDrawBindings ResolveMaterialDrawBindings(const Shader::ShaderProgramInterface& interface)
@@ -135,6 +165,8 @@ namespace ChikaEngine::Resource
                 .shadowMap = Render::ResolveResourceBinding(interface, "shadowMap"),
                 .bones = Render::ResolveResourceBinding(interface, "uboBones"),
                 .instances = Render::ResolveResourceBinding(interface, "instances"),
+                .gpuVisibleInstances = ResolveResourceBindingOrSlot(interface, "gpuVisibleInstances", 2, 2, Shader::ShaderDescriptorType::StorageBuffer),
+                .gpuInstances = ResolveResourceBindingOrSlot(interface, "gpuInstances", 2, 3, Shader::ShaderDescriptorType::StorageBuffer),
                 .lights = Render::ResolveResourceBinding(interface, "lights"),
             };
         }

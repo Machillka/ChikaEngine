@@ -52,6 +52,11 @@ namespace ChikaEngine::Render
         return true;
     }
 
+    const std::array<FrustumPlane, 6>& ViewFrustum::GetPlanes() const
+    {
+        return m_planes;
+    }
+
     bool IsRenderInstanceVisible(const RenderInstanceData& instance, const RenderView& view, const ViewFrustum& frustum, bool shadowCastersOnly)
     {
         const bool layerVisible = (instance.layerMask & view.layerMask) != 0;

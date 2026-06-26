@@ -53,6 +53,20 @@ namespace ChikaEngine::Benchmark
                 { "transparentObjectCount", value.transparentObjectCount },
                 { "invalidResourceObjectCount", value.invalidResourceObjectCount },
                 { "preparationFallback", value.preparationFallback },
+                { "requestedRenderPath", value.requestedRenderPath },
+                { "effectiveRenderPath", value.effectiveRenderPath },
+                { "renderPathFallback", value.renderPathFallback },
+                { "gpuDrivenInstanceCount", value.gpuDrivenInstanceCount },
+                { "gpuDrivenVisibleCount", value.gpuDrivenVisibleCount },
+                { "gpuDrivenDrawGroupCount", value.gpuDrivenDrawGroupCount },
+                { "gpuDrivenIndirectCommandCount", value.gpuDrivenIndirectCommandCount },
+                { "gpuDrivenValidationCompared", value.gpuDrivenValidationCompared },
+                { "gpuDrivenValidationMatched", value.gpuDrivenValidationMatched },
+                { "gpuDrivenValidationMissingCount", value.gpuDrivenValidationMissingCount },
+                { "gpuDrivenValidationExtraCount", value.gpuDrivenValidationExtraCount },
+                { "gpuDrivenLayoutHash", value.gpuDrivenLayoutHash },
+                { "gpuDrivenVisibilityHash", value.gpuDrivenVisibilityHash },
+                { "gpuDrivenIndirectHash", value.gpuDrivenIndirectHash },
                 { "validationHashVersion", value.validationHashVersion },
                 { "visibleSetHash", value.visibleSetHash },
                 { "packetHash", value.packetHash },
@@ -87,6 +101,20 @@ namespace ChikaEngine::Benchmark
             result.transparentObjectCount = value.value("transparentObjectCount", 0u);
             result.invalidResourceObjectCount = value.value("invalidResourceObjectCount", 0u);
             result.preparationFallback = value.value("preparationFallback", 0u);
+            result.requestedRenderPath = value.value("requestedRenderPath", 0u);
+            result.effectiveRenderPath = value.value("effectiveRenderPath", 0u);
+            result.renderPathFallback = value.value("renderPathFallback", 0u);
+            result.gpuDrivenInstanceCount = value.value("gpuDrivenInstanceCount", 0u);
+            result.gpuDrivenVisibleCount = value.value("gpuDrivenVisibleCount", 0u);
+            result.gpuDrivenDrawGroupCount = value.value("gpuDrivenDrawGroupCount", 0u);
+            result.gpuDrivenIndirectCommandCount = value.value("gpuDrivenIndirectCommandCount", 0u);
+            result.gpuDrivenValidationCompared = value.value("gpuDrivenValidationCompared", 0u);
+            result.gpuDrivenValidationMatched = value.value("gpuDrivenValidationMatched", 0u);
+            result.gpuDrivenValidationMissingCount = value.value("gpuDrivenValidationMissingCount", 0u);
+            result.gpuDrivenValidationExtraCount = value.value("gpuDrivenValidationExtraCount", 0u);
+            result.gpuDrivenLayoutHash = value.value("gpuDrivenLayoutHash", uint64_t{});
+            result.gpuDrivenVisibilityHash = value.value("gpuDrivenVisibilityHash", uint64_t{});
+            result.gpuDrivenIndirectHash = value.value("gpuDrivenIndirectHash", uint64_t{});
             result.validationHashVersion = value.value("validationHashVersion", 0u);
             result.visibleSetHash = value.value("visibleSetHash", uint64_t{});
             result.packetHash = value.value("packetHash", uint64_t{});

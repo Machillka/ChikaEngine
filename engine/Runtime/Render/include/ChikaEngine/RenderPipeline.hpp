@@ -1,7 +1,10 @@
 #pragma once
 
 #include "ChikaEngine/AssetManager.hpp"
+#include "ChikaEngine/GpuDrivenValidation.hpp"
 #include "ChikaEngine/IRHIDevice.hpp"
+#include "ChikaEngine/GpuDrivenData.hpp"
+#include "ChikaEngine/RenderPath.hpp"
 #include "ChikaEngine/RenderDiagnostics.hpp"
 #include "ChikaEngine/RenderGraph.hpp"
 #include "ChikaEngine/RenderGraphBlackboard.hpp"
@@ -14,6 +17,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string_view>
 #include <unordered_map>
 
 namespace ChikaEngine::Jobs
@@ -65,6 +69,7 @@ namespace ChikaEngine::Render
         int isSkinned;
         int renderMode;
         int useInstancing;
+        int useGpuDriven;
     };
 
     struct RenderPipelineCreateInfo
@@ -111,6 +116,7 @@ namespace ChikaEngine::Render
         void AppendDebugGizmos() const;
 
       private:
+        struct DynamicBuffer;
         void BuildRenderGraph();
         void AddMainScenePass();
         void AddGBufferPass();
@@ -119,15 +125,26 @@ namespace ChikaEngine::Render
         void AddPostProcessPass();
         void AddUploadPasses();
         void AddShadowPass();
+        void AddGpuDrivenCullPass();
+        void AddGpuDrivenForwardPass();
+        void AddGpuDrivenGBufferPass();
         void AddOverlayPass();
         /** @brief 按已排序 Batch 录制 Draw，并缓存相邻 Batch 共享的绑定状态。 */
-        void DrawRenderQueue(IRHICommandList* cmd, const RenderQueue& queue);
+        void DrawRenderQueue(IRHICommandList* cmd, const RenderQueue& queue, bool skipInstancedBatches = false);
+        /** @brief 使用 GPU culling 输出的 visible list 和 indirect args 绘制 static opaque groups。 */
+        void DrawGpuDrivenQueue(IRHICommandList* cmd, RenderPassClass pass);
         void CreateDeferredResources();
+        /** @brief 创建 GPU-driven compute pipeline 和反射驱动的资源绑定。 */
+        void CreateGpuDrivenResources();
         void HandlePendingResize();
         void UpdateSceneDataFromSnapshot();
         void PrepareSnapshotResources();
         void PrepareRenderQueues();
         void PrepareInstanceData();
+        /** @brief 上传本帧 GPU-driven 输入，并读取已完成 ring slot 的 GPU oracle。 */
+        void PrepareGpuDrivenBuffers(const RenderView& primaryView);
+        /** @brief 按需扩容 Pipeline 拥有的动态 Buffer。 */
+        void EnsureDynamicBuffer(DynamicBuffer& buffer, uint64_t requiredSize, RHI_BufferUsage usage, MemoryUsage memoryUsage, std::string_view debugName);
         /** @brief 从 Snapshot 上传帧级多光源数据，至少保留一个合法 Dummy 元素。 */
         void PrepareLightData();
         /** @brief 更新独立后处理 UBO，使效果配置不污染场景/材质数据。 */
@@ -153,8 +170,30 @@ namespace ChikaEngine::Render
         };
         std::unordered_map<uint64_t, DynamicBuffer> m_boneBuffers;
         std::array<DynamicBuffer, 3> m_instanceBuffers;
+        struct GpuDrivenFrameBuffers
+        {
+            DynamicBuffer cullFrame;
+            DynamicBuffer instances;
+            DynamicBuffer drawGroups;
+            DynamicBuffer visibilityFlags;
+            DynamicBuffer visibleInstances;
+            DynamicBuffer indirectArgs;
+            DynamicBuffer indirectReset;
+            GpuDrivenFrameData oracle;
+            uint64_t frameId = 0;
+            bool validationPending = false;
+        };
+        std::array<GpuDrivenFrameBuffers, 3> m_gpuDrivenBuffers;
         RenderQueueSet m_renderQueues;
+        GpuDrivenFrameData m_gpuDrivenFrameData;
+        RenderPathSelection m_renderPathSelection;
         uint32_t m_instanceBufferIndex = 0;
+        uint32_t m_gpuDrivenBufferIndex = 0;
+        uint64_t m_gpuDrivenFrameId = 0;
+        GpuVisibilityValidationQueue m_gpuVisibilityValidation;
+        GpuVisibilityDiff m_lastGpuVisibilityDiff;
+        bool m_lastGpuValidationCompared = false;
+        bool m_lastGpuValidationMatched = false;
         uint32_t m_visibleObjectCount = 0;
         uint32_t m_culledObjectCount = 0;
         RenderPreparationDiagnostics m_preparationDiagnostics;
@@ -184,6 +223,8 @@ namespace ChikaEngine::Render
         ShaderHandle m_postProcessVertexShader;
         ShaderHandle m_postProcessFragmentShader;
         PipelineHandle m_postProcessPipeline;
+        ShaderHandle m_gpuCullComputeShader;
+        PipelineHandle m_gpuCullPipeline;
 
         RenderGraphBlackboard m_graphBlackboard;
 
@@ -198,6 +239,13 @@ namespace ChikaEngine::Render
         Shader::ShaderProgramInterface m_postProcessInterface;
         ResourceBindingHandle m_postProcessSceneColorBinding;
         ResourceBindingHandle m_postProcessDataBinding;
+        Shader::ShaderProgramInterface m_gpuCullInterface;
+        ResourceBindingHandle m_gpuCullFrameBinding;
+        ResourceBindingHandle m_gpuCullInstancesBinding;
+        ResourceBindingHandle m_gpuCullDrawGroupsBinding;
+        ResourceBindingHandle m_gpuCullVisibilityBinding;
+        ResourceBindingHandle m_gpuCullVisibleInstancesBinding;
+        ResourceBindingHandle m_gpuCullIndirectArgsBinding;
         RenderFrameStatistics m_frameStatistics;
         float m_time = 0.0f;
     };

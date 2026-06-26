@@ -1,0 +1,405 @@
+{
+  "entryPoint": "main",
+  "inputs": [],
+  "outputs": [],
+  "pushConstants": [
+    {
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "baseInstance",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "count",
+            "offset": 4,
+            "size": 4,
+            "type": 9
+          }
+        ],
+        "name": "pc",
+        "size": 8
+      },
+      "name": "pc",
+      "offset": 0,
+      "size": 8,
+      "stages": 4
+    }
+  ],
+  "resources": [
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 6,
+            "arrayStride": 16,
+            "matrixStride": 0,
+            "name": "frustumPlanes",
+            "offset": 0,
+            "size": 96,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "objectCount",
+            "offset": 96,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "instanceCapacity",
+            "offset": 100,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "visibleCapacity",
+            "offset": 104,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "drawGroupCount",
+            "offset": 108,
+            "size": 4,
+            "type": 9
+          }
+        ],
+        "name": "frameData",
+        "size": 112
+      },
+      "name": "frameData",
+      "set": 0,
+      "stages": 4,
+      "type": 0
+    },
+    {
+      "arrayCount": 1,
+      "binding": 0,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "instances.boundsCenterRadius",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "instances.boundsExtentsFlags",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "instances.drawGroupIndex",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "instances.materialId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "instances.meshId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "instances.model",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "instances.objectId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          }
+        ],
+        "name": "gpuInstances",
+        "size": 0
+      },
+      "name": "gpuInstances",
+      "set": 2,
+      "stages": 4,
+      "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 1,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.firstIndex",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.firstInstance",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.indexCount",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.instanceCount",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.materialId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.meshId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.pipelineId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.reserved0",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.reserved1",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.vertexOffset",
+            "offset": 0,
+            "size": 4,
+            "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.visibleCount",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "groups.visibleOffset",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          }
+        ],
+        "name": "gpuDrawGroups",
+        "size": 0
+      },
+      "name": "gpuDrawGroups",
+      "set": 2,
+      "stages": 4,
+      "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 2,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "visibilityFlags",
+            "offset": 0,
+            "size": 0,
+            "type": 9
+          }
+        ],
+        "name": "gpuVisibility",
+        "size": 0
+      },
+      "name": "gpuVisibility",
+      "set": 2,
+      "stages": 4,
+      "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 3,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "visibleInstanceIndices",
+            "offset": 0,
+            "size": 0,
+            "type": 9
+          }
+        ],
+        "name": "gpuVisibleInstances",
+        "size": 0
+      },
+      "name": "gpuVisibleInstances",
+      "set": 2,
+      "stages": 4,
+      "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 4,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "commands.firstIndex",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "commands.firstInstance",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "commands.indexCount",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "commands.instanceCount",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "commands.vertexOffset",
+            "offset": 0,
+            "size": 4,
+            "type": 5
+          }
+        ],
+        "name": "gpuIndirectArgs",
+        "size": 0
+      },
+      "name": "gpuIndirectArgs",
+      "set": 2,
+      "stages": 4,
+      "type": 1
+    }
+  ],
+  "stableHash": 7234267959913506607,
+  "stage": 4,
+  "version": 1
+}

@@ -10,6 +10,24 @@ namespace ChikaEngine::Render
         Jobs,
     };
 
+    enum class RenderPathMode : uint8_t
+    {
+        SerialCpu,
+        JobCpu,
+        GpuDriven,
+    };
+
+    enum class RenderPathFallbackReason : uint8_t
+    {
+        None,
+        MissingCompute,
+        MissingStorageBuffer,
+        MissingIndirectDraw,
+        MissingGpuDrivenConsumer,
+        JobsUnavailable,
+        StrictGpuUnavailable,
+    };
+
     enum class RenderPipelineMode
     {
         Forward,
@@ -48,7 +66,9 @@ namespace ChikaEngine::Render
     struct RenderSettings
     {
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
+        RenderPathMode requestedPath = RenderPathMode::JobCpu;
         RenderCpuMode cpuMode = RenderCpuMode::Jobs;
+        bool strictGpuDriven = false;
         uint32_t parallelObjectThreshold = 2'048;
         uint32_t visibilityGrainSize = 256;
         uint32_t packetGrainSize = 256;

@@ -5,6 +5,7 @@
 #include "ChikaEngine/debug/console_sink.h"
 #include "ChikaEngine/debug/log_system.h"
 #include "ChikaEngine/jobs/JobSystem.hpp"
+#include "ChikaEngine/RenderPath.hpp"
 #include "ChikaEngine/scene/SceneManager.hpp"
 #include "ChikaEngine/scene/scene.hpp"
 
@@ -49,7 +50,16 @@ namespace
             createInfo.createMissingMeta = false;
             createInfo.importAssets = true;
             createInfo.enableHotReload = false;
-            createInfo.renderCpuMode = m_options.mode == Benchmark::BenchmarkMode::Jobs ? Render::RenderCpuMode::Jobs : Render::RenderCpuMode::Serial;
+            if (m_options.mode == Benchmark::BenchmarkMode::Gpu)
+            {
+                createInfo.renderPathMode = Render::RenderPathMode::GpuDriven;
+                createInfo.renderCpuMode = Render::RenderCpuMode::Jobs;
+            }
+            else
+            {
+                createInfo.renderPathMode = m_options.mode == Benchmark::BenchmarkMode::Jobs ? Render::RenderPathMode::JobCpu : Render::RenderPathMode::SerialCpu;
+                createInfo.renderCpuMode = m_options.mode == Benchmark::BenchmarkMode::Jobs ? Render::RenderCpuMode::Jobs : Render::RenderCpuMode::Serial;
+            }
             createInfo.jobWorkerCount = m_options.workers;
             createInfo.reservedJobThreads = 0;
             createInfo.createDefaultScene = false;
@@ -79,10 +89,17 @@ namespace
             result.hardware = Benchmark::CollectBenchmarkHardwareMetadata();
             if (const auto* rhi = GetEngineContext().GetRenderer()->GetRHIHandle())
                 result.hardware.gpuName = rhi->GetDeviceName();
+            const Render::RenderPathMode requestedPath = m_options.mode == Benchmark::BenchmarkMode::Gpu ? Render::RenderPathMode::GpuDriven : (m_options.mode == Benchmark::BenchmarkMode::Jobs ? Render::RenderPathMode::JobCpu : Render::RenderPathMode::SerialCpu);
+            const Render::RenderPathSelection pathSelection = Render::SelectRenderPath(GetEngineContext().GetRenderer()->GetRHIHandle()->GetCapabilities(),
+                                                                                      {
+                                                                                          .requested = requestedPath,
+                                                                                          .jobSystemAvailable = GetEngineContext().GetJobSystem() != nullptr,
+                                                                                          .gpuDrivenConsumerAvailable = true,
+                                                                                      });
             result.configuration = {
                 .scene = std::string(Benchmark::ToString(m_options.scene)),
                 .requestedMode = std::string(Benchmark::ToString(m_options.mode)),
-                .effectiveMode = std::string(Benchmark::ToString(m_options.mode)),
+                .effectiveMode = std::string(Render::ToString(pathSelection.effective)),
                 .workers = GetEngineContext().GetJobSystem() ? GetEngineContext().GetJobSystem()->GetWorkerCount() : 0,
                 .warmupFrames = m_options.warmupFrames,
                 .sampleFrames = m_options.sampleFrames,
@@ -192,11 +209,6 @@ int main(int argc, const char* const* argv)
     {
         std::cout << ChikaEngine::Benchmark::BenchmarkUsage();
         return 0;
-    }
-    if (parsed.options.mode == ChikaEngine::Benchmark::BenchmarkMode::Gpu)
-    {
-        std::cerr << "GPU mode is reserved for Phase 4.\n";
-        return 3;
     }
     if (parsed.options.mode == ChikaEngine::Benchmark::BenchmarkMode::Serial && parsed.options.workers != 1)
     {

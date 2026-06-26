@@ -27,6 +27,7 @@ layout(push_constant) uniform PushConstants {
     int isSkinned;
     int renderMode;
     int useInstancing;
+    int useGpuDriven;
 } pc;
 
 void main()

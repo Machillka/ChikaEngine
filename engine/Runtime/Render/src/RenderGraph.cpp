@@ -175,9 +175,9 @@ namespace ChikaEngine::Render
         AddTypedPass(name, RGPassType::Compute, false, std::move(setup), std::move(execute));
     }
 
-    void RenderGraph::AddCopyPass(const std::string& name, RGSetupCallback setup, RGExecuteCallback execute)
+    void RenderGraph::AddCopyPass(const std::string& name, RGSetupCallback setup, RGExecuteCallback execute, bool hasSideEffects)
     {
-        AddTypedPass(name, RGPassType::Copy, true, std::move(setup), std::move(execute));
+        AddTypedPass(name, RGPassType::Copy, hasSideEffects, std::move(setup), std::move(execute));
     }
 
     void RenderGraph::AddUploadPass(const std::string& name, RGExecuteCallback execute)

@@ -7,10 +7,23 @@
 namespace ChikaEngine::Render
 {
     RenderResourceView::RenderResourceView(std::vector<Resource::MeshHandle> meshes, std::vector<RenderMaterialMetadata> materials)
+        : RenderResourceView([&]()
+                             {
+                                 std::vector<RenderMeshMetadata> metadata;
+                                 metadata.reserve(meshes.size());
+                                 for (Resource::MeshHandle mesh : meshes)
+                                     metadata.push_back({ .handle = mesh });
+                                 return metadata;
+                             }(),
+                             std::move(materials))
+    {
+    }
+
+    RenderResourceView::RenderResourceView(std::vector<RenderMeshMetadata> meshes, std::vector<RenderMaterialMetadata> materials)
     {
         m_meshes.reserve(meshes.size());
-        for (Resource::MeshHandle mesh : meshes)
-            m_meshes.insert(mesh);
+        for (const RenderMeshMetadata& mesh : meshes)
+            m_meshes.insert_or_assign(mesh.handle, mesh);
         m_materials.reserve(materials.size());
         for (const RenderMaterialMetadata& material : materials)
             m_materials.insert_or_assign(material.handle, material);
@@ -19,7 +32,7 @@ namespace ChikaEngine::Render
     RenderResourceView RenderResourceView::Build(const RenderWorldSnapshot& snapshot, const Resource::ResourceManager& resources)
     {
         CHIKA_PROFILE_SCOPE("Renderer.BuildResourceView");
-        std::vector<Resource::MeshHandle> meshes;
+        std::vector<RenderMeshMetadata> meshes;
         std::vector<RenderMaterialMetadata> materials;
         std::unordered_set<Resource::MeshHandle> seenMeshes;
         std::unordered_set<Resource::MaterialHandle> seenMaterials;
@@ -28,10 +41,15 @@ namespace ChikaEngine::Render
 
         for (const RenderObjectSnapshot& object : snapshot.objects)
         {
-            if (object.proxy.mesh.IsValid() && !seenMeshes.contains(object.proxy.mesh) && resources.TryGetMesh(object.proxy.mesh))
+            const Resource::MeshGPU* mesh = object.proxy.mesh.IsValid() && !seenMeshes.contains(object.proxy.mesh) ? resources.TryGetMesh(object.proxy.mesh) : nullptr;
+            if (mesh)
             {
                 seenMeshes.insert(object.proxy.mesh);
-                meshes.push_back(object.proxy.mesh);
+                meshes.push_back({
+                    .handle = object.proxy.mesh,
+                    .indexCount = mesh->indexCount,
+                    .isUint32 = mesh->isUint32,
+                });
             }
             if (!object.proxy.material.IsValid() || seenMaterials.contains(object.proxy.material))
                 continue;
@@ -52,6 +70,12 @@ namespace ChikaEngine::Render
     bool RenderResourceView::ContainsMesh(Resource::MeshHandle handle) const
     {
         return m_meshes.contains(handle);
+    }
+
+    const RenderMeshMetadata* RenderResourceView::FindMesh(Resource::MeshHandle handle) const
+    {
+        const auto iterator = m_meshes.find(handle);
+        return iterator == m_meshes.end() ? nullptr : &iterator->second;
     }
 
     const RenderMaterialMetadata* RenderResourceView::FindMaterial(Resource::MaterialHandle handle) const

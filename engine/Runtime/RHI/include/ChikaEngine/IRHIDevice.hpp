@@ -2,6 +2,7 @@
 
 #include "IRHICommandList.hpp"
 #include "RenderDiagnostics.hpp"
+#include "RHICapabilities.hpp"
 #include "RHIDesc.hpp"
 #include "RHIResourceHandle.hpp"
 #include <cstdint>
@@ -41,6 +42,17 @@ namespace ChikaEngine::Render
         virtual std::string_view GetDeviceName() const
         {
             return "Unknown RHI device";
+        }
+        /**
+         * @brief Returns the backend-independent feature set enabled on the selected RHI device.
+         *
+         * The default is intentionally conservative so mock and legacy devices fall back to CPU paths
+         * until they explicitly opt into GPU-driven features.
+         */
+        virtual const RHICapabilities& GetCapabilities() const
+        {
+            static const RHICapabilities capabilities{};
+            return capabilities;
         }
 
         // 资源创建（返回 RHI 句柄）

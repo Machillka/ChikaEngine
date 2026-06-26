@@ -44,6 +44,7 @@ layout(push_constant) uniform PushConstants {
     int isSkinned;
     int renderMode;
     int useInstancing;
+    int useGpuDriven;
 } pc;
 
 const float PI = 3.14159265359;

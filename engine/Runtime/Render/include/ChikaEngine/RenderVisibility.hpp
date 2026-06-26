@@ -28,6 +28,8 @@ namespace ChikaEngine::Render
 
         /** @brief 使用 World AABB 与视锥做保守相交测试。 */
         bool Intersects(const RenderBounds& bounds) const;
+        /** @brief 暴露归一化平面给 GPU culling UBO，避免 CPU/GPU 使用两套提取逻辑。 */
+        const std::array<FrustumPlane, 6>& GetPlanes() const;
 
       private:
         std::array<FrustumPlane, 6> m_planes;

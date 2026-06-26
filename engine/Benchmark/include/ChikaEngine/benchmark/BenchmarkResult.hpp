@@ -11,7 +11,7 @@
 
 namespace ChikaEngine::Benchmark
 {
-    inline constexpr uint32_t kBenchmarkResultSchemaVersion = 2;
+    inline constexpr uint32_t kBenchmarkResultSchemaVersion = 3;
 
     struct BenchmarkBuildMetadata
     {

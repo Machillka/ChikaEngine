@@ -72,14 +72,23 @@
             "offset": 76,
             "size": 4,
             "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "useGpuDriven",
+            "offset": 80,
+            "size": 4,
+            "type": 5
           }
         ],
         "name": "pc",
-        "size": 80
+        "size": 84
       },
       "name": "pc",
       "offset": 0,
-      "size": 80,
+      "size": 84,
       "stages": 2
     }
   ],
@@ -288,7 +297,7 @@
       "type": 2
     }
   ],
-  "stableHash": 8865361864550520482,
+  "stableHash": 5559388129699814886,
   "stage": 2,
   "version": 1
 }

@@ -82,14 +82,23 @@
             "offset": 76,
             "size": 4,
             "type": 5
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "useGpuDriven",
+            "offset": 80,
+            "size": 4,
+            "type": 5
           }
         ],
         "name": "pc",
-        "size": 80
+        "size": 84
       },
       "name": "pc",
       "offset": 0,
-      "size": 80,
+      "size": 84,
       "stages": 1
     }
   ],
@@ -175,9 +184,109 @@
       "set": 2,
       "stages": 1,
       "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 2,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "visibleInstanceIndices",
+            "offset": 0,
+            "size": 0,
+            "type": 9
+          }
+        ],
+        "name": "gpuVisibleInstances",
+        "size": 0
+      },
+      "name": "gpuVisibleInstances",
+      "set": 2,
+      "stages": 1,
+      "type": 1
+    },
+    {
+      "arrayCount": 1,
+      "binding": 3,
+      "buffer": {
+        "members": [
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "gpuInstances.boundsCenterRadius",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "gpuInstances.boundsExtentsFlags",
+            "offset": 0,
+            "size": 16,
+            "type": 4
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "gpuInstances.drawGroupIndex",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "gpuInstances.materialId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "gpuInstances.meshId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 16,
+            "name": "gpuInstances.model",
+            "offset": 0,
+            "size": 64,
+            "type": 14
+          },
+          {
+            "arrayCount": 1,
+            "arrayStride": 0,
+            "matrixStride": 0,
+            "name": "gpuInstances.objectId",
+            "offset": 0,
+            "size": 4,
+            "type": 9
+          }
+        ],
+        "name": "gpuInstances",
+        "size": 0
+      },
+      "name": "gpuInstances",
+      "set": 2,
+      "stages": 1,
+      "type": 1
     }
   ],
-  "stableHash": 15565470001683293035,
+  "stableHash": 17384687640749505458,
   "stage": 1,
   "version": 1
 }
