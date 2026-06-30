@@ -284,7 +284,9 @@ namespace ChikaEngine::Render
             stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             break;
         case ResourceState::StorageWrite:
-            access = VK_ACCESS_SHADER_WRITE_BIT;
+            // Storage writes often include read-modify-write atomics or mixed read/write SSBO access.
+            // Treat the state as shader read/write so copy/reset data is visible to compute consumers.
+            access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
             stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             break;
         case ResourceState::IndirectArgument:

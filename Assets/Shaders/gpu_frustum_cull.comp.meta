@@ -1,0 +1,7 @@
+{
+  "guid": "476b2f61859b47a880b0e3f92a84f104",
+  "imported": "Shaders/gpu_frustum_cull.comp.spv",
+  "importer": "shader",
+  "type": "shader_source",
+  "version": 1
+}

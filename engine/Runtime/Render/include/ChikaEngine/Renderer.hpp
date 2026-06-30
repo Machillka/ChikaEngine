@@ -3,6 +3,7 @@
 #include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/Camera.hpp"
 #include "ChikaEngine/RenderDeviceContext.hpp"
+#include "ChikaEngine/RenderPath.hpp"
 #include "ChikaEngine/RenderPipeline.hpp"
 #include "ChikaEngine/RenderResourceSystem.hpp"
 #include "ChikaEngine/RenderSettings.hpp"
@@ -26,6 +27,9 @@ namespace ChikaEngine::Render
         uint32_t height = 1080;
         RHIBackendTypes backendType = RHIBackendTypes::Default;
         RenderPipelineMode pipelineMode = RenderPipelineMode::Forward;
+        RenderPathMode pathMode = RenderPathMode::JobCpu;
+        RenderCpuMode cpuMode = RenderCpuMode::Jobs;
+        bool strictGpuDriven = false;
         bool vSync = true;
 #ifdef CHIKA_DEBUG
         bool enableValidation = true;
@@ -91,6 +95,28 @@ namespace ChikaEngine::Render
         RenderPipelineMode GetPipelineMode() const
         {
             return m_settings.pipelineMode;
+        }
+        /** @brief Selects the serial oracle or the jobs-based renderer preparation path. */
+        void SetCpuMode(RenderCpuMode mode)
+        {
+            m_settings.cpuMode = mode;
+            m_settings.requestedPath = ToRenderPathMode(mode);
+        }
+        /** @brief Returns the active renderer CPU preparation policy. */
+        RenderCpuMode GetCpuMode() const
+        {
+            return m_settings.cpuMode;
+        }
+        /** @brief Selects the requested full render path; unsupported GPU paths still report fallback. */
+        void SetRenderPathMode(RenderPathMode mode)
+        {
+            m_settings.requestedPath = mode;
+            m_settings.cpuMode = ToRenderCpuMode(mode);
+        }
+        /** @brief Returns the user-requested full render path. */
+        RenderPathMode GetRequestedRenderPathMode() const
+        {
+            return m_settings.requestedPath;
         }
         /** @brief 返回当前渲染质量配置的只读快照，供 Editor 展示。 */
         const RenderSettings& GetSettings() const

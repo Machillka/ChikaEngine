@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChikaEngine/RenderSceneView.hpp"
 #include "ChikaEngine/RenderWorld.hpp"
 #include <array>
 #include <cstdint>
@@ -27,6 +28,8 @@ namespace ChikaEngine::Render
 
         /** @brief 使用 World AABB 与视锥做保守相交测试。 */
         bool Intersects(const RenderBounds& bounds) const;
+        /** @brief 暴露归一化平面给 GPU culling UBO，避免 CPU/GPU 使用两套提取逻辑。 */
+        const std::array<FrustumPlane, 6>& GetPlanes() const;
 
       private:
         std::array<FrustumPlane, 6> m_planes;
@@ -43,8 +46,14 @@ namespace ChikaEngine::Render
         uint32_t culledObjectCount = 0;
     };
 
+    /** @brief Applies the shared layer, flag and frustum contract to compact instance data. */
+    bool IsRenderInstanceVisible(const RenderInstanceData& instance, const RenderView& view, const ViewFrustum& frustum, bool shadowCastersOnly = false);
+
     /**
      * @brief 按 View Layer、Visible Flag、可选 Shadow Flag 和 Frustum 生成可见对象集合。
      */
     VisibilityResult BuildVisibility(const RenderWorldSnapshot& snapshot, const RenderView& view, bool shadowCastersOnly = false);
+
+    /** @brief Serial oracle over category-contiguous RenderSceneView data. */
+    VisibilityResult BuildVisibilitySerial(const RenderSceneView& scene, const RenderView& view, bool shadowCastersOnly = false);
 } // namespace ChikaEngine::Render

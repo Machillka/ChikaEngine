@@ -23,6 +23,10 @@ namespace ChikaEngine::Benchmark
         double engineTickCpuTimeMs = 0.0;
         double renderGraphCpuTimeMs = 0.0;
         Render::RenderFrameStatistics renderStatistics;
+        uint64_t jobQueueWaitNanoseconds = 0;
+        uint64_t jobExecutionNanoseconds = 0;
+        uint64_t successfulJobSteals = 0;
+        double workerUtilization = 0.0;
         struct CompletedGpuFrame
         {
             uint64_t frameIndex = 0;

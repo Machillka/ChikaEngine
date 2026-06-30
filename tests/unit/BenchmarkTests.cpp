@@ -35,6 +35,11 @@ int main()
     if (!validOptions.success || validOptions.options.scene != Benchmark::BenchmarkSceneId::Dynamic5K || validOptions.options.sampleFrames != 3)
         return Fail("valid benchmark CLI was rejected");
 
+    const char* gpuArguments[] = { "ChikaBenchmark", "--scene", "instance-1k", "--mode", "gpu", "--workers", "2", "--frames", "1" };
+    const auto gpuOptions = Benchmark::ParseBenchmarkOptions(static_cast<int>(std::size(gpuArguments)), gpuArguments);
+    if (!gpuOptions.success || gpuOptions.options.mode != Benchmark::BenchmarkMode::Gpu)
+        return Fail("GPU benchmark mode was rejected by the CLI parser");
+
     const char* invalidArguments[] = { "ChikaBenchmark", "--scene", "typo" };
     if (Benchmark::ParseBenchmarkOptions(static_cast<int>(std::size(invalidArguments)), invalidArguments).success)
         return Fail("invalid benchmark scene was accepted");
@@ -104,6 +109,11 @@ int main()
     Benchmark::BenchmarkResult roundTrip;
     if (!Benchmark::ReadBenchmarkResult(resultPath, roundTrip, error) || roundTrip.schemaVersion != Benchmark::kBenchmarkResultSchemaVersion || roundTrip.samples.size() != 3)
         return Fail("benchmark result schema round trip failed");
+
+    // Preserve Phase 0 raw baselines after the additive Phase 3 schema upgrade.
+    Benchmark::BenchmarkResult legacyResult;
+    if (!Benchmark::ReadBenchmarkResult("docs/dev/results/baseline/instance-10k-run1.json", legacyResult, error) || legacyResult.schemaVersion != 1 || legacyResult.samples.empty())
+        return Fail("legacy benchmark schema v1 is no longer readable");
     const auto unsupportedPath = root / "unsupported.json";
     {
         std::ofstream unsupported(unsupportedPath);

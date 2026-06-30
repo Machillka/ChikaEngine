@@ -38,7 +38,47 @@ namespace ChikaEngine::Benchmark
         Json RenderStatisticsToJson(const Render::RenderFrameStatistics& value)
         {
             return {
-                { "passCount", value.passCount }, { "drawCallCount", value.drawCallCount }, { "instanceCount", value.instanceCount }, { "pipelineBindCount", value.pipelineBindCount }, { "descriptorUpdateCount", value.descriptorUpdateCount }, { "visibleObjectCount", value.visibleObjectCount }, { "culledObjectCount", value.culledObjectCount }, { "packetCount", value.packetCount }, { "batchCount", value.batchCount }, { "instancedBatchCount", value.instancedBatchCount },
+                { "passCount", value.passCount },
+                { "drawCallCount", value.drawCallCount },
+                { "instanceCount", value.instanceCount },
+                { "pipelineBindCount", value.pipelineBindCount },
+                { "descriptorUpdateCount", value.descriptorUpdateCount },
+                { "visibleObjectCount", value.visibleObjectCount },
+                { "culledObjectCount", value.culledObjectCount },
+                { "packetCount", value.packetCount },
+                { "batchCount", value.batchCount },
+                { "instancedBatchCount", value.instancedBatchCount },
+                { "staticOpaqueObjectCount", value.staticOpaqueObjectCount },
+                { "skinnedObjectCount", value.skinnedObjectCount },
+                { "transparentObjectCount", value.transparentObjectCount },
+                { "invalidResourceObjectCount", value.invalidResourceObjectCount },
+                { "preparationFallback", value.preparationFallback },
+                { "requestedRenderPath", value.requestedRenderPath },
+                { "effectiveRenderPath", value.effectiveRenderPath },
+                { "renderPathFallback", value.renderPathFallback },
+                { "gpuDrivenInstanceCount", value.gpuDrivenInstanceCount },
+                { "gpuDrivenVisibleCount", value.gpuDrivenVisibleCount },
+                { "gpuDrivenDrawGroupCount", value.gpuDrivenDrawGroupCount },
+                { "gpuDrivenIndirectCommandCount", value.gpuDrivenIndirectCommandCount },
+                { "gpuDrivenValidationCompared", value.gpuDrivenValidationCompared },
+                { "gpuDrivenValidationMatched", value.gpuDrivenValidationMatched },
+                { "gpuDrivenValidationMissingCount", value.gpuDrivenValidationMissingCount },
+                { "gpuDrivenValidationExtraCount", value.gpuDrivenValidationExtraCount },
+                { "gpuDrivenLayoutHash", value.gpuDrivenLayoutHash },
+                { "gpuDrivenVisibilityHash", value.gpuDrivenVisibilityHash },
+                { "gpuDrivenIndirectHash", value.gpuDrivenIndirectHash },
+                { "validationHashVersion", value.validationHashVersion },
+                { "visibleSetHash", value.visibleSetHash },
+                { "packetHash", value.packetHash },
+                { "batchHash", value.batchHash },
+                { "drawInputHash", value.drawInputHash },
+                { "preparationCpuTimeMs", value.preparationCpuTimeMs },
+                { "sceneViewCpuTimeMs", value.sceneViewCpuTimeMs },
+                { "resourceViewCpuTimeMs", value.resourceViewCpuTimeMs },
+                { "visibilityCpuTimeMs", value.visibilityCpuTimeMs },
+                { "packetCpuTimeMs", value.packetCpuTimeMs },
+                { "sortCpuTimeMs", value.sortCpuTimeMs },
+                { "renderJobsUsed", value.renderJobsUsed },
             };
         }
 
@@ -56,6 +96,37 @@ namespace ChikaEngine::Benchmark
             result.packetCount = value.value("packetCount", 0u);
             result.batchCount = value.value("batchCount", 0u);
             result.instancedBatchCount = value.value("instancedBatchCount", 0u);
+            result.staticOpaqueObjectCount = value.value("staticOpaqueObjectCount", 0u);
+            result.skinnedObjectCount = value.value("skinnedObjectCount", 0u);
+            result.transparentObjectCount = value.value("transparentObjectCount", 0u);
+            result.invalidResourceObjectCount = value.value("invalidResourceObjectCount", 0u);
+            result.preparationFallback = value.value("preparationFallback", 0u);
+            result.requestedRenderPath = value.value("requestedRenderPath", 0u);
+            result.effectiveRenderPath = value.value("effectiveRenderPath", 0u);
+            result.renderPathFallback = value.value("renderPathFallback", 0u);
+            result.gpuDrivenInstanceCount = value.value("gpuDrivenInstanceCount", 0u);
+            result.gpuDrivenVisibleCount = value.value("gpuDrivenVisibleCount", 0u);
+            result.gpuDrivenDrawGroupCount = value.value("gpuDrivenDrawGroupCount", 0u);
+            result.gpuDrivenIndirectCommandCount = value.value("gpuDrivenIndirectCommandCount", 0u);
+            result.gpuDrivenValidationCompared = value.value("gpuDrivenValidationCompared", 0u);
+            result.gpuDrivenValidationMatched = value.value("gpuDrivenValidationMatched", 0u);
+            result.gpuDrivenValidationMissingCount = value.value("gpuDrivenValidationMissingCount", 0u);
+            result.gpuDrivenValidationExtraCount = value.value("gpuDrivenValidationExtraCount", 0u);
+            result.gpuDrivenLayoutHash = value.value("gpuDrivenLayoutHash", uint64_t{});
+            result.gpuDrivenVisibilityHash = value.value("gpuDrivenVisibilityHash", uint64_t{});
+            result.gpuDrivenIndirectHash = value.value("gpuDrivenIndirectHash", uint64_t{});
+            result.validationHashVersion = value.value("validationHashVersion", 0u);
+            result.visibleSetHash = value.value("visibleSetHash", uint64_t{});
+            result.packetHash = value.value("packetHash", uint64_t{});
+            result.batchHash = value.value("batchHash", uint64_t{});
+            result.drawInputHash = value.value("drawInputHash", uint64_t{});
+            result.preparationCpuTimeMs = value.value("preparationCpuTimeMs", 0.0);
+            result.sceneViewCpuTimeMs = value.value("sceneViewCpuTimeMs", 0.0);
+            result.resourceViewCpuTimeMs = value.value("resourceViewCpuTimeMs", 0.0);
+            result.visibilityCpuTimeMs = value.value("visibilityCpuTimeMs", 0.0);
+            result.packetCpuTimeMs = value.value("packetCpuTimeMs", 0.0);
+            result.sortCpuTimeMs = value.value("sortCpuTimeMs", 0.0);
+            result.renderJobsUsed = value.value("renderJobsUsed", false);
             return result;
         }
 
@@ -73,6 +144,10 @@ namespace ChikaEngine::Benchmark
                     { "gpuTimeMs", sample.gpuTimeMs },
                     { "gpuTimingAvailable", sample.gpuTimingAvailable },
                     { "renderStatistics", RenderStatisticsToJson(sample.renderStatistics) },
+                    { "jobQueueWaitNanoseconds", sample.jobQueueWaitNanoseconds },
+                    { "jobExecutionNanoseconds", sample.jobExecutionNanoseconds },
+                    { "successfulJobSteals", sample.successfulJobSteals },
+                    { "workerUtilization", sample.workerUtilization },
                 });
             }
 
@@ -113,6 +188,13 @@ namespace ChikaEngine::Benchmark
                       { "engineTickCpuTime", DistributionToJson(result.aggregates.engineTickCpuTime) },
                       { "renderGraphCpuTime", DistributionToJson(result.aggregates.renderGraphCpuTime) },
                       { "gpuTime", DistributionToJson(result.aggregates.gpuTime) },
+                      { "renderPreparationCpuTime", DistributionToJson(result.aggregates.renderPreparationCpuTime) },
+                      { "visibilityCpuTime", DistributionToJson(result.aggregates.visibilityCpuTime) },
+                      { "packetCpuTime", DistributionToJson(result.aggregates.packetCpuTime) },
+                      { "sortCpuTime", DistributionToJson(result.aggregates.sortCpuTime) },
+                      { "jobQueueWaitTime", DistributionToJson(result.aggregates.jobQueueWaitTime) },
+                      { "jobExecutionTime", DistributionToJson(result.aggregates.jobExecutionTime) },
+                      { "workerUtilization", DistributionToJson(result.aggregates.workerUtilization) },
                       { "missingGpuSamples", result.aggregates.missingGpuSamples },
                   } },
             };
@@ -157,6 +239,10 @@ namespace ChikaEngine::Benchmark
                     .gpuTimeMs = sample.value("gpuTimeMs", 0.0),
                     .gpuTimingAvailable = sample.value("gpuTimingAvailable", false),
                     .renderStatistics = RenderStatisticsFromJson(sample.at("renderStatistics")),
+                    .jobQueueWaitNanoseconds = sample.value("jobQueueWaitNanoseconds", uint64_t{}),
+                    .jobExecutionNanoseconds = sample.value("jobExecutionNanoseconds", uint64_t{}),
+                    .successfulJobSteals = sample.value("successfulJobSteals", uint64_t{}),
+                    .workerUtilization = sample.value("workerUtilization", 0.0),
                 });
             }
 
@@ -165,6 +251,20 @@ namespace ChikaEngine::Benchmark
             result.aggregates.engineTickCpuTime = DistributionFromJson(aggregates.at("engineTickCpuTime"));
             result.aggregates.renderGraphCpuTime = DistributionFromJson(aggregates.at("renderGraphCpuTime"));
             result.aggregates.gpuTime = DistributionFromJson(aggregates.at("gpuTime"));
+            if (aggregates.contains("renderPreparationCpuTime"))
+                result.aggregates.renderPreparationCpuTime = DistributionFromJson(aggregates.at("renderPreparationCpuTime"));
+            if (aggregates.contains("visibilityCpuTime"))
+                result.aggregates.visibilityCpuTime = DistributionFromJson(aggregates.at("visibilityCpuTime"));
+            if (aggregates.contains("packetCpuTime"))
+                result.aggregates.packetCpuTime = DistributionFromJson(aggregates.at("packetCpuTime"));
+            if (aggregates.contains("sortCpuTime"))
+                result.aggregates.sortCpuTime = DistributionFromJson(aggregates.at("sortCpuTime"));
+            if (aggregates.contains("jobQueueWaitTime"))
+                result.aggregates.jobQueueWaitTime = DistributionFromJson(aggregates.at("jobQueueWaitTime"));
+            if (aggregates.contains("jobExecutionTime"))
+                result.aggregates.jobExecutionTime = DistributionFromJson(aggregates.at("jobExecutionTime"));
+            if (aggregates.contains("workerUtilization"))
+                result.aggregates.workerUtilization = DistributionFromJson(aggregates.at("workerUtilization"));
             result.aggregates.missingGpuSamples = aggregates.value("missingGpuSamples", 0u);
             return result;
         }
@@ -217,10 +317,24 @@ namespace ChikaEngine::Benchmark
         std::vector<double> engineTickTimes;
         std::vector<double> renderGraphTimes;
         std::vector<double> gpuTimes;
+        std::vector<double> preparationTimes;
+        std::vector<double> visibilityTimes;
+        std::vector<double> packetTimes;
+        std::vector<double> sortTimes;
+        std::vector<double> jobQueueWaitTimes;
+        std::vector<double> jobExecutionTimes;
+        std::vector<double> workerUtilizations;
         frameTimes.reserve(result.samples.size());
         engineTickTimes.reserve(result.samples.size());
         renderGraphTimes.reserve(result.samples.size());
         gpuTimes.reserve(result.samples.size());
+        preparationTimes.reserve(result.samples.size());
+        visibilityTimes.reserve(result.samples.size());
+        packetTimes.reserve(result.samples.size());
+        sortTimes.reserve(result.samples.size());
+        jobQueueWaitTimes.reserve(result.samples.size());
+        jobExecutionTimes.reserve(result.samples.size());
+        workerUtilizations.reserve(result.samples.size());
         result.aggregates.missingGpuSamples = 0;
 
         for (const auto& sample : result.samples)
@@ -228,6 +342,13 @@ namespace ChikaEngine::Benchmark
             frameTimes.push_back(sample.frameTimeMs);
             engineTickTimes.push_back(sample.engineTickCpuTimeMs);
             renderGraphTimes.push_back(sample.renderGraphCpuTimeMs);
+            preparationTimes.push_back(sample.renderStatistics.preparationCpuTimeMs);
+            visibilityTimes.push_back(sample.renderStatistics.visibilityCpuTimeMs);
+            packetTimes.push_back(sample.renderStatistics.packetCpuTimeMs);
+            sortTimes.push_back(sample.renderStatistics.sortCpuTimeMs);
+            jobQueueWaitTimes.push_back(static_cast<double>(sample.jobQueueWaitNanoseconds) / 1'000'000.0);
+            jobExecutionTimes.push_back(static_cast<double>(sample.jobExecutionNanoseconds) / 1'000'000.0);
+            workerUtilizations.push_back(sample.workerUtilization);
             if (sample.gpuTimingAvailable)
                 gpuTimes.push_back(sample.gpuTimeMs);
             else
@@ -237,6 +358,13 @@ namespace ChikaEngine::Benchmark
         result.aggregates.engineTickCpuTime = ComputeSampleDistribution(engineTickTimes);
         result.aggregates.renderGraphCpuTime = ComputeSampleDistribution(renderGraphTimes);
         result.aggregates.gpuTime = ComputeSampleDistribution(gpuTimes);
+        result.aggregates.renderPreparationCpuTime = ComputeSampleDistribution(preparationTimes);
+        result.aggregates.visibilityCpuTime = ComputeSampleDistribution(visibilityTimes);
+        result.aggregates.packetCpuTime = ComputeSampleDistribution(packetTimes);
+        result.aggregates.sortCpuTime = ComputeSampleDistribution(sortTimes);
+        result.aggregates.jobQueueWaitTime = ComputeSampleDistribution(jobQueueWaitTimes);
+        result.aggregates.jobExecutionTime = ComputeSampleDistribution(jobExecutionTimes);
+        result.aggregates.workerUtilization = ComputeSampleDistribution(workerUtilizations);
     }
 
     bool WriteBenchmarkResult(const std::filesystem::path& path, const BenchmarkResult& result, std::string& error)
@@ -281,7 +409,7 @@ namespace ChikaEngine::Benchmark
                 throw std::runtime_error("Failed to open benchmark result: " + path.string());
             const Json json = Json::parse(stream);
             const uint32_t version = json.at("schemaVersion").get<uint32_t>();
-            if (version != kBenchmarkResultSchemaVersion)
+            if (version == 0 || version > kBenchmarkResultSchemaVersion)
                 throw std::runtime_error("Unsupported benchmark schema version: " + std::to_string(version));
             result = ResultFromJson(json);
             return true;

@@ -39,6 +39,9 @@ namespace ChikaEngine::Engine
         bool enableScripting = true;
         Render::RHIBackendTypes rendererBackend = Render::RHIBackendTypes::Default;
         Render::RenderPipelineMode renderPipeline = Render::RenderPipelineMode::Forward;
+        Render::RenderPathMode renderPathMode = Render::RenderPathMode::JobCpu;
+        Render::RenderCpuMode renderCpuMode = Render::RenderCpuMode::Jobs;
+        bool strictGpuDriven = false;
         float fixedDeltaTime = 1.0f / 60.0f;
         uint32_t maxPhysicsStepsPerFrame = 4;
         bool enableJobs = true;

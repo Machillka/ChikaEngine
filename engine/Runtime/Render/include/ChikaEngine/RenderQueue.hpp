@@ -1,9 +1,11 @@
 #pragma once
 
+#include "ChikaEngine/RenderResourceView.hpp"
 #include "ChikaEngine/RenderVisibility.hpp"
 #include "ChikaEngine/ResourceManager.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace ChikaEngine::Render
@@ -64,6 +66,21 @@ namespace ChikaEngine::Render
      */
     RenderQueueSet BuildRenderQueues(const VisibilityResult& mainVisibility, const VisibilityResult& shadowVisibility, const RenderView& view, const Resource::ResourceManager& resources);
 
+    /** @brief Builds unsorted packets from immutable worker-safe resource metadata. */
+    RenderQueueSet BuildRenderPacketsSerial(const VisibilityResult& mainVisibility, const VisibilityResult& shadowVisibility, const RenderView& view, const RenderResourceView& resources);
+
+    /** @brief Appends one main-view or shadow-view range to a caller-owned local queue set. */
+    void AppendRenderPackets(RenderQueueSet& queues, std::span<const RenderObjectSnapshot* const> objects, const RenderView& view, const RenderResourceView& resources, bool shadowPass);
+
+    /** @brief Concatenates local queue vectors in deterministic chunk order. */
+    void AppendRenderQueueSet(RenderQueueSet& destination, RenderQueueSet&& source);
+
     /** @brief 对已有 Packet 执行稳定排序和 Batch 构建，供测试与定制 Pass 复用。 */
     void SortAndBuildRenderBatches(RenderQueue& queue, bool transparent);
+
+    /** @brief Builds batches from an already sorted queue without performing another sort. */
+    void BuildRenderBatches(RenderQueue& queue);
+
+    /** @brief Sorts every pass with the serial oracle and builds final batches. */
+    void SortAndBuildRenderQueueSetSerial(RenderQueueSet& queues);
 } // namespace ChikaEngine::Render

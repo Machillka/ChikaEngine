@@ -38,6 +38,10 @@ namespace ChikaEngine::Render
         {
             return m_deviceName;
         }
+        const RHICapabilities& GetCapabilities() const override
+        {
+            return m_capabilities;
+        }
         void Submit(IRHICommandList* cmdList) override;
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
@@ -237,6 +241,7 @@ namespace ChikaEngine::Render
         VkSampler m_defaultSampler = VK_NULL_HANDLE;
         bool m_enableValidation = true;
         bool m_vSync = true;
+        RHICapabilities m_capabilities;
         RenderFrameStatistics m_frameStatistics;
         std::vector<RenderPassGpuTiming> m_passGpuTimings;
 

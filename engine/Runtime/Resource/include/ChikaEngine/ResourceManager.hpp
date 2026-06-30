@@ -30,6 +30,10 @@ namespace ChikaEngine::Resource
         const TextureGPU& GetTexture(TextureHandle handle) const;
         const MaterialGPU& GetMaterial(MaterialHandle handle) const;
 
+        /** @brief Returns immutable metadata or nullptr without dereferencing a stale resource handle. */
+        const MeshGPU* TryGetMesh(MeshHandle handle) const;
+        const MaterialGPU* TryGetMaterial(MaterialHandle handle) const;
+
         bool Unload(MeshHandle handle);
         bool Unload(TextureHandle handle);
         bool Unload(MaterialHandle handle);

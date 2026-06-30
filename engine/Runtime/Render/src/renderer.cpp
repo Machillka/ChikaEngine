@@ -19,6 +19,11 @@ namespace ChikaEngine::Render
 
         m_assetManager = createInfo.assetManager;
         m_settings.pipelineMode = createInfo.pipelineMode;
+        m_settings.requestedPath = createInfo.pathMode;
+        if (createInfo.pathMode == RenderPathMode::JobCpu && createInfo.cpuMode == RenderCpuMode::Serial)
+            m_settings.requestedPath = RenderPathMode::SerialCpu;
+        m_settings.cpuMode = ToRenderCpuMode(m_settings.requestedPath);
+        m_settings.strictGpuDriven = createInfo.strictGpuDriven;
         m_deviceContext.Initialize({
             .windowHandle = createInfo.windowHandle,
             .width = createInfo.width,

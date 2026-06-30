@@ -80,7 +80,7 @@ namespace ChikaEngine::Render
 
         void AddPass(const std::string& name, RGSetupCallback setup, RGExecuteCallback execute);
         void AddComputePass(const std::string& name, RGSetupCallback setup, RGExecuteCallback execute);
-        void AddCopyPass(const std::string& name, RGSetupCallback setup, RGExecuteCallback execute);
+        void AddCopyPass(const std::string& name, RGSetupCallback setup, RGExecuteCallback execute, bool hasSideEffects = true);
         /** @brief 兼容旧调用；无声明 Upload 会作为有副作用 Copy Pass 执行。 */
         void AddUploadPass(const std::string& name, RGExecuteCallback execute);
         void AddPresentPass(const std::string& name, RGTextureHandle swapchainHandle);

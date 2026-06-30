@@ -25,12 +25,32 @@ layout(set = 2, binding = 1, std430) readonly buffer InstanceData {
     mat4 models[];
 } instances;
 
+struct GpuInstanceData
+{
+    mat4 model;
+    vec4 boundsCenterRadius;
+    vec4 boundsExtentsFlags;
+    uint drawGroupIndex;
+    uint objectId;
+    uint meshId;
+    uint materialId;
+};
+
+layout(set = 2, binding = 2, std430) readonly buffer GpuVisibleInstances {
+    uint visibleInstanceIndices[];
+} gpuVisibleInstances;
+
+layout(set = 2, binding = 3, std430) readonly buffer GpuInstanceBuffer {
+    GpuInstanceData gpuInstances[];
+} gpuInstances;
+
 layout(push_constant) uniform PushConstants {
     mat4 model;
     int isShadowPass;
     int isSkinned;
     int renderMode;
     int useInstancing;
+    int useGpuDriven;
 } pc;
 
 layout(location = 0) out vec3 outWorldPos;
@@ -59,7 +79,8 @@ void main() {
         localNormal = inNormal;
     }
 
-    mat4 model = pc.useInstancing == 1 ? instances.models[gl_InstanceIndex] : pc.model;
+    uint gpuInstanceIndex = pc.useGpuDriven == 1 ? gpuVisibleInstances.visibleInstanceIndices[gl_InstanceIndex] : gl_InstanceIndex;
+    mat4 model = pc.useGpuDriven == 1 ? gpuInstances.gpuInstances[gpuInstanceIndex].model : (pc.useInstancing == 1 ? instances.models[gl_InstanceIndex] : pc.model);
     vec4 worldPos = model * localPos;
     vec3 worldNormal = normalize(mat3(model) * localNormal);
 

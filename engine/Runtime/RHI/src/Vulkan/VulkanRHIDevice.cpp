@@ -979,6 +979,7 @@ namespace ChikaEngine::Render
         vkEnumeratePhysicalDevices(m_instance, &count, devices.data());
 
         int bestScore = -1;
+        RHICapabilities bestCapabilities{};
         for (VkPhysicalDevice device : devices)
         {
             VkPhysicalDeviceProperties properties{};
@@ -1016,12 +1017,15 @@ namespace ChikaEngine::Render
             }
             if (compatibleQueue == UINT32_MAX)
                 continue;
+            const bool graphicsQueueCanDispatchCompute = (families[compatibleQueue].queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
 
             int score = static_cast<int>(properties.limits.maxImageDimension2D);
             if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
                 score += 100'000;
             else if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
                 score += 10'000;
+            if (graphicsQueueCanDispatchCompute)
+                score += 1'000;
             if (score <= bestScore)
                 continue;
 
@@ -1029,10 +1033,23 @@ namespace ChikaEngine::Render
             m_physicalDevice = device;
             m_graphicsQueueFamily = compatibleQueue;
             m_deviceName = properties.deviceName;
+            bestCapabilities = {
+                .compute = graphicsQueueCanDispatchCompute,
+                .storageBuffer = true,
+                .drawIndirect = true,
+                .drawIndexedIndirect = true,
+                // The logical device does not enable VkPhysicalDeviceFeatures::multiDrawIndirect yet.
+                .multiDrawIndirect = false,
+                // RHI intentionally has no DrawIndirectCount command in Phase 4.1.
+                .drawIndirectCount = false,
+                .maxDrawIndirectCount = 1,
+                .maxComputeWorkGroupInvocations = properties.limits.maxComputeWorkGroupInvocations,
+            };
         }
 
         if (!m_physicalDevice)
             throw std::runtime_error("No Vulkan 1.3 graphics/present device with swapchain support found");
+        m_capabilities = bestCapabilities;
         LOG_INFO("VulkanRHI", "Selected physical device: {}", m_deviceName);
     }
 

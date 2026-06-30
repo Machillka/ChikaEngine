@@ -23,6 +23,16 @@ add_executable(ChikaRenderBaselineTests
 )
 target_link_libraries(ChikaRenderBaselineTests PRIVATE ChikaRender)
 
+add_executable(ChikaRenderPhase3Tests
+    unit/RenderPhase3Tests.cpp
+)
+target_link_libraries(ChikaRenderPhase3Tests PRIVATE ChikaRender ChikaJobs)
+
+add_executable(ChikaRenderPhase4Tests
+    unit/RenderPhase4Tests.cpp
+)
+target_link_libraries(ChikaRenderPhase4Tests PRIVATE ChikaRender)
+
 add_executable(ChikaShaderInterfaceTests
     unit/ShaderInterfaceTests.cpp
 )
@@ -68,6 +78,8 @@ add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.AssetJobs COMMAND ChikaAssetJobIntegrationTests)
 add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
+add_test(NAME Chika.RenderPhase3 COMMAND ChikaRenderPhase3Tests)
+add_test(NAME Chika.RenderPhase4 COMMAND ChikaRenderPhase4Tests)
 add_test(NAME Chika.ShaderInterface COMMAND ChikaShaderInterfaceTests)
 add_test(NAME Chika.ProjectDescriptor COMMAND ChikaProjectDescriptorTests)
 add_test(NAME Chika.Profiler COMMAND ChikaProfilerTests)
@@ -85,7 +97,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.AssetJobs Chika.RenderBaseline Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 if(CHIKA_BUILD_BENCHMARKS)

@@ -1,8 +1,10 @@
 #include "ChikaEngine/RenderQueue.hpp"
 
+#include "ChikaEngine/RenderSortKey.hpp"
 #include "ChikaEngine/math/vector4.h"
 #include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include <algorithm>
+#include <iterator>
 #include <tuple>
 
 namespace ChikaEngine::Render
@@ -21,7 +23,7 @@ namespace ChikaEngine::Render
          */
         bool OpaqueLess(const RenderPacket& lhs, const RenderPacket& rhs)
         {
-            return std::tie(lhs.pipeline.raw_value, lhs.material.raw_value, lhs.mesh.raw_value, lhs.object->handle.raw_value) < std::tie(rhs.pipeline.raw_value, rhs.material.raw_value, rhs.mesh.raw_value, rhs.object->handle.raw_value);
+            return BuildOpaqueSortKey(lhs) < BuildOpaqueSortKey(rhs);
         }
 
         /**
@@ -35,7 +37,7 @@ namespace ChikaEngine::Render
         }
 
         /** @brief 将排序后共享完整绘制状态的连续 Packet 合并为 Batch。 */
-        void BuildBatches(RenderQueue& queue)
+        void BuildBatchesInternal(RenderQueue& queue)
         {
             for (size_t packetIndex = 0; packetIndex < queue.packets.size();)
             {
@@ -115,10 +117,69 @@ namespace ChikaEngine::Render
         return queues;
     }
 
+    void AppendRenderPackets(RenderQueueSet& queues, std::span<const RenderObjectSnapshot* const> objects, const RenderView& view, const RenderResourceView& resources, bool shadowPass)
+    {
+        for (const RenderObjectSnapshot* object : objects)
+        {
+            if (!object || !resources.ContainsMesh(object->proxy.mesh))
+                continue;
+            const RenderMaterialMetadata* material = resources.FindMaterial(object->proxy.material);
+            if (!material)
+                continue;
+            if (shadowPass)
+            {
+                AppendPacket(queues.shadow, *object, RenderPassClass::Shadow, material->shadowPipeline, 0.0f);
+                continue;
+            }
+
+            const float viewDepth = ComputeViewDepth(view, object->proxy);
+            if (HasFlag(object->proxy.flags, RenderObjectFlags::Transparent))
+                AppendPacket(queues.forwardTransparent, *object, RenderPassClass::ForwardTransparent, material->forwardPipeline, viewDepth);
+            else
+            {
+                AppendPacket(queues.forwardOpaque, *object, RenderPassClass::ForwardOpaque, material->forwardPipeline, viewDepth);
+                AppendPacket(queues.gbufferOpaque, *object, RenderPassClass::GBufferOpaque, material->gbufferPipeline, viewDepth);
+            }
+        }
+    }
+
+    RenderQueueSet BuildRenderPacketsSerial(const VisibilityResult& mainVisibility, const VisibilityResult& shadowVisibility, const RenderView& view, const RenderResourceView& resources)
+    {
+        CHIKA_PROFILE_SCOPE("Renderer.BuildPackets.Serial");
+        RenderQueueSet queues;
+        AppendRenderPackets(queues, mainVisibility.visibleObjects, view, resources, false);
+        AppendRenderPackets(queues, shadowVisibility.visibleObjects, view, resources, true);
+        return queues;
+    }
+
+    void AppendRenderQueueSet(RenderQueueSet& destination, RenderQueueSet&& source)
+    {
+        const auto append = [](RenderQueue& target, RenderQueue& local) { target.packets.insert(target.packets.end(), std::make_move_iterator(local.packets.begin()), std::make_move_iterator(local.packets.end())); };
+        append(destination.shadow, source.shadow);
+        append(destination.forwardOpaque, source.forwardOpaque);
+        append(destination.gbufferOpaque, source.gbufferOpaque);
+        append(destination.forwardTransparent, source.forwardTransparent);
+    }
+
     void SortAndBuildRenderBatches(RenderQueue& queue, bool transparent)
     {
         std::stable_sort(queue.packets.begin(), queue.packets.end(), transparent ? TransparentLess : OpaqueLess);
         queue.batches.clear();
-        BuildBatches(queue);
+        BuildBatchesInternal(queue);
+    }
+
+    void BuildRenderBatches(RenderQueue& queue)
+    {
+        queue.batches.clear();
+        BuildBatchesInternal(queue);
+    }
+
+    void SortAndBuildRenderQueueSetSerial(RenderQueueSet& queues)
+    {
+        CHIKA_PROFILE_SCOPE("Renderer.Sort.Serial");
+        SortAndBuildRenderBatches(queues.shadow, false);
+        SortAndBuildRenderBatches(queues.forwardOpaque, false);
+        SortAndBuildRenderBatches(queues.gbufferOpaque, false);
+        SortAndBuildRenderBatches(queues.forwardTransparent, true);
     }
 } // namespace ChikaEngine::Render

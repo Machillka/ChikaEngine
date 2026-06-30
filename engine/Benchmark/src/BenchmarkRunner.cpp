@@ -47,6 +47,10 @@ namespace ChikaEngine::Benchmark
                 .engineTickCpuTimeMs = observation.engineTickCpuTimeMs,
                 .renderGraphCpuTimeMs = observation.renderGraphCpuTimeMs,
                 .renderStatistics = observation.renderStatistics,
+                .jobQueueWaitNanoseconds = observation.jobQueueWaitNanoseconds,
+                .jobExecutionNanoseconds = observation.jobExecutionNanoseconds,
+                .successfulJobSteals = observation.successfulJobSteals,
+                .workerUtilization = observation.workerUtilization,
             });
             m_sampleIndexByFrame.emplace(observation.frameIndex, sampleIndex);
             if (m_result.samples.size() == m_result.configuration.sampleFrames)

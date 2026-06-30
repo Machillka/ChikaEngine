@@ -11,7 +11,7 @@
 
 namespace ChikaEngine::Benchmark
 {
-    inline constexpr uint32_t kBenchmarkResultSchemaVersion = 1;
+    inline constexpr uint32_t kBenchmarkResultSchemaVersion = 3;
 
     struct BenchmarkBuildMetadata
     {
@@ -53,6 +53,10 @@ namespace ChikaEngine::Benchmark
         double gpuTimeMs = 0.0;
         bool gpuTimingAvailable = false;
         Render::RenderFrameStatistics renderStatistics;
+        uint64_t jobQueueWaitNanoseconds = 0;
+        uint64_t jobExecutionNanoseconds = 0;
+        uint64_t successfulJobSteals = 0;
+        double workerUtilization = 0.0;
     };
 
     struct BenchmarkAggregates
@@ -61,6 +65,13 @@ namespace ChikaEngine::Benchmark
         SampleDistribution engineTickCpuTime;
         SampleDistribution renderGraphCpuTime;
         SampleDistribution gpuTime;
+        SampleDistribution renderPreparationCpuTime;
+        SampleDistribution visibilityCpuTime;
+        SampleDistribution packetCpuTime;
+        SampleDistribution sortCpuTime;
+        SampleDistribution jobQueueWaitTime;
+        SampleDistribution jobExecutionTime;
+        SampleDistribution workerUtilization;
         uint32_t missingGpuSamples = 0;
     };
 

@@ -1,5 +1,6 @@
 #include "RenderStatisticsPanel.hpp"
 
+#include "ChikaEngine/RenderPath.hpp"
 #include "ChikaEngine/Renderer.hpp"
 #include <imgui.h>
 
@@ -49,6 +50,26 @@ namespace ChikaEngine::Editor
         ImGui::Text("Visible / Culled: %u / %u", statistics.visibleObjectCount, statistics.culledObjectCount);
         ImGui::Text("Packets / Batches: %u / %u", statistics.packetCount, statistics.batchCount);
         ImGui::Text("Instanced Batches: %u", statistics.instancedBatchCount);
+        if (ImGui::CollapsingHeader("Render Path", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            const char* pathItems[] = { "Serial CPU", "Job CPU", "GPU Driven" };
+            int selectedPath = static_cast<int>(_context->renderer->GetRequestedRenderPathMode());
+            if (ImGui::Combo("Requested Path", &selectedPath, pathItems, 3))
+                _context->renderer->SetRenderPathMode(static_cast<Render::RenderPathMode>(selectedPath));
+            const auto requested = static_cast<Render::RenderPathMode>(statistics.requestedRenderPath);
+            const auto effective = static_cast<Render::RenderPathMode>(statistics.effectiveRenderPath);
+            const auto fallback = static_cast<Render::RenderPathFallbackReason>(statistics.renderPathFallback);
+            ImGui::Text("Requested: %s", Render::ToString(requested).data());
+            ImGui::Text("Effective: %s", Render::ToString(effective).data());
+            ImGui::Text("Fallback: %s", Render::ToString(fallback).data());
+            ImGui::Text("GPU-driven Instances / Visible: %u / %u", statistics.gpuDrivenInstanceCount, statistics.gpuDrivenVisibleCount);
+            ImGui::Text("GPU-driven Groups / Indirect: %u / %u", statistics.gpuDrivenDrawGroupCount, statistics.gpuDrivenIndirectCommandCount);
+            ImGui::Text("GPU-driven Oracle: compared=%u matched=%u missing=%u extra=%u",
+                        statistics.gpuDrivenValidationCompared,
+                        statistics.gpuDrivenValidationMatched,
+                        statistics.gpuDrivenValidationMissingCount,
+                        statistics.gpuDrivenValidationExtraCount);
+        }
         if (ImGui::CollapsingHeader("Render Quality", ImGuiTreeNodeFlags_DefaultOpen))
         {
             const auto& settings = _context->renderer->GetSettings();
