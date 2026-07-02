@@ -11,10 +11,13 @@
 
 #pragma once
 
+#include "ChikaEngine/AssetLayouts.hpp"
+#include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/ResourceBinder.hpp"
 #include "ChikaEngine/math/Bounds.hpp"
 #include <cstdint>
+#include <vector>
 
 namespace ChikaEngine::Resource
 {
@@ -32,6 +35,16 @@ namespace ChikaEngine::Resource
     struct TextureGPU
     {
         Render::TextureHandle texture;
+        Render::TextureViewHandle defaultView;
+        Render::SamplerHandle sampler;
+        std::vector<Render::TextureViewHandle> mipViews;
+        std::vector<Render::TextureViewHandle> faceViews;
+        Render::TextureDimension dimension = Render::TextureDimension::Texture2D;
+        Asset::TextureAssetUsage usage = Asset::TextureAssetUsage::Color;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t mipLevels = 1;
+        uint32_t arrayLayers = 1;
     };
 
     /**

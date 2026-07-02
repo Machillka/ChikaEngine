@@ -388,7 +388,7 @@ namespace ChikaEngine::Render
                 {
                     const auto& job = textureJobs[index];
                     const BufferDesc stagingDesc{
-                        .size = static_cast<uint64_t>(job.width) * job.height * 4u,
+                        .size = job.size,
                         .usage = RHI_BufferUsage::TransferSrc,
                         .memoryUsage = MemoryUsage::CPU_To_GPU,
                     };
@@ -396,7 +396,10 @@ namespace ChikaEngine::Render
                         .width = job.width,
                         .height = job.height,
                         .format = job.format,
+                        .mipLevels = job.mipLevels,
+                        .arrayLayers = job.arrayLayers,
                         .usage = RHI_TextureUsage::Sampled,
+                        .dimension = job.dimension,
                     };
                     const RGBufferHandle staging = m_renderGraph->ImportBuffer("Upload.Texture.Staging." + std::to_string(index), job.staging, stagingDesc, ResourceState::CopySrc, ResourceState::CopySrc);
                     const RGTextureHandle destination = m_renderGraph->ImportTexture("Upload.Texture.Destination." + std::to_string(index), job.dst, destinationDesc, ResourceState::Undefined, ResourceState::ShaderResource);
@@ -414,7 +417,7 @@ namespace ChikaEngine::Render
                 for (size_t index = 0; index < bufferJobs.size(); ++index)
                     cmd->CopyBuffer(bufferJobs[index].staging, bufferJobs[index].dst, bufferJobs[index].size);
                 for (size_t index = 0; index < textureJobs.size(); ++index)
-                    cmd->CopyBufferToTexture(textureJobs[index].staging, textureJobs[index].dst, textureJobs[index].width, textureJobs[index].height);
+                    cmd->CopyBufferToTexture(textureJobs[index].staging, textureJobs[index].dst, textureJobs[index].width, textureJobs[index].height, textureJobs[index].arrayLayers);
             });
     }
 

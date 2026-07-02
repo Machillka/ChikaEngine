@@ -171,6 +171,26 @@ namespace ChikaEngine::Resource
             };
         }
 
+        Render::TextureDimension ToTextureDimension(Asset::TextureShape shape)
+        {
+            return shape == Asset::TextureShape::TextureCube ? Render::TextureDimension::TextureCube : Render::TextureDimension::Texture2D;
+        }
+
+        bool IsEnvironmentUsage(Asset::TextureAssetUsage usage)
+        {
+            switch (usage)
+            {
+            case Asset::TextureAssetUsage::Environment:
+            case Asset::TextureAssetUsage::EnvironmentIrradiance:
+            case Asset::TextureAssetUsage::EnvironmentPrefiltered:
+            case Asset::TextureAssetUsage::EnvironmentBrdfLut:
+            case Asset::TextureAssetUsage::ReflectionProbe:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         /**
          * @brief 将 Material 参数值写入 Reflection 指定的真实 Buffer Offset。
          */
@@ -349,18 +369,121 @@ namespace ChikaEngine::Resource
         if (!data)
             return TextureHandle::Invalid();
 
-        uint64_t imageSize = data->width * data->height * data->channels;
+        const uint64_t imageSize = data->pixels.size();
+        if (imageSize == 0)
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' has no pixel data", data->path);
+            return TextureHandle::Invalid();
+        }
+
+        const Render::TextureDimension dimension = ToTextureDimension(data->shape);
         Render::TextureDesc desc{
             .width = data->width,
             .height = data->height,
             .format = data->srgb ? Render::RHI_Format::RGBA8_SRGB : Render::RHI_Format::RGBA8_UNorm,
-            .mipLevels = 1,
-            .arrayLayers = 1,
+            .mipLevels = std::max(1u, data->mipLevels),
+            .arrayLayers = std::max(1u, data->arrayLayers),
             .usage = Render::RHI_TextureUsage::Sampled,
+            .dimension = dimension,
         };
+        if (!Render::IsTextureDescValid(desc))
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' has invalid RHI description", data->path);
+            return TextureHandle::Invalid();
+        }
         Render::TextureHandle tex = m_rhi.CreateTexture(desc);
+        if (!tex.IsValid())
+            return TextureHandle::Invalid();
         const std::string textureDebugName = data->path.empty() ? "Texture.Unnamed" : "Texture." + data->path;
         m_rhi.SetDebugName(tex, textureDebugName);
+
+        const Render::TextureViewDesc viewDesc{
+            .texture = tex,
+            .range = { .baseMipLevel = 0, .mipLevelCount = desc.mipLevels, .baseArrayLayer = 0, .arrayLayerCount = desc.arrayLayers },
+            .dimension = dimension,
+        };
+        Render::TextureViewHandle defaultView = m_rhi.CreateTextureView(viewDesc);
+        if (!defaultView.IsValid())
+        {
+            m_rhi.DestroyTexture(tex);
+            return TextureHandle::Invalid();
+        }
+        m_rhi.SetDebugName(defaultView, textureDebugName + ".DefaultView");
+
+        const bool clampSampler = dimension == Render::TextureDimension::TextureCube || IsEnvironmentUsage(data->usage);
+        Render::SamplerHandle sampler = m_rhi.CreateSampler({
+            .minFilter = Render::FilterMode::Linear,
+            .magFilter = Render::FilterMode::Linear,
+            .addressU = clampSampler ? Render::AddressMode::ClampToEdge : Render::AddressMode::Repeat,
+            .addressV = clampSampler ? Render::AddressMode::ClampToEdge : Render::AddressMode::Repeat,
+            .addressW = clampSampler ? Render::AddressMode::ClampToEdge : Render::AddressMode::Repeat,
+        });
+        if (!sampler.IsValid())
+        {
+            m_rhi.DestroyTextureView(defaultView);
+            m_rhi.DestroyTexture(tex);
+            return TextureHandle::Invalid();
+        }
+        m_rhi.SetDebugName(sampler, textureDebugName + ".Sampler");
+
+        std::vector<Render::TextureViewHandle> mipViews;
+        std::vector<Render::TextureViewHandle> faceViews;
+        auto destroyTextureContractHandles = [&]()
+        {
+            for (Render::TextureViewHandle view : mipViews)
+            {
+                if (view.IsValid())
+                    m_rhi.DestroyTextureView(view);
+            }
+            for (Render::TextureViewHandle view : faceViews)
+            {
+                if (view.IsValid())
+                    m_rhi.DestroyTextureView(view);
+            }
+            m_rhi.DestroySampler(sampler);
+            m_rhi.DestroyTextureView(defaultView);
+            m_rhi.DestroyTexture(tex);
+        };
+
+        if ((dimension == Render::TextureDimension::TextureCube || IsEnvironmentUsage(data->usage)) && desc.mipLevels > 1)
+        {
+            mipViews.reserve(desc.mipLevels);
+            for (uint32_t mip = 0; mip < desc.mipLevels; ++mip)
+            {
+                Render::TextureViewHandle mipView = m_rhi.CreateTextureView({
+                    .texture = tex,
+                    .range = { .baseMipLevel = mip, .mipLevelCount = 1, .baseArrayLayer = 0, .arrayLayerCount = desc.arrayLayers },
+                    .dimension = dimension,
+                });
+                if (!mipView.IsValid())
+                {
+                    destroyTextureContractHandles();
+                    return TextureHandle::Invalid();
+                }
+                m_rhi.SetDebugName(mipView, textureDebugName + ".MipView." + std::to_string(mip));
+                mipViews.push_back(mipView);
+            }
+        }
+
+        if (dimension == Render::TextureDimension::TextureCube)
+        {
+            faceViews.reserve(desc.arrayLayers);
+            for (uint32_t face = 0; face < desc.arrayLayers; ++face)
+            {
+                Render::TextureViewHandle faceView = m_rhi.CreateTextureView({
+                    .texture = tex,
+                    .range = { .baseMipLevel = 0, .mipLevelCount = desc.mipLevels, .baseArrayLayer = face, .arrayLayerCount = 1 },
+                    .dimension = Render::TextureDimension::Texture2D,
+                });
+                if (!faceView.IsValid())
+                {
+                    destroyTextureContractHandles();
+                    return TextureHandle::Invalid();
+                }
+                m_rhi.SetDebugName(faceView, textureDebugName + ".FaceView." + std::to_string(face));
+                faceViews.push_back(faceView);
+            }
+        }
 
         Render::BufferDesc stagingDesc{
             .size = imageSize,
@@ -373,20 +496,32 @@ namespace ChikaEngine::Resource
 
         {
             std::lock_guard<std::mutex> lock(m_uploadMutex);
-            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height, desc.format });
+            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height, desc.mipLevels, desc.arrayLayers, imageSize, desc.format, desc.dimension });
         }
 
         // SubmitImmediate(
         //     [&](Render::IRHICommandList* cmd)
         //     {
         //         cmd->InsertTextureBarrier(tex, Render::ResourceState::Undefined, Render::ResourceState::TransferDst);
-        //         cmd->CopyBufferToTexture(staging, tex, data->width, data->height);
+        //         cmd->CopyBufferToTexture(staging, tex, data->width, data->height, desc.arrayLayers);
         //         cmd->InsertTextureBarrier(tex, Render::ResourceState::TransferDst, Render::ResourceState::ShaderResource);
         //     });
 
         m_rhi.DestroyBuffer(staging);
 
-        TextureHandle handle = m_textures.Create({ .texture = tex });
+        TextureHandle handle = m_textures.Create({
+            .texture = tex,
+            .defaultView = defaultView,
+            .sampler = sampler,
+            .mipViews = std::move(mipViews),
+            .faceViews = std::move(faceViews),
+            .dimension = dimension,
+            .usage = data->usage,
+            .width = data->width,
+            .height = data->height,
+            .mipLevels = desc.mipLevels,
+            .arrayLayers = desc.arrayLayers,
+        });
         m_textureCache[assetHandle] = handle;
         return handle;
     }
@@ -595,6 +730,20 @@ namespace ChikaEngine::Resource
         TextureGPU* texture = m_textures.Get(handle);
         if (!texture)
             return false;
+        for (Render::TextureViewHandle view : texture->mipViews)
+        {
+            if (view.IsValid())
+                m_rhi.DestroyTextureView(view);
+        }
+        for (Render::TextureViewHandle view : texture->faceViews)
+        {
+            if (view.IsValid())
+                m_rhi.DestroyTextureView(view);
+        }
+        if (texture->defaultView.IsValid())
+            m_rhi.DestroyTextureView(texture->defaultView);
+        if (texture->sampler.IsValid())
+            m_rhi.DestroySampler(texture->sampler);
         m_rhi.DestroyTexture(texture->texture);
         RemoveCachedHandle(handle, m_textureCache);
         m_textures.Destroy(handle);

@@ -68,7 +68,7 @@ namespace
         void BindIndexBuffer(ChikaEngine::Render::BufferHandle, uint64_t, bool) override {}
         void PushConstants(std::string_view, const void*, uint32_t) override {}
         void CopyBuffer(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::BufferHandle, uint64_t) override {}
-        void CopyBufferToTexture(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::TextureHandle, uint32_t, uint32_t) override {}
+        void CopyBufferToTexture(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::TextureHandle, uint32_t, uint32_t, uint32_t) override {}
         void Draw(uint32_t, uint32_t instanceCount, uint32_t, uint32_t) override;
         void DrawIndexed(uint32_t, uint32_t instanceCount, uint32_t, int32_t, uint32_t) override;
         void DrawIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t) override;

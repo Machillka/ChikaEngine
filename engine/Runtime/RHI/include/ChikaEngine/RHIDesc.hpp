@@ -200,6 +200,13 @@ namespace ChikaEngine::Render
         MemoryUsage memoryUsage = MemoryUsage::GPU_Only;
     };
 
+    enum class TextureDimension : uint32_t
+    {
+        Texture2D,
+        Texture2DArray,
+        TextureCube,
+    };
+
     struct TextureDesc
     {
         uint32_t width = 0;
@@ -209,6 +216,7 @@ namespace ChikaEngine::Render
         uint32_t arrayLayers = 1;
         uint32_t sampleCount = 1;
         RHI_TextureUsage usage = RHI_TextureUsage::Sampled;
+        TextureDimension dimension = TextureDimension::Texture2D;
     };
 
     /**
@@ -231,7 +239,65 @@ namespace ChikaEngine::Render
     {
         TextureHandle texture;
         TextureSubresourceRange range;
+        TextureDimension dimension = TextureDimension::Texture2D;
     };
+
+    inline bool IsTextureDescValid(const TextureDesc& desc)
+    {
+        if (desc.width == 0 || desc.height == 0 || desc.mipLevels == 0 || desc.arrayLayers == 0 || desc.sampleCount == 0)
+            return false;
+
+        switch (desc.dimension)
+        {
+        case TextureDimension::Texture2D:
+            return desc.arrayLayers == 1;
+        case TextureDimension::Texture2DArray:
+            return desc.arrayLayers >= 1;
+        case TextureDimension::TextureCube:
+            return desc.width == desc.height && desc.arrayLayers == 6 && desc.sampleCount == 1;
+        default:
+            return false;
+        }
+    }
+
+    inline uint32_t ResolveMipLevelCount(const TextureDesc& textureDesc, const TextureSubresourceRange& range)
+    {
+        if (range.baseMipLevel >= textureDesc.mipLevels)
+            return 0;
+        return range.mipLevelCount == 0 ? textureDesc.mipLevels - range.baseMipLevel : range.mipLevelCount;
+    }
+
+    inline uint32_t ResolveArrayLayerCount(const TextureDesc& textureDesc, const TextureSubresourceRange& range)
+    {
+        if (range.baseArrayLayer >= textureDesc.arrayLayers)
+            return 0;
+        return range.arrayLayerCount == 0 ? textureDesc.arrayLayers - range.baseArrayLayer : range.arrayLayerCount;
+    }
+
+    inline bool IsTextureViewRangeValid(const TextureDesc& textureDesc, const TextureViewDesc& viewDesc)
+    {
+        if (!IsTextureDescValid(textureDesc))
+            return false;
+
+        const uint32_t mipCount = ResolveMipLevelCount(textureDesc, viewDesc.range);
+        const uint32_t layerCount = ResolveArrayLayerCount(textureDesc, viewDesc.range);
+        if (mipCount == 0 || layerCount == 0)
+            return false;
+        if (viewDesc.range.baseMipLevel + mipCount > textureDesc.mipLevels || viewDesc.range.baseArrayLayer + layerCount > textureDesc.arrayLayers)
+            return false;
+
+        switch (viewDesc.dimension)
+        {
+        case TextureDimension::Texture2D:
+            return layerCount == 1;
+        case TextureDimension::Texture2DArray:
+            return layerCount >= 1;
+        case TextureDimension::TextureCube:
+            return textureDesc.dimension == TextureDimension::TextureCube && layerCount == 6;
+        default:
+            return false;
+        }
+    }
 
     /**
      * @brief 指定 Buffer Barrier 影响的字节范围。

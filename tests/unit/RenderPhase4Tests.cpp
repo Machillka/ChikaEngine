@@ -49,7 +49,7 @@ namespace
         void BindIndexBuffer(Render::BufferHandle, uint64_t, bool) override {}
         void PushConstants(std::string_view, const void*, uint32_t) override {}
         void CopyBuffer(Render::BufferHandle, Render::BufferHandle, uint64_t) override {}
-        void CopyBufferToTexture(Render::BufferHandle, Render::TextureHandle, uint32_t, uint32_t) override {}
+        void CopyBufferToTexture(Render::BufferHandle, Render::TextureHandle, uint32_t, uint32_t, uint32_t) override {}
         void Draw(uint32_t, uint32_t, uint32_t, uint32_t) override {}
         void DrawIndexed(uint32_t, uint32_t, uint32_t, int32_t, uint32_t) override {}
         void DrawIndirect(Render::BufferHandle, uint64_t, uint32_t, uint32_t) override {}

@@ -115,6 +115,29 @@ namespace ChikaEngine::Render
             }
         }
 
+        VkImageViewType ToVkImageViewType(TextureDimension dimension)
+        {
+            switch (dimension)
+            {
+            case TextureDimension::Texture2DArray:
+                return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+            case TextureDimension::TextureCube:
+                return VK_IMAGE_VIEW_TYPE_CUBE;
+            case TextureDimension::Texture2D:
+            default:
+                return VK_IMAGE_VIEW_TYPE_2D;
+            }
+        }
+
+        VkImageAspectFlags ToVkImageAspectMask(VkFormat format)
+        {
+            if (format == VK_FORMAT_D32_SFLOAT)
+                return VK_IMAGE_ASPECT_DEPTH_BIT;
+            if (format == VK_FORMAT_D24_UNORM_S8_UINT)
+                return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+            return VK_IMAGE_ASPECT_COLOR_BIT;
+        }
+
         /**
          * @brief 把 Vulkan Validation Layer 消息转发到 ChikaEngine 日志系统。
          *
@@ -452,10 +475,18 @@ namespace ChikaEngine::Render
 
     TextureHandle VulkanRHIDevice::CreateTexture(const TextureDesc& desc)
     {
+        if (!IsTextureDescValid(desc))
+        {
+            LOG_ERROR("Vulkan", "Invalid texture desc: {}x{}, mips={}, layers={}, dimension={}", desc.width, desc.height, desc.mipLevels, desc.arrayLayers, static_cast<uint32_t>(desc.dimension));
+            return TextureHandle::Invalid();
+        }
+
         VkFormat vkFmt = ToVkFormat(desc.format);
         VkImageCreateInfo iInfo{};
         iInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         iInfo.imageType = VK_IMAGE_TYPE_2D;
+        if (desc.dimension == TextureDimension::TextureCube)
+            iInfo.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
         iInfo.extent = { desc.width, desc.height, 1 };
         iInfo.mipLevels = desc.mipLevels;
         iInfo.arrayLayers = desc.arrayLayers;
@@ -473,13 +504,15 @@ namespace ChikaEngine::Render
         vt.height = desc.height;
         vt.mipLevels = desc.mipLevels;
         vt.arrayLayers = desc.arrayLayers;
+        vt.sampleCount = desc.sampleCount;
+        vt.dimension = desc.dimension;
         VK_CHECK(vmaCreateImage(m_allocator, &iInfo, &aInfo, &vt.image, &vt.allocation, nullptr), "VMA image alloc failed");
 
         VkImageViewCreateInfo vInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
         vInfo.image = vt.image;
-        vInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        vInfo.viewType = ToVkImageViewType(desc.dimension);
         vInfo.format = vkFmt;
-        vInfo.subresourceRange.aspectMask = (desc.format == RHI_Format::D32_SFloat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        vInfo.subresourceRange.aspectMask = ToVkImageAspectMask(vkFmt);
         vInfo.subresourceRange.levelCount = desc.mipLevels;
         vInfo.subresourceRange.layerCount = desc.arrayLayers;
         VK_CHECK(vkCreateImageView(m_device, &vInfo, nullptr, &vt.view), "Failed to create Image View");
@@ -515,17 +548,28 @@ namespace ChikaEngine::Render
         VulkanTexture* texture = m_textures.Get(desc.texture);
         if (!texture)
             return TextureViewHandle::Invalid();
-        const uint32_t mipCount = desc.range.mipLevelCount == 0 ? texture->mipLevels - desc.range.baseMipLevel : desc.range.mipLevelCount;
-        const uint32_t layerCount = desc.range.arrayLayerCount == 0 ? texture->arrayLayers - desc.range.baseArrayLayer : desc.range.arrayLayerCount;
+        const TextureDesc textureDesc{
+            .width = texture->width,
+            .height = texture->height,
+            .format = RHI_Format::RGBA8_UNorm,
+            .mipLevels = texture->mipLevels,
+            .arrayLayers = texture->arrayLayers,
+            .sampleCount = texture->sampleCount,
+            .dimension = texture->dimension,
+        };
+        if (!IsTextureViewRangeValid(textureDesc, desc))
+        {
+            LOG_ERROR("Vulkan", "Invalid texture view range: mips {}+{}, layers {}+{}, view dimension={}", desc.range.baseMipLevel, desc.range.mipLevelCount, desc.range.baseArrayLayer, desc.range.arrayLayerCount, static_cast<uint32_t>(desc.dimension));
+            return TextureViewHandle::Invalid();
+        }
+        const uint32_t mipCount = ResolveMipLevelCount(textureDesc, desc.range);
+        const uint32_t layerCount = ResolveArrayLayerCount(textureDesc, desc.range);
 
         VkImageViewCreateInfo info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
         info.image = texture->image;
-        info.viewType = layerCount > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+        info.viewType = ToVkImageViewType(desc.dimension);
         info.format = texture->format;
-        const bool isDepth = texture->format == VK_FORMAT_D32_SFLOAT || texture->format == VK_FORMAT_D24_UNORM_S8_UINT;
-        info.subresourceRange.aspectMask = isDepth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-        if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT)
-            info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        info.subresourceRange.aspectMask = ToVkImageAspectMask(texture->format);
         info.subresourceRange.baseMipLevel = desc.range.baseMipLevel;
         info.subresourceRange.levelCount = mipCount;
         info.subresourceRange.baseArrayLayer = desc.range.baseArrayLayer;

@@ -169,7 +169,7 @@ namespace ChikaEngine::Asset
         const std::string extension = LowerExtension(path);
         if (extension == ".gltf" || extension == ".glb" || extension == ".obj")
             return AssetType::Mesh;
-        if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga" || extension == ".hdr")
+        if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga" || extension == ".hdr" || extension == ".texture")
             return AssetType::Texture;
         if (extension == ".vert" || extension == ".frag" || extension == ".comp" || extension == ".geom" || extension == ".tesc" || extension == ".tese")
             return AssetType::ShaderSource;
