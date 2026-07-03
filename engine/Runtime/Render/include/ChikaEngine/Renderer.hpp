@@ -10,6 +10,9 @@
 #include "ChikaEngine/RenderWorld.hpp"
 #include <cstdint>
 #include <memory>
+#include <span>
+#include <string_view>
+#include <vector>
 
 namespace ChikaEngine::Jobs
 {
@@ -83,6 +86,18 @@ namespace ChikaEngine::Render
         {
             return m_resourceSystem.GetResourceManager();
         }
+        /** @brief 将 Material asset 转换为 Renderer 可编辑的共享 Material resource。 */
+        Resource::MaterialHandle GetOrUploadMaterial(Asset::MaterialHandle material);
+        /** @brief 从现有 Material resource 创建 per-object runtime instance。 */
+        Resource::MaterialHandle CreateMaterialInstance(Resource::MaterialHandle sourceMaterial);
+        /** @brief 查询材质公开的数值参数，供 Editor Inspector 等工具展示。 */
+        std::vector<Resource::MaterialParameterInfo> GetMaterialParameters(Resource::MaterialHandle material) const;
+        /** @brief 设置单个 float 材质参数，不触发 Pipeline 或 Descriptor 重建。 */
+        bool SetMaterialFloat(Resource::MaterialHandle material, std::string_view name, float value);
+        /** @brief 设置 vec2/vec3/vec4 材质参数，不暴露 UBO offset 给调用方。 */
+        bool SetMaterialVector(Resource::MaterialHandle material, std::string_view name, std::span<const float> value);
+        /** @brief 使用显式类型和值设置材质参数，便于 Inspector 做类型校验。 */
+        bool SetMaterialParameter(Resource::MaterialHandle material, std::string_view name, const Resource::MaterialParameterValue& value);
         IRHIDevice* GetRHIHandle() const
         {
             return m_deviceContext.GetRHI();

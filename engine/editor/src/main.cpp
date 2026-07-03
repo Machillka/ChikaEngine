@@ -51,6 +51,7 @@ namespace ChikaEngine::Editor
                 instance->AddComponent<Framework::MeshRenderer>("Assets/Meshes/Box.gltf", "Assets/Materials/floor.json");
                 instance->transform->Translate(Math::Vector3(-3.0f + static_cast<float>(index) * 2.0f, 1.0f, 0.0f));
                 instance->transform->Scale(0.5f);
+                // FIXME: 目前的 Renderer 仍然在每个 GameObject 上单独创建 Draw，未能正确合并为共享状态 Batch。
             }
 
             // 明确位于主视锥外，用于验证 Visibility 阶段在 Queue 构建前完成剔除。
@@ -66,8 +67,9 @@ namespace ChikaEngine::Editor
             const auto lightId = scene.CreateGameobject("Baseline.DirectionalLight");
             auto* light = scene.GetGameObject(lightId);
             light->transform->position = Math::Vector3(5.0f, 8.0f, 5.0f);
-            light->transform->LookAt(Math::Vector3::zero);
+            light->transform->LookAt(Math::Vector3(0.3f, 0.3f, 0.3f));
             light->AddComponent<Framework::LightComponent>();
+            light->GetComponent<Framework::LightComponent>()->color = Math::Vector3(1.0f, 0.95f, 0.9f);
         }
     } // namespace
 

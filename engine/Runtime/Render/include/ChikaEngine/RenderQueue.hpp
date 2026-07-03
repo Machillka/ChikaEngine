@@ -47,6 +47,30 @@ namespace ChikaEngine::Render
         bool instanced = false;
     };
 
+    /** @brief 描述可合并 Draw 的完整共享状态身份。 */
+    struct RenderBatchKey
+    {
+        RenderPassClass pass = RenderPassClass::ForwardOpaque;
+        PipelineHandle pipeline;
+        Resource::MaterialHandle material;
+        Resource::MeshHandle mesh;
+
+        bool operator==(const RenderBatchKey&) const = default;
+    };
+
+    /** @brief RenderQueue 到 DrawIndexed 的可测试提交参数。 */
+    struct RenderBatchDrawCommand
+    {
+        size_t batchIndex = 0;
+        RenderPassClass pass = RenderPassClass::ForwardOpaque;
+        PipelineHandle pipeline;
+        Resource::MaterialHandle material;
+        Resource::MeshHandle mesh;
+        uint32_t instanceCount = 0;
+        uint32_t firstInstance = 0;
+        bool instanced = false;
+    };
+
     struct RenderQueue
     {
         std::vector<RenderPacket> packets;
@@ -71,6 +95,24 @@ namespace ChikaEngine::Render
 
     /** @brief Appends one main-view or shadow-view range to a caller-owned local queue set. */
     void AppendRenderPackets(RenderQueueSet& queues, std::span<const RenderObjectSnapshot* const> objects, const RenderView& view, const RenderResourceView& resources, bool shadowPass);
+
+    /** @brief Builds the complete shared-state key used by both batch construction and tests. */
+    RenderBatchKey BuildRenderBatchKey(const RenderPacket& packet);
+
+    /** @brief Returns true when two sorted packets can share one instanced draw. */
+    bool CanMergeRenderPackets(const RenderPacket& first, const RenderPacket& candidate);
+
+    /** @brief Returns the instance count that should be submitted for one batch. */
+    uint32_t GetRenderBatchDrawInstanceCount(const RenderBatch& batch);
+
+    /** @brief Returns the firstInstance value that should be submitted for one batch. */
+    uint32_t GetRenderBatchDrawFirstInstance(const RenderBatch& batch);
+
+    /** @brief Assigns contiguous instance ranges for every instanced batch and returns the next free slot. */
+    uint32_t AssignRenderBatchInstanceRanges(RenderQueue& queue, uint32_t firstInstance);
+
+    /** @brief Converts final batches into mockable draw commands without touching RHI state. */
+    std::vector<RenderBatchDrawCommand> BuildRenderBatchDrawCommands(const RenderQueue& queue, bool skipInstancedBatches = false);
 
     /** @brief Concatenates local queue vectors in deterministic chunk order. */
     void AppendRenderQueueSet(RenderQueueSet& destination, RenderQueueSet&& source);

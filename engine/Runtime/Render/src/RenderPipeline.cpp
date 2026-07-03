@@ -783,7 +783,7 @@ namespace ChikaEngine::Render
             }
 
             cmd->PushConstants("pc", &pc, sizeof(PC));
-            cmd->DrawIndexed(mesh.indexCount, batch.instanced ? static_cast<uint32_t>(batch.packetCount) : 1, 0, 0, batch.instanced ? batch.firstInstance : 0);
+            cmd->DrawIndexed(mesh.indexCount, GetRenderBatchDrawInstanceCount(batch), 0, 0, GetRenderBatchDrawFirstInstance(batch));
         }
     }
 
@@ -1458,15 +1458,20 @@ namespace ChikaEngine::Render
             m_settings->pipelineMode == RenderPipelineMode::Deferred ? &m_renderQueues.gbufferOpaque : &m_renderQueues.forwardOpaque,
             &m_renderQueues.forwardTransparent,
         };
+        uint32_t nextInstance = 1;
+        for (RenderQueue* queue : queues)
+            nextInstance = AssignRenderBatchInstanceRanges(*queue, nextInstance);
+
         for (RenderQueue* queue : queues)
         {
             for (RenderBatch& batch : queue->batches)
             {
                 if (!batch.instanced)
                     continue;
-                batch.firstInstance = static_cast<uint32_t>(instanceMatrices.size());
+                if (instanceMatrices.size() < batch.firstInstance + batch.packetCount)
+                    instanceMatrices.resize(batch.firstInstance + batch.packetCount, Math::Mat4::Identity().Transposed());
                 for (size_t packetOffset = 0; packetOffset < batch.packetCount; ++packetOffset)
-                    instanceMatrices.push_back(queue->packets[batch.firstPacket + packetOffset].object->proxy.transform.Transposed());
+                    instanceMatrices[batch.firstInstance + packetOffset] = queue->packets[batch.firstPacket + packetOffset].object->proxy.transform.Transposed();
             }
         }
 
