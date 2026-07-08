@@ -1,4 +1,9 @@
 #include "SceneHierarchyPanel.hpp"
+#include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/LightComponent.hpp"
+#include "ChikaEngine/component/MeshRenderer.h"
+#include "ChikaEngine/component/Rigidbody.hpp"
+#include "ChikaEngine/component/ScriptComponent.h"
 #include "ChikaEngine/component/Transform.h"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/scene/scene.hpp"
@@ -6,6 +11,43 @@
 
 namespace ChikaEngine::Editor
 {
+    namespace
+    {
+        void DrawAddComponentMenu(Framework::GameObject& gameObject, bool& isDirty)
+        {
+            if (!ImGui::BeginMenu("Add Component"))
+                return;
+
+            if (ImGui::MenuItem("MeshRenderer"))
+            {
+                gameObject.AddComponent<Framework::MeshRenderer>();
+                isDirty = true;
+            }
+            if (ImGui::MenuItem("Light"))
+            {
+                gameObject.AddComponent<Framework::LightComponent>();
+                isDirty = true;
+            }
+            if (ImGui::MenuItem("Animator"))
+            {
+                gameObject.AddComponent<Framework::Animator>();
+                isDirty = true;
+            }
+            if (ImGui::MenuItem("Rigidbody"))
+            {
+                gameObject.AddComponent<Framework::Rigidbody>();
+                isDirty = true;
+            }
+            if (ImGui::MenuItem("ScriptComponent"))
+            {
+                gameObject.AddComponent<Framework::ScriptComponent>();
+                isDirty = true;
+            }
+
+            ImGui::EndMenu();
+        }
+    } // namespace
+
     void SceneHierarchyPanel::DrawGameObjectNode(Framework::GameObject& gameObject)
     {
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
@@ -20,6 +62,22 @@ namespace ChikaEngine::Editor
 
         if (_context->activeScene->IsEditing())
         {
+            if (ImGui::BeginPopupContextItem())
+            {
+                _context->selectedGameObject = gameObject.GetID();
+
+                if (ImGui::MenuItem("Create Child"))
+                {
+                    const auto childId = _context->activeScene->CreateGameobject("GameObject");
+                    if (auto* child = _context->activeScene->GetGameObject(childId); child && child->transform && gameObject.transform)
+                        child->transform->SetParent(gameObject.transform, true);
+                    _context->selectedGameObject = childId;
+                    _context->isDirty = true;
+                }
+                DrawAddComponentMenu(gameObject, _context->isDirty);
+                ImGui::EndPopup();
+            }
+
             if (ImGui::BeginDragDropSource())
             {
                 const auto id = gameObject.GetID();
@@ -80,6 +138,16 @@ namespace ChikaEngine::Editor
                     object->transform->SetParent(nullptr, true);
             }
             ImGui::EndDragDropTarget();
+        }
+
+        if (scene->IsEditing() && ImGui::BeginPopupContextWindow("SceneHierarchyContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        {
+            if (ImGui::MenuItem("Create GameObject"))
+            {
+                _context->selectedGameObject = scene->CreateGameobject("GameObject");
+                _context->isDirty = true;
+            }
+            ImGui::EndPopup();
         }
 
         for (const auto& object : scene->GetAllGameobjects())

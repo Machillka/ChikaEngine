@@ -49,6 +49,21 @@ namespace ChikaEngine::Render
             return std::max<uint64_t>(size, 16u);
         }
 
+        bool IsDirectionalShadowCaster(const RenderLightProxy& light)
+        {
+            return light.castsShadow && light.type == RenderLightType::Directional;
+        }
+
+        std::optional<size_t> FindDirectionalShadowCasterIndex(const RenderWorldSnapshot& snapshot)
+        {
+            for (size_t index = 0; index < snapshot.lights.size(); ++index)
+            {
+                if (IsDirectionalShadowCaster(snapshot.lights[index].proxy))
+                    return index;
+            }
+            return std::nullopt;
+        }
+
         /**
          * @brief Extracts visible object IDs from a CPU/GPU visible-slot buffer and indirect commands.
          */
@@ -1248,11 +1263,10 @@ namespace ChikaEngine::Render
             sceneData->viewPos[3] = 1.0f;
         }
 
-        if (!m_snapshot->lights.empty())
-        {
-            const RenderLightProxy& light = m_snapshot->lights.front().proxy;
-            sceneData->lightVP = light.viewProjection.Transposed();
-        }
+        if (const std::optional<size_t> shadowCasterIndex = FindDirectionalShadowCasterIndex(*m_snapshot))
+            sceneData->lightVP = m_snapshot->lights[*shadowCasterIndex].proxy.viewProjection.Transposed();
+        else
+            sceneData->lightVP = Math::Mat4::Identity().Transposed();
         sceneData->frameOptions[0] = m_settings->ambientIntensity;
         sceneData->frameOptions[1] = static_cast<float>(std::min<size_t>(m_snapshot->lights.size(), MAX_RENDER_LIGHTS));
         sceneData->frameOptions[2] = m_settings->shadows.depthBias;
@@ -1275,12 +1289,11 @@ namespace ChikaEngine::Render
         if (!m_snapshot)
             return;
 
-        const size_t lightCount = std::min<size_t>(m_snapshot->lights.size(), MAX_RENDER_LIGHTS);
-        for (size_t index = 0; index < lightCount; ++index)
+        const auto writeLight = [this, mapped](size_t sourceIndex, size_t targetIndex)
         {
-            const RenderLightProxy& source = m_snapshot->lights[index].proxy;
+            const RenderLightProxy& source = m_snapshot->lights[sourceIndex].proxy;
             const Math::Vector3 direction = source.direction.Normalized();
-            LightGPU& target = mapped[index];
+            LightGPU& target = mapped[targetIndex];
             target.positionRange[0] = source.position.x;
             target.positionRange[1] = source.position.y;
             target.positionRange[2] = source.position.z;
@@ -1296,6 +1309,18 @@ namespace ChikaEngine::Render
             target.spotAngles[0] = source.innerConeCos;
             target.spotAngles[1] = source.outerConeCos;
             target.spotAngles[2] = source.castsShadow ? 1.0f : 0.0f;
+        };
+
+        const std::optional<size_t> shadowCasterIndex = FindDirectionalShadowCasterIndex(*m_snapshot);
+        size_t targetIndex = 0;
+        if (shadowCasterIndex)
+            writeLight(*shadowCasterIndex, targetIndex++);
+
+        for (size_t sourceIndex = 0; sourceIndex < m_snapshot->lights.size() && targetIndex < MAX_RENDER_LIGHTS; ++sourceIndex)
+        {
+            if (shadowCasterIndex && sourceIndex == *shadowCasterIndex)
+                continue;
+            writeLight(sourceIndex, targetIndex++);
         }
     }
 
@@ -1386,17 +1411,16 @@ namespace ChikaEngine::Render
         if (!primaryView)
             return;
 
-        RenderView shadowView;
-        if (!m_snapshot->lights.empty())
+        RenderView shadowView{
+            .viewProjection = Math::Mat4::Identity(),
+            .layerMask = 0u,
+        };
+        if (const std::optional<size_t> shadowCasterIndex = FindDirectionalShadowCasterIndex(*m_snapshot))
         {
-            const RenderLightProxy& light = m_snapshot->lights.front().proxy;
-            shadowView = {
-                .viewProjection = light.viewProjection,
-                .layerMask = light.layerMask,
-            };
+            const RenderLightProxy& light = m_snapshot->lights[*shadowCasterIndex].proxy;
+            shadowView.viewProjection = light.viewProjection;
+            shadowView.layerMask = light.layerMask;
         }
-        else
-            shadowView = *primaryView;
 
         const uint64_t resourceBegin = Profiler::ProfilerClock::NowNanoseconds();
         const RenderResourceView resourceView = RenderResourceView::Build(*m_snapshot, *m_resourceMgr);

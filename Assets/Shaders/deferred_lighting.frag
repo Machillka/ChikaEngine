@@ -72,13 +72,15 @@ float ShadowCalculation(vec3 worldPos, vec3 normal, vec3 lightDirection)
         any(lessThan(projCoords.xy, vec2(0.0))) || any(greaterThan(projCoords.xy, vec2(1.0))))
         return 0.0;
     float bias = max(scene.frameOptions.z, scene.frameOptions.w * (1.0 - max(dot(normal, lightDirection), 0.0)));
-    int radius = int(scene.shadowOptions.z + 0.5);
+    vec2 shadowTexel = max(scene.shadowOptions.xy, 1.0 / vec2(textureSize(shadowMap, 0)));
+    float compareSoftness = max(max(shadowTexel.x, shadowTexel.y), scene.frameOptions.z * 2.0);
+    int radius = max(int(scene.shadowOptions.z + 0.5), 0);
     float shadow = 0.0;
     float samples = 0.0;
     for (int x = -radius; x <= radius; ++x) {
         for (int y = -radius; y <= radius; ++y) {
-            float closestDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * scene.shadowOptions.xy).r;
-            shadow += projCoords.z - bias > closestDepth ? 1.0 : 0.0;
+            float closestDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * shadowTexel).r;
+            shadow += smoothstep(0.0, compareSoftness, projCoords.z - bias - closestDepth);
             samples += 1.0;
         }
     }

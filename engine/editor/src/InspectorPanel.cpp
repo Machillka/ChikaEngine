@@ -1,6 +1,7 @@
 #include "InspectorPanel.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
 #include "ChikaEngine/component/ScriptComponent.h"
@@ -484,6 +485,11 @@ namespace ChikaEngine::Editor
                     if (ImGui::MenuItem("Animator"))
                     {
                         go->AddComponent<Framework::Animator>();
+                        _context->isDirty = scene->IsEditing();
+                    }
+                    if (ImGui::MenuItem("Light"))
+                    {
+                        go->AddComponent<Framework::LightComponent>();
                         _context->isDirty = scene->IsEditing();
                     }
                     if (ImGui::MenuItem("Rigidbody"))
