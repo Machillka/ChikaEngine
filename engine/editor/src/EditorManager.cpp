@@ -100,7 +100,9 @@ namespace ChikaEngine::Editor
             ImGuiID dock_right_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
             // 2. 向左切分出 20% 宽度给左侧功能区
             ImGuiID dock_left_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.20f, nullptr, &dock_main_id);
-            // 3. 将左侧功能区上下平分给 Scene 和 File
+            // 3. 向下切分出类似 Unreal Output Log / Profiler 的底部标签区
+            ImGuiID dock_bottom_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.25f, nullptr, &dock_main_id);
+            // 4. 将左侧功能区上下平分给 Scene 和 File
             ImGuiID dock_left_top_id = ImGui::DockBuilderSplitNode(dock_left_id, ImGuiDir_Up, 0.50f, nullptr, &dock_left_id);
             ImGuiID dock_left_bottom_id = dock_left_id;
 
@@ -109,6 +111,9 @@ namespace ChikaEngine::Editor
             ImGui::DockBuilderDockWindow("Inspector", dock_right_id);
             ImGui::DockBuilderDockWindow("Scene", dock_left_top_id);
             ImGui::DockBuilderDockWindow("File", dock_left_bottom_id);
+            ImGui::DockBuilderDockWindow("Log System", dock_bottom_id);
+            ImGui::DockBuilderDockWindow("Profiler", dock_bottom_id);
+            ImGui::DockBuilderDockWindow("Render Statistics", dock_bottom_id);
 
             ImGui::DockBuilderFinish(dockspace_id);
         }

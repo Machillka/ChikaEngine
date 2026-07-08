@@ -15,6 +15,9 @@ namespace ChikaEngine::Framework
 
         Math::Mat4 projection = Math::Mat4::Orthographic(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.0f);
         projection(1, 1) *= -1.0f;
+        // Mat4::Orthographic emits OpenGL depth; shadow sampling expects Vulkan [0, 1] depth.
+        projection(2, 2) *= 0.5f;
+        projection(2, 3) = projection(2, 3) * 0.5f + 0.5f;
         return {
             .type = Render::RenderLightType::Directional,
             .position = position,

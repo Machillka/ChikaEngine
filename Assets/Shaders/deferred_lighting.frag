@@ -89,7 +89,7 @@ float ShadowCalculation(vec3 worldPos, vec3 normal, vec3 lightDirection)
 vec3 EvaluateLight(LightData light, vec3 worldPos, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0, int lightIndex)
 {
     int type = int(light.directionType.w + 0.5);
-    vec3 L = normalize(light.directionType.xyz);
+    vec3 L = type == 0 ? normalize(-light.directionType.xyz) : normalize(light.directionType.xyz);
     float attenuation = 1.0;
     if (type != 0) {
         vec3 toLight = light.positionRange.xyz - worldPos;
@@ -132,7 +132,7 @@ void main()
     int lightCount = min(int(scene.frameOptions.y + 0.5), 128);
     for (int index = 0; index < lightCount; ++index)
         color += EvaluateLight(lights.values[index], worldPos, N, V, albedo, metallic, roughness, F0, index);
-    color += (albedo * (1.0 - metallic) + F0 * (1.0 - roughness)) * scene.frameOptions.x * emissiveOcclusion.a;
+    color += albedo * (1.0 - metallic) * scene.frameOptions.x * emissiveOcclusion.a;
     color += emissiveOcclusion.rgb;
     outColor = vec4(color, positionAlpha.a);
 }

@@ -6,10 +6,13 @@
 #include "ChikaEngine/component/ScriptComponent.h"
 #include "ChikaEngine/scene/scene.hpp"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/math/ChikaMath.h"
+#include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include <imgui.h>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,6 +52,41 @@ namespace ChikaEngine::Editor
     bool IsNormalScaleParameter(std::string_view name)
     {
         return name == "NormalScale";
+    }
+
+    Math::Vector3 QuaternionToEulerDegrees(Math::Quaternion q)
+    {
+        const float lengthSquared = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+        if (lengthSquared <= 0.000001f)
+            return {};
+
+        const float invLength = 1.0f / std::sqrt(lengthSquared);
+        q.x *= invLength;
+        q.y *= invLength;
+        q.z *= invLength;
+        q.w *= invLength;
+
+        const float sinXCosY = 2.0f * (q.w * q.x + q.y * q.z);
+        const float cosXCosY = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+        const float x = std::atan2(sinXCosY, cosXCosY);
+
+        const float sinY = 2.0f * (q.w * q.y - q.z * q.x);
+        const float y = std::abs(sinY) >= 1.0f ? std::copysign(Math::PI * 0.5f, sinY) : std::asin(sinY);
+
+        const float sinZCosY = 2.0f * (q.w * q.z + q.x * q.y);
+        const float cosZCosY = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+        const float z = std::atan2(sinZCosY, cosZCosY);
+
+        return { x * Math::RAD2DEG, y * Math::RAD2DEG, z * Math::RAD2DEG };
+    }
+
+    Math::Quaternion EulerDegreesToQuaternion(const Math::Vector3& eulerDegrees)
+    {
+        return Math::Quaternion::FromEuler({
+            eulerDegrees.x * Math::DEG2RAD,
+            eulerDegrees.y * Math::DEG2RAD,
+            eulerDegrees.z * Math::DEG2RAD,
+        }).Normalized();
     }
 
     void DrawMaterialReference(const Asset::AssetReference& reference)
@@ -208,6 +246,18 @@ namespace ChikaEngine::Editor
                 prop.Get(instance, &val);
                 if (ImGui::DragFloat4(prop.Name.c_str(), &val.x, 0.1f))
                 {
+                    prop.Set(instance, &val);
+                    return true;
+                }
+            }
+            else if (prop.TypeName.find("Quaternion") != std::string::npos)
+            {
+                Math::Quaternion val;
+                prop.Get(instance, &val);
+                Math::Vector3 eulerDegrees = QuaternionToEulerDegrees(val);
+                if (ImGui::DragFloat3(prop.Name.c_str(), &eulerDegrees.x, 0.5f))
+                {
+                    val = EulerDegreesToQuaternion(eulerDegrees);
                     prop.Set(instance, &val);
                     return true;
                 }
