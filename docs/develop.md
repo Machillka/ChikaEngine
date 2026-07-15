@@ -14,6 +14,41 @@
 
 ---
 
+## 2026-07-15 - 统一编辑器颜色取色与数值输入
+
+### Metadata
+
+- Area: Editor / Inspector / Material UI
+- Status: Implemented（最终链接验证被正在运行的编辑器进程阻塞）
+
+### Goal
+
+让 Inspector 中所有可编辑颜色统一使用带预览色块和取色弹窗的 RGB/RGBA 控件，同时保留浮点数值输入；普通向量仍继续使用原来的 `DragFloat3/4`。
+
+### Changes
+
+- `InspectorPanel.cpp` 增加统一的 `DrawColor3()`、`DrawColor4()` 和颜色控件 flags。
+- 名称包含 `color` 或 `emissive` 的反射 `Vector3/Vector4` 属性会自动使用颜色控件；当前 `LightComponent::color` 因此获得取色和 RGB 数值输入。
+- 材质 `Vec4` 颜色参数复用相同控件。RGBA 取色器显示 Alpha Bar，`emissive` 参数保留 HDR 数值输入，允许输入大于 1.0 的分量。
+- 非颜色向量不受影响，避免把 Transform、方向和尺寸等数据误当作颜色。
+
+### Architecture
+
+颜色控件选择仍位于 Inspector 表现层，不向 Reflection、Framework 或 Material 数据模型写入编辑器专用元数据。控件产生变化后继续通过既有反射 setter 或运行时材质实例更新路径提交数据，场景 dirty 和材质实例隔离语义保持不变。
+
+### Verification
+
+- `cmake --build build --target ChikaEditor`：`InspectorPanel.cpp` 编译成功并生成 object；链接阶段因为 PID 46020 正在运行并锁定 `build/bin/ChikaEditor.exe` 而失败，错误为 `failed to write output 'bin\\ChikaEditor.exe': permission denied`。未擅自终止用户进程。
+- `git diff --check -- engine/editor/src/InspectorPanel.cpp`：通过，仅有工作区既有的 LF/CRLF 转换提示。
+- 确认生成的 `InspectorPanel.cpp.obj` 时间已更新到本次构建。
+
+### Remaining / Next
+
+- 关闭当前运行的编辑器后重新执行 `cmake --build build --target ChikaEditor`，并在 Inspector 中分别检查 Light RGB、材质 BaseColor RGBA 和 Emissive HDR 输入。
+- 本次“所有颜色”指 Inspector 中的用户数据字段，不包含 Log、Profiler、Gizmo 等只读编辑器主题颜色。
+
+---
+
 ## 2026-07-15 - 修复天空盒视角移动时的挤压缩放
 
 ### Metadata

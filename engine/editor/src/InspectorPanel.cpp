@@ -31,13 +31,37 @@ namespace ChikaEngine::Editor
         return result;
     }
 
-    bool IsColorParameter(std::string_view name, Resource::MaterialParameterType type)
+    bool IsColorName(std::string_view name)
     {
-        if (type != Resource::MaterialParameterType::Vec4)
-            return false;
-
         const std::string lower = ToLower(name);
         return lower.find("color") != std::string::npos || lower.find("emissive") != std::string::npos;
+    }
+
+    bool IsColorParameter(std::string_view name, Resource::MaterialParameterType type)
+    {
+        return type == Resource::MaterialParameterType::Vec4 && IsColorName(name);
+    }
+
+    ImGuiColorEditFlags ColorEditFlags(bool hdr, bool hasAlpha)
+    {
+        ImGuiColorEditFlags flags =
+            ImGuiColorEditFlags_Float | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_PickerHueBar;
+        if (hdr)
+            flags |= ImGuiColorEditFlags_HDR;
+        if (hasAlpha)
+            flags |= ImGuiColorEditFlags_AlphaBar;
+        return flags;
+    }
+
+    bool DrawColor3(const char* label, float* values, bool hdr = false)
+    {
+        // ColorEdit keeps RGB float fields visible and opens the picker when the preview swatch is clicked.
+        return ImGui::ColorEdit3(label, values, ColorEditFlags(hdr, false));
+    }
+
+    bool DrawColor4(const char* label, float* values, bool hdr = false)
+    {
+        return ImGui::ColorEdit4(label, values, ColorEditFlags(hdr, true));
     }
 
     bool IsEmissiveParameter(std::string_view name)
@@ -126,12 +150,7 @@ namespace ChikaEngine::Editor
         case Resource::MaterialParameterType::Vec4:
         {
             if (IsColorParameter(parameter.name, parameter.type))
-            {
-                ImGuiColorEditFlags flags = ImGuiColorEditFlags_Float;
-                if (IsEmissiveParameter(parameter.name))
-                    flags |= ImGuiColorEditFlags_HDR;
-                return ImGui::ColorEdit4(parameter.name.c_str(), values.data(), flags);
-            }
+                return DrawColor4(parameter.name.c_str(), values.data(), IsEmissiveParameter(parameter.name));
             return ImGui::DragFloat4(parameter.name.c_str(), values.data(), 0.01f);
         }
         case Resource::MaterialParameterType::Bool:
@@ -235,7 +254,10 @@ namespace ChikaEngine::Editor
             {
                 Math::Vector3 val;
                 prop.Get(instance, &val);
-                if (ImGui::DragFloat3(prop.Name.c_str(), &val.x, 0.1f))
+                const bool changed = IsColorName(prop.Name)
+                    ? DrawColor3(prop.Name.c_str(), &val.x, IsEmissiveParameter(prop.Name))
+                    : ImGui::DragFloat3(prop.Name.c_str(), &val.x, 0.1f);
+                if (changed)
                 {
                     prop.Set(instance, &val);
                     return true;
@@ -245,7 +267,10 @@ namespace ChikaEngine::Editor
             {
                 Math::Vector4 val;
                 prop.Get(instance, &val);
-                if (ImGui::DragFloat4(prop.Name.c_str(), &val.x, 0.1f))
+                const bool changed = IsColorName(prop.Name)
+                    ? DrawColor4(prop.Name.c_str(), &val.x, IsEmissiveParameter(prop.Name))
+                    : ImGui::DragFloat4(prop.Name.c_str(), &val.x, 0.1f);
+                if (changed)
                 {
                     prop.Set(instance, &val);
                     return true;
