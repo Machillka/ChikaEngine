@@ -1,5 +1,8 @@
 #pragma once
 
+#include "ChikaEngine/AssetReference.hpp"
+
+#include <array>
 #include <cstdint>
 
 namespace ChikaEngine::Render
@@ -68,6 +71,8 @@ namespace ChikaEngine::Render
         bool enabled = false;
         bool useFallback = true;
         float intensity = 1.0f;
+        Asset::AssetReference skybox;
+        std::array<float, 4> fallbackColor{ 0.1f, 0.2f, 0.3f, 1.0f };
     };
 
     /**

@@ -342,7 +342,18 @@ namespace ChikaEngine::Render
         // 每一帧获取最新的 Backbuffer 导入
         m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::Swapchain), m_renderGraph->ImportTexture("Swapchain", m_rhi->GetActiveSwapchainTexture(), swapDesc, ResourceState::Undefined, ResourceState::Present));
 
-        AddUploadPasses();
+        const EnvironmentResourceStatus previousEnvironmentStatus = m_environmentResources.GetStatus();
+        const EnvironmentResourceStatus environmentStatus = m_environmentResources.Update(m_settings->environment, *m_assetMgr, *m_resourceMgr);
+        if (environmentStatus != previousEnvironmentStatus)
+        {
+            if (environmentStatus == EnvironmentResourceStatus::Ready)
+                LOG_INFO("Renderer", "Environment skybox resource is ready");
+            else if (environmentStatus != EnvironmentResourceStatus::Disabled)
+                LOG_WARN("Renderer", "Environment skybox resource is unavailable: {}", EnvironmentResourceStatusName(environmentStatus));
+        }
+
+        const ImportedTextureMap importedUploads = AddUploadPasses();
+        PublishEnvironmentSkybox(*m_renderGraph, m_graphBlackboard, m_environmentResources.GetSkybox(), importedUploads);
         AddShadowPass();
         const bool useGpuDrivenConsumer = m_renderPathSelection.effective == RenderPathMode::GpuDriven && m_renderPathSelection.fallback == RenderPathFallbackReason::None;
         if (useGpuDrivenConsumer)
@@ -377,13 +388,14 @@ namespace ChikaEngine::Render
         m_renderGraph->Compile();
     }
 
-    void RenderPipeline::AddUploadPasses()
+    ImportedTextureMap RenderPipeline::AddUploadPasses()
     {
+        ImportedTextureMap importedTextures;
         auto bufferJobs = m_resourceMgr->GetBufferUploadJobs();
         auto textureJobs = m_resourceMgr->GetTextureUploadJobs();
 
         if (bufferJobs.empty() && textureJobs.empty() && m_dummyTextureTransitioned)
-            return;
+            return importedTextures;
 
         m_renderGraph->AddCopyPass(
             "Upload Resources",
@@ -418,6 +430,7 @@ namespace ChikaEngine::Render
                     };
                     const RGBufferHandle staging = m_renderGraph->ImportBuffer("Upload.Texture.Staging." + std::to_string(index), job.staging, stagingDesc, ResourceState::CopySrc, ResourceState::CopySrc);
                     const RGTextureHandle destination = m_renderGraph->ImportTexture("Upload.Texture.Destination." + std::to_string(index), job.dst, destinationDesc, ResourceState::Undefined, ResourceState::ShaderResource);
+                    importedTextures.insert_or_assign(job.dst, destination);
                     builder.ReadBuffer(staging, ResourceState::CopySrc, { 0, stagingDesc.size });
                     builder.WriteTexture(destination, ResourceState::CopyDst);
                 }
@@ -434,6 +447,7 @@ namespace ChikaEngine::Render
                 for (size_t index = 0; index < textureJobs.size(); ++index)
                     cmd->CopyBufferToTexture(textureJobs[index].staging, textureJobs[index].dst, textureJobs[index].width, textureJobs[index].height, textureJobs[index].arrayLayers);
             });
+        return importedTextures;
     }
 
     void RenderPipeline::AddShadowPass()
@@ -1532,6 +1546,7 @@ namespace ChikaEngine::Render
             m_renderGraph->Clear();
 
         m_overlayCallback = {};
+        m_environmentResources.Reset();
         m_dummyTextureTransitioned = false;
         if (m_rhi)
         {

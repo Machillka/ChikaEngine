@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/AssetManager.hpp"
+#include "ChikaEngine/EnvironmentResources.hpp"
 #include "ChikaEngine/GpuDrivenValidation.hpp"
 #include "ChikaEngine/IRHIDevice.hpp"
 #include "ChikaEngine/GpuDrivenData.hpp"
@@ -123,7 +124,7 @@ namespace ChikaEngine::Render
         void AddDeferredLightingPass();
         void AddTransparentPass();
         void AddPostProcessPass();
-        void AddUploadPasses();
+        ImportedTextureMap AddUploadPasses();
         void AddShadowPass();
         void AddGpuDrivenCullPass();
         void AddGpuDrivenForwardPass();
@@ -227,6 +228,7 @@ namespace ChikaEngine::Render
         PipelineHandle m_gpuCullPipeline;
 
         RenderGraphBlackboard m_graphBlackboard;
+        EnvironmentResourceResolver m_environmentResources;
 
         Shader::ShaderProgramInterface m_deferredLightingInterface;
         ResourceBindingHandle m_deferredSceneBinding;

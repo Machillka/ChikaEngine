@@ -638,6 +638,7 @@ namespace ChikaEngine::Resource
             .mipViews = std::move(mipViews),
             .faceViews = std::move(faceViews),
             .dimension = dimension,
+            .format = desc.format,
             .usage = data->usage,
             .width = data->width,
             .height = data->height,
@@ -837,6 +838,11 @@ namespace ChikaEngine::Resource
     const MeshGPU* ResourceManager::TryGetMesh(MeshHandle handle) const
     {
         return m_meshes.Get(handle);
+    }
+
+    const TextureGPU* ResourceManager::TryGetTexture(TextureHandle handle) const
+    {
+        return m_textures.Get(handle);
     }
 
     const MaterialGPU* ResourceManager::TryGetMaterial(MaterialHandle handle) const

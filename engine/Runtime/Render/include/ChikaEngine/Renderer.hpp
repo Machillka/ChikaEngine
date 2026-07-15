@@ -158,6 +158,11 @@ namespace ChikaEngine::Render
         {
             m_settings.ambientIntensity = intensity;
         }
+        /** @brief 更新环境资源配置；资源解析与上传在下一次 RenderGraph 构建时完成。 */
+        void SetEnvironmentSettings(const EnvironmentSettings& settings)
+        {
+            m_settings.environment = settings;
+        }
 
         const RenderFrameStatistics& GetFrameStatistics() const
         {

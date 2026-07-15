@@ -1,8 +1,14 @@
 #include "ChikaEngine/AssetDatabase.hpp"
+#include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/AssetLayouts.hpp"
+#include "ChikaEngine/EnvironmentResources.hpp"
+#include "ChikaEngine/IRHIDevice.hpp"
 #include "ChikaEngine/RHIDesc.hpp"
+#include "ChikaEngine/RenderGraph.hpp"
 #include "ChikaEngine/RenderGraphBlackboard.hpp"
 #include "ChikaEngine/ResourceLayout.hpp"
+#include "ChikaEngine/ResourceManager.hpp"
+#include "ChikaEngine/RenderSettings.hpp"
 #include "ChikaEngine/TextureLoader.hpp"
 
 #include <filesystem>
@@ -10,6 +16,8 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace
 {
@@ -23,6 +31,103 @@ namespace
             ++g_failures;
         }
     }
+
+    /** @brief 为 Asset -> Resource 环境贴图集成测试提供最小 CPU 内存 RHI。 */
+    class EnvironmentTestRHI final : public ChikaEngine::Render::IRHIDevice
+    {
+      public:
+        void Initialize(const ChikaEngine::Render::RHI_InitParams&) override {}
+        void Shutdown() override {}
+        void BeginFrame() override {}
+        void EndFrame() override {}
+
+        ChikaEngine::Render::BufferHandle CreateBuffer(const ChikaEngine::Render::BufferDesc& desc) override
+        {
+            const auto handle = ChikaEngine::Render::BufferHandle::FromParts(m_nextHandle++, 1);
+            m_bufferData[handle].resize(static_cast<size_t>(desc.size));
+            return handle;
+        }
+
+        ChikaEngine::Render::TextureHandle CreateTexture(const ChikaEngine::Render::TextureDesc&) override
+        {
+            return ChikaEngine::Render::TextureHandle::FromParts(m_nextHandle++, 1);
+        }
+
+        ChikaEngine::Render::SamplerHandle CreateSampler(const ChikaEngine::Render::SamplerDesc&) override
+        {
+            return ChikaEngine::Render::SamplerHandle::FromParts(m_nextHandle++, 1);
+        }
+
+        ChikaEngine::Render::TextureViewHandle CreateTextureView(const ChikaEngine::Render::TextureViewDesc&) override
+        {
+            return ChikaEngine::Render::TextureViewHandle::FromParts(m_nextHandle++, 1);
+        }
+
+        ChikaEngine::Render::ShaderHandle CreateShader(const ChikaEngine::Render::ShaderDesc&) override
+        {
+            return ChikaEngine::Render::ShaderHandle::FromParts(m_nextHandle++, 1);
+        }
+
+        ChikaEngine::Render::PipelineHandle CreateGraphicsPipeline(const ChikaEngine::Render::PipelineDesc&) override
+        {
+            return ChikaEngine::Render::PipelineHandle::FromParts(m_nextHandle++, 1);
+        }
+
+        ChikaEngine::Render::PipelineHandle CreateComputePipeline(const ChikaEngine::Render::ComputePipelineDesc&) override
+        {
+            return ChikaEngine::Render::PipelineHandle::FromParts(m_nextHandle++, 1);
+        }
+
+        void* GetMappedData(ChikaEngine::Render::BufferHandle handle) override
+        {
+            const auto found = m_bufferData.find(handle);
+            return found == m_bufferData.end() ? nullptr : found->second.data();
+        }
+
+        void SetDebugName(ChikaEngine::Render::BufferHandle, std::string_view) override {}
+        void SetDebugName(ChikaEngine::Render::TextureHandle, std::string_view) override {}
+        void SetDebugName(ChikaEngine::Render::ShaderHandle, std::string_view) override {}
+        void SetDebugName(ChikaEngine::Render::PipelineHandle, std::string_view) override {}
+        void SetDebugName(ChikaEngine::Render::SamplerHandle, std::string_view) override {}
+        void SetDebugName(ChikaEngine::Render::TextureViewHandle, std::string_view) override {}
+
+        const ChikaEngine::Render::RenderFrameStatistics& GetFrameStatistics() const override
+        {
+            return m_statistics;
+        }
+
+        const std::vector<ChikaEngine::Render::RenderPassGpuTiming>& GetPassGpuTimings() const override
+        {
+            return m_gpuTimings;
+        }
+
+        ChikaEngine::Render::IRHICommandList* AllocateCommandList() override
+        {
+            return nullptr;
+        }
+
+        void Submit(ChikaEngine::Render::IRHICommandList*) override {}
+        void DestroyBuffer(ChikaEngine::Render::BufferHandle) override {}
+        void DestroyTexture(ChikaEngine::Render::TextureHandle) override {}
+        void DestroyShader(ChikaEngine::Render::ShaderHandle) override {}
+        void DestroyPipeline(ChikaEngine::Render::PipelineHandle) override {}
+        void DestroySampler(ChikaEngine::Render::SamplerHandle) override {}
+        void DestroyTextureView(ChikaEngine::Render::TextureViewHandle) override {}
+
+        ChikaEngine::Render::TextureHandle GetActiveSwapchainTexture() override
+        {
+            return {};
+        }
+
+        void WaitIdle() override {}
+        void Resize(uint32_t, uint32_t) override {}
+
+      private:
+        uint32_t m_nextHandle = 0;
+        std::unordered_map<ChikaEngine::Render::BufferHandle, std::vector<uint8_t>> m_bufferData;
+        ChikaEngine::Render::RenderFrameStatistics m_statistics;
+        std::vector<ChikaEngine::Render::RenderPassGpuTiming> m_gpuTimings;
+    };
 
     bool WriteText(const std::filesystem::path& path, const std::string& text)
     {
@@ -141,6 +246,95 @@ namespace
         std::filesystem::remove_all(root, error);
     }
 
+    void TestEnvironmentResolutionAndGraphImport()
+    {
+        namespace Asset = ChikaEngine::Asset;
+        namespace Render = ChikaEngine::Render;
+        namespace Resource = ChikaEngine::Resource;
+
+        Asset::AssetManager assets;
+        Check(assets.Initialize({
+                  .assetRoot = "Assets",
+                  .createRoot = false,
+                  .scanAssets = true,
+                  .createMissingMeta = false,
+                  .importAssets = false,
+                  .enableHotReload = false,
+              }),
+              "asset manager initializes for environment integration");
+
+        const Asset::AssetRecord* skyboxRecord = assets.GetDatabase().FindByPath("Assets/Textures/Skybox/default-skybox.texture");
+        Check(skyboxRecord != nullptr, "default skybox descriptor has a stable asset record");
+        if (!skyboxRecord)
+            return;
+
+        EnvironmentTestRHI rhi;
+        Resource::ResourceManager resources(rhi, assets);
+        Render::EnvironmentResourceResolver resolver;
+        Render::EnvironmentSettings settings;
+        settings.enabled = true;
+        settings.skybox = Asset::AssetReference(skyboxRecord->guid, Asset::AssetType::Texture, {}, skyboxRecord->sourcePath.generic_string());
+
+        Check(resolver.Update(settings, assets, resources) == Render::EnvironmentResourceStatus::Ready, "environment resolver produces a ready cubemap");
+        const Render::EnvironmentTextureResource skybox = resolver.GetSkybox();
+        Check(skybox.IsValid(), "resolved skybox satisfies the render import contract");
+        Check(skybox.desc.dimension == Render::TextureDimension::TextureCube, "resolved skybox keeps cube dimension");
+        Check(skybox.desc.format == Render::RHI_Format::RGBA8_UNorm, "resolved skybox keeps the uploaded texture format");
+
+        const std::vector<Resource::TextureUploadRequest> uploadJobs = resources.GetTextureUploadJobs();
+        Check(uploadJobs.size() == 1, "first environment resolution queues one texture upload");
+        if (!uploadJobs.empty())
+        {
+            Render::RenderGraph graph(nullptr);
+            Render::RenderGraphBlackboard blackboard;
+            Render::ImportedTextureMap pendingUploads;
+            const Resource::TextureUploadRequest& upload = uploadJobs.front();
+            const Render::TextureDesc uploadDesc{
+                .width = upload.width,
+                .height = upload.height,
+                .format = upload.format,
+                .mipLevels = upload.mipLevels,
+                .arrayLayers = upload.arrayLayers,
+                .usage = Render::RHI_TextureUsage::Sampled,
+                .dimension = upload.dimension,
+            };
+            const Render::RGTextureHandle uploadHandle = graph.ImportTexture("Upload.Texture.Destination.0", upload.dst, uploadDesc, Render::ResourceState::Undefined, Render::ResourceState::ShaderResource);
+            pendingUploads.emplace(upload.dst, uploadHandle);
+
+            const Render::RGTextureHandle published = Render::PublishEnvironmentSkybox(graph, blackboard, skybox, pendingUploads);
+            Check(published == uploadHandle, "skybox reuses the same-frame upload destination RG handle");
+            Check(blackboard.GetTexture(Render::RenderGraphSemantic::EnvironmentSkybox) == uploadHandle, "blackboard publishes Environment.Skybox");
+            Check(graph.GetPhysicalTexture(published) == skybox.texture, "published skybox keeps the resolved physical texture");
+        }
+
+        Check(resolver.Update(settings, assets, resources) == Render::EnvironmentResourceStatus::Ready, "cached environment resource remains ready");
+        Check(resources.GetTextureUploadJobs().empty(), "cached environment resource does not upload again");
+
+        {
+            Render::RenderGraph graph(nullptr);
+            Render::RenderGraphBlackboard blackboard;
+            const Render::RGTextureHandle published = Render::PublishEnvironmentSkybox(graph, blackboard, resolver.GetSkybox(), {});
+            Check(published.IsValid(), "ready cached skybox imports without a pending upload");
+            Check(graph.GetPhysicalTexture(published) == resolver.GetSkybox().texture, "ready cached skybox import keeps its physical texture");
+        }
+
+        resources.UnloadAll();
+        Check(resolver.Update(settings, assets, resources) == Render::EnvironmentResourceStatus::Ready, "resolver recovers after ResourceManager invalidates cached handles");
+        Check(resources.GetTextureUploadJobs().size() == 1, "stale environment handle triggers exactly one replacement upload");
+
+        const Asset::AssetRecord* texture2DRecord = assets.GetDatabase().FindByPath("Assets/Textures/Skybox/px.png");
+        Check(texture2DRecord != nullptr, "2D texture fixture has an asset record");
+        if (texture2DRecord)
+        {
+            settings.skybox = Asset::AssetReference(texture2DRecord->guid, Asset::AssetType::Texture, {}, texture2DRecord->sourcePath.generic_string());
+            Check(resolver.Update(settings, assets, resources) == Render::EnvironmentResourceStatus::InvalidTextureContract, "environment resolver rejects a 2D skybox texture");
+        }
+
+        settings.enabled = false;
+        Check(resolver.Update(settings, assets, resources) == Render::EnvironmentResourceStatus::Disabled, "disabled environment clears the resolved resource");
+        Check(!resolver.GetSkybox().IsValid(), "disabled environment publishes no cubemap");
+    }
+
     void TestRenderEnvironmentSemantics()
     {
         namespace Render = ChikaEngine::Render;
@@ -169,6 +363,7 @@ namespace
                 Render::TextureViewHandle::FromParts(9, 1),
             },
             .dimension = Render::TextureDimension::TextureCube,
+            .format = Render::RHI_Format::RGBA8_UNorm,
             .usage = Asset::TextureAssetUsage::Environment,
             .width = 64,
             .height = 64,
@@ -180,6 +375,7 @@ namespace
         Check(gpu.sampler.IsValid(), "texture gpu stores sampler handle");
         Check(gpu.faceViews.size() == 6, "texture gpu stores cube face views");
         Check(gpu.dimension == Render::TextureDimension::TextureCube, "texture gpu stores dimension");
+        Check(gpu.format == Render::RHI_Format::RGBA8_UNorm, "texture gpu stores upload format");
         Check(gpu.usage == Asset::TextureAssetUsage::Environment, "texture gpu stores usage");
         Check(gpu.arrayLayers == 6, "texture gpu stores layer count");
     }
@@ -189,6 +385,7 @@ int main()
 {
     TestTextureDimensionValidation();
     TestTextureDescriptorLoading();
+    TestEnvironmentResolutionAndGraphImport();
     TestRenderEnvironmentSemantics();
     TestTextureGpuContract();
 

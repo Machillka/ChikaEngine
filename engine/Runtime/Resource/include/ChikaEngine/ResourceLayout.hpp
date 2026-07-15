@@ -42,6 +42,7 @@ namespace ChikaEngine::Resource
         std::vector<Render::TextureViewHandle> mipViews;
         std::vector<Render::TextureViewHandle> faceViews;
         Render::TextureDimension dimension = Render::TextureDimension::Texture2D;
+        Render::RHI_Format format = Render::RHI_Format::RGBA8_UNorm;
         Asset::TextureAssetUsage usage = Asset::TextureAssetUsage::Color;
         uint32_t width = 0;
         uint32_t height = 0;
