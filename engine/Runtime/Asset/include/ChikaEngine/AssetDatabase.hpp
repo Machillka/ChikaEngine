@@ -57,6 +57,9 @@ namespace ChikaEngine::Asset
         std::filesystem::path importedPath;
         std::string importer;
         std::filesystem::file_time_type sourceWriteTime{};
+        /** @brief descriptor 直接依赖，供 hot reload 与 Cooker 递归展开。 */
+        std::vector<std::filesystem::path> dependencies;
+        std::vector<std::filesystem::file_time_type> dependencyWriteTimes;
     };
 
     class AssetDatabase
@@ -90,6 +93,7 @@ namespace ChikaEngine::Asset
         static bool IsIgnored(const std::filesystem::path& path);
         bool LoadMeta(const std::filesystem::path& metaPath, AssetRecord& record) const;
         bool SaveMeta(const AssetRecord& record) const;
+        void RefreshDependencies(AssetRecord& record) const;
         bool IndexRecord(AssetRecord record);
 
       private:

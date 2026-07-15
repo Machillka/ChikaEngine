@@ -20,6 +20,20 @@ namespace ChikaEngine::Resource
 {
     namespace
     {
+        Render::RHI_Format ToTextureFormat(Asset::TexturePixelStorage storage, bool srgb)
+        {
+            switch (storage)
+            {
+            case Asset::TexturePixelStorage::UNorm8:
+                return srgb ? Render::RHI_Format::RGBA8_SRGB : Render::RHI_Format::RGBA8_UNorm;
+            case Asset::TexturePixelStorage::Float16:
+                return Render::RHI_Format::RGBA16_Float;
+            case Asset::TexturePixelStorage::Float32:
+                return Render::RHI_Format::RGBA32_Float;
+            }
+            return Render::RHI_Format::Unknown;
+        }
+
         /**
          * @brief 把反射 Vertex Input 映射到引擎唯一的 VertexData 流布局。
          *
@@ -343,7 +357,10 @@ namespace ChikaEngine::Resource
     TextureHandle ResourceManager::UploadTexture(Asset::TextureHandle assetHandle)
     {
         if (m_textureCache.contains(assetHandle))
+        {
+            m_textureUploadStatuses[assetHandle] = TextureUploadStatus::Ready;
             return m_textureCache[assetHandle];
+        }
         return _UploadTexture(assetHandle);
     }
 
@@ -489,20 +506,44 @@ namespace ChikaEngine::Resource
         const Asset::TextureData* data = m_assetManager.GetTexture(assetHandle);
 
         if (!data)
+        {
+            m_textureUploadStatuses[assetHandle] = TextureUploadStatus::MissingAsset;
             return TextureHandle::Invalid();
+        }
+
+        m_textureUploadStatuses[assetHandle] = TextureUploadStatus::InvalidPayload;
 
         const uint64_t imageSize = data->pixels.size();
-        if (imageSize == 0)
+        if (data->channels != 4 || imageSize == 0 || !Asset::IsTexturePayloadLayoutValid(*data))
         {
-            LOG_ERROR("ResourceManager", "Texture '{}' has no pixel data", data->path);
+            LOG_ERROR("ResourceManager", "Texture '{}' has an invalid CPU payload layout (storage={}, rowBytes={}, layerBytes={}, totalBytes={})", data->path, Asset::TexturePixelStorageName(data->pixelStorage), data->rowBytes, data->layerBytes, imageSize);
+            return TextureHandle::Invalid();
+        }
+        if (data->pixelStorage != Asset::TexturePixelStorage::UNorm8 && data->srgb)
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' is floating-point but requests sRGB sampling", data->path);
+            return TextureHandle::Invalid();
+        }
+        if (data->generateMips || data->mipLevels != 1)
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' requests mip data that is not present in the upload payload", data->path);
             return TextureHandle::Invalid();
         }
 
         const Render::TextureDimension dimension = ToTextureDimension(data->shape);
+        const Render::RHI_Format format = ToTextureFormat(data->pixelStorage, data->srgb);
+        const Render::RHICapabilities& capabilities = m_rhi.GetCapabilities();
+        const uint32_t maximumDimension = dimension == Render::TextureDimension::TextureCube ? capabilities.maxTextureCubeSize : capabilities.maxTexture2DSize;
+        if (maximumDimension != 0 && (data->width > maximumDimension || data->height > maximumDimension))
+        {
+            m_textureUploadStatuses[assetHandle] = TextureUploadStatus::DimensionLimitExceeded;
+            LOG_ERROR("ResourceManager", "Texture '{}' size {}x{} exceeds the RHI {} limit {}", data->path, data->width, data->height, dimension == Render::TextureDimension::TextureCube ? "Cubemap" : "2D texture", maximumDimension);
+            return TextureHandle::Invalid();
+        }
         Render::TextureDesc desc{
             .width = data->width,
             .height = data->height,
-            .format = data->srgb ? Render::RHI_Format::RGBA8_SRGB : Render::RHI_Format::RGBA8_UNorm,
+            .format = format,
             .mipLevels = std::max(1u, data->mipLevels),
             .arrayLayers = std::max(1u, data->arrayLayers),
             .usage = Render::RHI_TextureUsage::Sampled,
@@ -513,6 +554,15 @@ namespace ChikaEngine::Resource
             LOG_ERROR("ResourceManager", "Texture '{}' has invalid RHI description", data->path);
             return TextureHandle::Invalid();
         }
+        const uint64_t expectedRowBytes = static_cast<uint64_t>(data->width) * Render::RHIFormatBytesPerTexel(desc.format);
+        const uint64_t expectedLayerBytes = expectedRowBytes * data->height;
+        const uint64_t expectedImageSize = expectedLayerBytes * desc.arrayLayers;
+        if (Render::RHIFormatBytesPerTexel(desc.format) == 0 || data->rowBytes != expectedRowBytes || data->layerBytes != expectedLayerBytes || imageSize != expectedImageSize)
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' payload does not match RHI format {} (row={} expectedRow={}, layer={} expectedLayer={}, total={} expectedTotal={})", data->path, static_cast<uint32_t>(desc.format), data->rowBytes, expectedRowBytes, data->layerBytes, expectedLayerBytes, imageSize, expectedImageSize);
+            return TextureHandle::Invalid();
+        }
+        m_textureUploadStatuses[assetHandle] = TextureUploadStatus::GPUUploadFailed;
         Render::TextureHandle tex = m_rhi.CreateTexture(desc);
         if (!tex.IsValid())
             return TextureHandle::Invalid();
@@ -613,13 +663,41 @@ namespace ChikaEngine::Resource
             .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
         };
         Render::BufferHandle staging = m_rhi.CreateBuffer(stagingDesc);
+        if (!staging.IsValid())
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' failed to allocate a {}-byte staging buffer", data->path, imageSize);
+            destroyTextureContractHandles();
+            return TextureHandle::Invalid();
+        }
         m_rhi.SetDebugName(staging, textureDebugName + ".Staging");
-        std::memcpy(m_rhi.GetMappedData(staging), data->pixels.data(), imageSize);
+        void* mappedData = m_rhi.GetMappedData(staging);
+        if (!mappedData)
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' staging buffer is not mapped", data->path);
+            m_rhi.DestroyBuffer(staging);
+            destroyTextureContractHandles();
+            return TextureHandle::Invalid();
+        }
+        std::memcpy(mappedData, data->pixels.data(), imageSize);
 
         {
             std::lock_guard<std::mutex> lock(m_uploadMutex);
-            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height, desc.mipLevels, desc.arrayLayers, imageSize, desc.format, desc.dimension });
+            m_pendingTextureUploads.push_back({
+                .staging = staging,
+                .dst = tex,
+                .width = data->width,
+                .height = data->height,
+                .mipLevels = desc.mipLevels,
+                .arrayLayers = desc.arrayLayers,
+                .size = imageSize,
+                .rowBytes = data->rowBytes,
+                .layerBytes = data->layerBytes,
+                .format = desc.format,
+                .dimension = desc.dimension,
+            });
         }
+
+        LOG_INFO("ResourceManager", "Texture upload queued path='{}' source={} size={}x{} storage={} rhiFormat={} layers={} mips={} rowBytes={} layerBytes={} stagingBytes={}", data->path, Asset::TextureSourceEncodingName(data->sourceEncoding), data->width, data->height, Asset::TexturePixelStorageName(data->pixelStorage), static_cast<uint32_t>(desc.format), desc.arrayLayers, desc.mipLevels, data->rowBytes, data->layerBytes, imageSize);
 
         // SubmitImmediate(
         //     [&](Render::IRHICommandList* cmd)
@@ -646,6 +724,7 @@ namespace ChikaEngine::Resource
             .arrayLayers = desc.arrayLayers,
         });
         m_textureCache[assetHandle] = handle;
+        m_textureUploadStatuses[assetHandle] = TextureUploadStatus::Ready;
         return handle;
     }
 
@@ -845,6 +924,12 @@ namespace ChikaEngine::Resource
         return m_textures.Get(handle);
     }
 
+    TextureUploadStatus ResourceManager::GetTextureUploadStatus(Asset::TextureHandle handle) const
+    {
+        const auto status = m_textureUploadStatuses.find(handle);
+        return status == m_textureUploadStatuses.end() ? TextureUploadStatus::Unknown : status->second;
+    }
+
     const MaterialGPU* ResourceManager::TryGetMaterial(MaterialHandle handle) const
     {
         return m_materials.Get(handle);
@@ -1005,6 +1090,7 @@ namespace ChikaEngine::Resource
             Unload(handle);
         for (const auto handle : materials)
             Unload(handle);
+        m_textureUploadStatuses.clear();
     }
 
     std::vector<BufferUploadRequest> ResourceManager::GetBufferUploadJobs()

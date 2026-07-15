@@ -110,11 +110,7 @@ namespace ChikaEngine::Render
             if (resolved.IsValid())
                 return resolved;
 
-            const auto found = std::ranges::find_if(interface.resources,
-                                                    [&](const Shader::ShaderResourceBinding& resource)
-                                                    {
-                                                        return resource.set == set && resource.binding == binding && resource.type == type;
-                                                    });
+            const auto found = std::ranges::find_if(interface.resources, [&](const Shader::ShaderResourceBinding& resource) { return resource.set == set && resource.binding == binding && resource.type == type; });
             if (found == interface.resources.end())
                 return {};
 
@@ -126,7 +122,7 @@ namespace ChikaEngine::Render
                 .arrayCount = found->arrayCount,
             };
         }
-    }
+    } // namespace
 
     RenderPipeline::~RenderPipeline()
     {
@@ -201,6 +197,14 @@ namespace ChikaEngine::Render
         m_rhi->SetDebugName(m_postProcessUBO, "Renderer.PostProcessData");
         UpdatePostProcessData();
 
+        m_skyboxUBO = m_rhi->CreateBuffer({
+            .size = sizeof(SkyboxData),
+            .usage = Render::RHI_BufferUsage::Uniform,
+            .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
+        });
+        m_rhi->SetDebugName(m_skyboxUBO, "Renderer.SkyboxData");
+        UpdateSkyboxData();
+
         // bone 的 ubo
         BufferDesc dummyBoneDesc{
             .size = sizeof(Math::Mat4),
@@ -246,14 +250,7 @@ namespace ChikaEngine::Render
 
         // 深度纹理
         // FIXED: 修改成 view port 大小
-        TextureDesc depthDesc{
-            .width = m_viewportWidth,
-            .height = m_viewportHeight,
-            .format = Render::RHI_Format::D32_SFloat,
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
-        };
+        const TextureDesc depthDesc = PassModules::MakeSceneDepthDescription(m_viewportWidth, m_viewportHeight);
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_rhi->SetDebugName(m_depthTexture, "Renderer.SceneDepth");
 
@@ -271,6 +268,7 @@ namespace ChikaEngine::Render
 
         CreateDeferredResources();
         CreatePostProcessResources();
+        CreateSkyboxResources();
         CreateGpuDrivenResources();
 
         Render::TextureDesc swapDesc{
@@ -310,14 +308,7 @@ namespace ChikaEngine::Render
         offscreenDesc.format = RHI_Format::RGBA16_Float;
         m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::HDRSceneColor), m_renderGraph->ImportTexture("HDRSceneColor", m_hdrSceneColor, offscreenDesc, ResourceState::Undefined, ResourceState::ShaderResource));
 
-        Render::TextureDesc depthDesc{
-            .width = m_viewportWidth,
-            .height = m_viewportHeight,
-            .format = Render::RHI_Format::D32_SFloat,
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
-        };
+        const Render::TextureDesc depthDesc = PassModules::MakeSceneDepthDescription(m_viewportWidth, m_viewportHeight);
         m_graphBlackboard.SetTexture(std::string(RenderGraphSemantic::SceneDepth), m_renderGraph->ImportTexture("Depth", m_depthTexture, depthDesc, ResourceState::Undefined, ResourceState::DepthWrite));
 
         Render::TextureDesc shadowDepthDesc{
@@ -346,14 +337,23 @@ namespace ChikaEngine::Render
         const EnvironmentResourceStatus environmentStatus = m_environmentResources.Update(m_settings->environment, *m_assetMgr, *m_resourceMgr);
         if (environmentStatus != previousEnvironmentStatus)
         {
-            if (environmentStatus == EnvironmentResourceStatus::Ready)
-                LOG_INFO("Renderer", "Environment skybox resource is ready");
+            if (environmentStatus == EnvironmentResourceStatus::Ready || environmentStatus == EnvironmentResourceStatus::ReadyFallback)
+            {
+                LOG_INFO("Renderer", "Environment skybox resource is ready{}", environmentStatus == EnvironmentResourceStatus::ReadyFallback ? " (fallback)" : "");
+            }
+            else if (environmentStatus == EnvironmentResourceStatus::Loading)
+            {
+                LOG_INFO("Renderer", "Environment skybox is loading asynchronously; rendering configured fallbackColor until it is ready");
+            }
             else if (environmentStatus != EnvironmentResourceStatus::Disabled)
-                LOG_WARN("Renderer", "Environment skybox resource is unavailable: {}", EnvironmentResourceStatusName(environmentStatus));
+            {
+                LOG_WARN("Renderer", "Environment skybox resource is unavailable: {}; rendering configured fallbackColor", EnvironmentResourceStatusName(environmentStatus));
+            }
         }
 
         const ImportedTextureMap importedUploads = AddUploadPasses();
         PublishEnvironmentSkybox(*m_renderGraph, m_graphBlackboard, m_environmentResources.GetSkybox(), importedUploads);
+        const bool hasSkybox = (environmentStatus == EnvironmentResourceStatus::Ready || environmentStatus == EnvironmentResourceStatus::ReadyFallback) && m_graphBlackboard.GetTexture(RenderGraphSemantic::EnvironmentSkybox).IsValid() && m_skyboxPipeline.IsValid() && m_skyboxDataBinding.IsValid() && m_skyboxTextureBinding.IsValid() && m_skyboxDepthBinding.IsValid();
         AddShadowPass();
         const bool useGpuDrivenConsumer = m_renderPathSelection.effective == RenderPathMode::GpuDriven && m_renderPathSelection.fallback == RenderPathFallbackReason::None;
         if (useGpuDrivenConsumer)
@@ -363,22 +363,30 @@ namespace ChikaEngine::Render
             {
                 AddGpuDrivenGBufferPass();
                 AddDeferredLightingPass();
+                if (hasSkybox)
+                    AddSkyboxPass(true, LoadOp::Load);
                 AddTransparentPass();
             }
             else
             {
-                AddGpuDrivenForwardPass();
+                if (hasSkybox)
+                    AddSkyboxPass(false, LoadOp::Clear);
+                AddGpuDrivenForwardPass(hasSkybox);
             }
         }
         else if (m_settings->pipelineMode == RenderPipelineMode::Deferred)
         {
             AddGBufferPass();
             AddDeferredLightingPass();
+            if (hasSkybox)
+                AddSkyboxPass(true, LoadOp::Load);
             AddTransparentPass();
         }
         else
         {
-            AddMainScenePass();
+            if (hasSkybox)
+                AddSkyboxPass(false, LoadOp::Clear);
+            AddMainScenePass(hasSkybox);
         }
         AddPostProcessPass();
         AddOverlayPass();
@@ -549,40 +557,57 @@ namespace ChikaEngine::Render
      * The pass draws static opaque groups through DrawIndexedIndirect, then lets the legacy queue submit
      * non-GPU-driven residual packets such as transparent and non-instanced objects.
      */
-    void RenderPipeline::AddGpuDrivenForwardPass()
+    void RenderPipeline::AddGpuDrivenForwardPass(bool preserveSkybox)
     {
         const RGBufferHandle instances = m_graphBlackboard.GetBuffer(RenderGraphSemantic::GpuInstanceData);
         const RGBufferHandle visibleInstances = m_graphBlackboard.GetBuffer(RenderGraphSemantic::GpuVisibleInstances);
         const RGBufferHandle indirectArgs = m_graphBlackboard.GetBuffer(RenderGraphSemantic::GpuIndirectArgs);
-        m_renderGraph->AddPass(
-            "GPU Driven Main Scene Pass",
-            [&](RGPassBuilder& builder)
-            {
-                builder.ReadTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::ShadowDepth));
-                builder.ReadBuffer(instances, ResourceState::StorageRead);
-                builder.ReadBuffer(visibleInstances, ResourceState::StorageRead);
-                builder.ReadBuffer(indirectArgs, ResourceState::IndirectArgument);
-                const float clearColor[4] = { 0.1f, 0.2f, 0.3f, 1.0f };
-                builder.WriteColor(m_graphBlackboard.GetTexture(RenderGraphSemantic::HDRSceneColor), LoadOp::Clear, clearColor);
-                builder.WriteDepth(m_graphBlackboard.GetTexture(RenderGraphSemantic::SceneDepth), LoadOp::Clear);
-            },
-            [this](IRHICommandList* cmd, RenderGraph*)
-            {
-                DrawGpuDrivenQueue(cmd, RenderPassClass::ForwardOpaque);
-                DrawRenderQueue(cmd, m_renderQueues.forwardOpaque, true);
-                DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
-            });
+        PassModules::AddGpuDrivenForward(*m_renderGraph,
+                                         m_graphBlackboard,
+                                         instances,
+                                         visibleInstances,
+                                         indirectArgs,
+                                         preserveSkybox ? LoadOp::Load : LoadOp::Clear,
+                                         m_settings->environment.fallbackColor.data(),
+                                         [this](IRHICommandList* cmd, RenderGraph*)
+                                         {
+                                             DrawGpuDrivenQueue(cmd, RenderPassClass::ForwardOpaque);
+                                             DrawRenderQueue(cmd, m_renderQueues.forwardOpaque, true);
+                                             DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
+                                         });
     }
 
-    void RenderPipeline::AddMainScenePass()
+    void RenderPipeline::AddMainScenePass(bool preserveSkybox)
     {
         PassModules::AddForward(*m_renderGraph,
                                 m_graphBlackboard,
+                                preserveSkybox ? LoadOp::Load : LoadOp::Clear,
+                                m_settings->environment.fallbackColor.data(),
                                 [this](IRHICommandList* cmd, RenderGraph*)
                                 {
                                     DrawRenderQueue(cmd, m_renderQueues.forwardOpaque);
                                     DrawRenderQueue(cmd, m_renderQueues.forwardTransparent);
                                 });
+    }
+
+    void RenderPipeline::AddSkyboxPass(bool sampleSceneDepth, LoadOp colorLoadOp)
+    {
+        PassModules::AddSkybox(*m_renderGraph,
+                               m_graphBlackboard,
+                               colorLoadOp,
+                               m_settings->environment.fallbackColor.data(),
+                               sampleSceneDepth,
+                               [this, sampleSceneDepth](IRHICommandList* cmd, RenderGraph* graph)
+                               {
+                                   std::vector<ResourceBindingGroup> bindings;
+                                   BindBuffer(bindings, m_skyboxDataBinding, m_skyboxUBO, 0, sizeof(SkyboxData));
+                                   BindTextureView(bindings, m_skyboxTextureBinding, m_environmentResources.GetSkybox().defaultView);
+                                   BindTexture(bindings, m_skyboxDepthBinding, sampleSceneDepth ? graph->GetPhysicalTexture(m_graphBlackboard.GetTexture(RenderGraphSemantic::SceneDepth)) : m_dummyTexture);
+                                   cmd->BindPipeline(m_skyboxPipeline);
+                                   for (const ResourceBindingGroup& group : bindings)
+                                       cmd->BindResources(group);
+                                   cmd->Draw(3, 1);
+                               });
     }
     void RenderPipeline::AddOverlayPass()
     {
@@ -677,6 +702,7 @@ namespace ChikaEngine::Render
     {
         PassModules::AddDeferredLighting(*m_renderGraph,
                                          m_graphBlackboard,
+                                         m_settings->environment.fallbackColor.data(),
                                          [this](IRHICommandList* cmd, RenderGraph* graph)
                                          {
                                              if (!m_deferredLightingPipeline.IsValid())
@@ -993,6 +1019,58 @@ namespace ChikaEngine::Render
     }
 
     /**
+     * @brief 创建 Skybox fullscreen pipeline，并在初始化阶段把资源名解析为稳定 binding handle。
+     */
+    void RenderPipeline::CreateSkyboxResources()
+    {
+        const Asset::ShaderHandle vertexAsset = m_assetMgr->LoadShader("Assets/Shaders/skybox.vert");
+        const Asset::ShaderHandle fragmentAsset = m_assetMgr->LoadShader("Assets/Shaders/skybox.frag");
+        const Asset::ShaderData* vertex = m_assetMgr->GetShader(vertexAsset);
+        const Asset::ShaderData* fragment = m_assetMgr->GetShader(fragmentAsset);
+        if (!vertex || !fragment || !vertex->hasReflection || !fragment->hasReflection)
+        {
+            LOG_WARN("Renderer", "Skybox shader reflection is unavailable; Skybox pass will be skipped");
+            return;
+        }
+
+        const std::array stages{ vertex->reflection, fragment->reflection };
+        Shader::ShaderProgramBuildResult interfaceResult = Shader::BuildShaderProgramInterface(stages);
+        if (!interfaceResult.success)
+        {
+            for (const std::string& error : interfaceResult.errors)
+                LOG_ERROR("Renderer", "Skybox shader interface conflict: {}", error);
+            return;
+        }
+
+        m_skyboxInterface = std::move(interfaceResult.interface);
+        m_skyboxDataBinding = ResolveResourceBinding(m_skyboxInterface, "skybox");
+        m_skyboxTextureBinding = ResolveResourceBinding(m_skyboxInterface, "EnvironmentSkybox");
+        m_skyboxDepthBinding = ResolveResourceBinding(m_skyboxInterface, "SceneDepth");
+        if (!m_skyboxDataBinding.IsValid() || !m_skyboxTextureBinding.IsValid() || !m_skyboxDepthBinding.IsValid())
+        {
+            LOG_ERROR("Renderer", "Skybox shader descriptors are incomplete");
+            return;
+        }
+
+        m_skyboxVertexShader = m_rhi->CreateShader({ .stage = RHI_ShaderStage::Vertex, .code = vertex->spirv.data(), .codeSize = vertex->spirv.size() });
+        m_skyboxFragmentShader = m_rhi->CreateShader({ .stage = RHI_ShaderStage::Fragment, .code = fragment->spirv.data(), .codeSize = fragment->spirv.size() });
+        PipelineDesc desc{
+            .vertexShader = m_skyboxVertexShader,
+            .fragmentShader = m_skyboxFragmentShader,
+            .shaderInterface = m_skyboxInterface,
+            .vertexLayout = {},
+            .depthTest = false,
+            .depthWrite = false,
+        };
+        desc.colorAttachmentFormats.push_back(RHI_Format::RGBA16_Float);
+        desc.depthAttachmentFormat = RHI_Format::Unknown;
+        m_skyboxPipeline = m_rhi->CreateGraphicsPipeline(desc);
+        m_rhi->SetDebugName(m_skyboxVertexShader, "Renderer.Skybox.VertexShader");
+        m_rhi->SetDebugName(m_skyboxFragmentShader, "Renderer.Skybox.FragmentShader");
+        m_rhi->SetDebugName(m_skyboxPipeline, "Renderer.Skybox.Pipeline");
+    }
+
+    /**
      * @brief Creates the compute shader consumer for Phase 4 GPU-driven visibility.
      *
      * Graphics materials are still created by ResourceManager; this function owns only the compute pipeline and
@@ -1089,9 +1167,7 @@ namespace ChikaEngine::Render
             std::vector<uint32_t> gpuVisibleObjectIds;
             if (readbackValid)
             {
-                gpuVisibleObjectIds = ExtractVisibleObjectIds(buffers.oracle,
-                                                              std::span<const uint32_t>(visibleSlots, visibleSlotCount),
-                                                              std::span<const GpuIndexedIndirectCommand>(commands, commandCount));
+                gpuVisibleObjectIds = ExtractVisibleObjectIds(buffers.oracle, std::span<const uint32_t>(visibleSlots, visibleSlotCount), std::span<const GpuIndexedIndirectCommand>(commands, commandCount));
             }
             m_lastGpuVisibilityDiff = m_gpuVisibilityValidation.ConsumeReadback({
                 .frameId = buffers.frameId,
@@ -1181,6 +1257,7 @@ namespace ChikaEngine::Render
             UpdateSceneDataFromSnapshot();
             PrepareLightData();
             UpdatePostProcessData();
+            UpdateSkyboxData();
         }
         {
             CHIKA_PROFILE_SCOPE("RenderPipeline.PrepareResources");
@@ -1289,6 +1366,26 @@ namespace ChikaEngine::Render
         sceneData->shadowOptions[1] = sceneData->shadowOptions[0];
         sceneData->shadowOptions[2] = static_cast<float>(m_settings->shadows.pcfRadius);
         sceneData->shadowOptions[3] = 0.0f;
+    }
+
+    void RenderPipeline::UpdateSkyboxData()
+    {
+        auto* skyboxData = static_cast<SkyboxData*>(m_rhi->GetMappedData(m_skyboxUBO));
+        if (!skyboxData)
+            return;
+
+        Math::Mat4 inverseViewProjection = Math::Mat4::Identity();
+        if (m_snapshot)
+        {
+            if (const RenderView* view = m_snapshot->viewFamily.GetPrimaryView())
+                inverseViewProjection = PassModules::MakeSkyboxInverseViewProjection(view->view, view->projection);
+        }
+
+        skyboxData->inverseViewProjection = inverseViewProjection.Transposed();
+        skyboxData->options[0] = std::max(m_settings->environment.intensity, 0.0f);
+        skyboxData->options[1] = m_settings->pipelineMode == RenderPipelineMode::Deferred ? 1.0f : 0.0f;
+        skyboxData->options[2] = 1.0f;
+        skyboxData->options[3] = 0.00001f;
     }
 
     /**
@@ -1440,8 +1537,7 @@ namespace ChikaEngine::Render
         const RenderResourceView resourceView = RenderResourceView::Build(*m_snapshot, *m_resourceMgr);
         const double resourceViewCpuTimeMs = static_cast<double>(Profiler::ProfilerClock::NowNanoseconds() - resourceBegin) / 1'000'000.0;
 
-        const bool gpuDrivenConsumerAvailable = m_gpuCullPipeline.IsValid() && m_gpuCullFrameBinding.IsValid() && m_gpuCullInstancesBinding.IsValid() && m_gpuCullDrawGroupsBinding.IsValid() && m_gpuCullVisibilityBinding.IsValid()
-                                               && m_gpuCullVisibleInstancesBinding.IsValid() && m_gpuCullIndirectArgsBinding.IsValid();
+        const bool gpuDrivenConsumerAvailable = m_gpuCullPipeline.IsValid() && m_gpuCullFrameBinding.IsValid() && m_gpuCullInstancesBinding.IsValid() && m_gpuCullDrawGroupsBinding.IsValid() && m_gpuCullVisibilityBinding.IsValid() && m_gpuCullVisibleInstancesBinding.IsValid() && m_gpuCullIndirectArgsBinding.IsValid();
         const RenderPathSelection pathSelection = SelectRenderPath(m_rhi->GetCapabilities(),
                                                                    {
                                                                        .requested = m_settings->requestedPath,
@@ -1600,15 +1696,19 @@ namespace ChikaEngine::Render
 
         destroyPipeline(m_deferredLightingPipeline);
         destroyPipeline(m_postProcessPipeline);
+        destroyPipeline(m_skyboxPipeline);
         destroyPipeline(m_gpuCullPipeline);
         destroyShader(m_deferredLightingVertexShader);
         destroyShader(m_deferredLightingFragmentShader);
         destroyShader(m_postProcessVertexShader);
         destroyShader(m_postProcessFragmentShader);
+        destroyShader(m_skyboxVertexShader);
+        destroyShader(m_skyboxFragmentShader);
         destroyShader(m_gpuCullComputeShader);
         destroyBuffer(m_sceneUBO);
         destroyBuffer(m_lightBuffer);
         destroyBuffer(m_postProcessUBO);
+        destroyBuffer(m_skyboxUBO);
         destroyBuffer(m_dummyBoneUBO);
         destroyTexture(m_offscreenColor);
         destroyTexture(m_hdrSceneColor);
@@ -1692,14 +1792,7 @@ namespace ChikaEngine::Render
         m_rhi->SetDebugName(m_hdrSceneColor, "Renderer.HDRSceneColor");
 
         // 重建 Depth
-        TextureDesc depthDesc{
-            .width = m_viewportWidth,
-            .height = m_viewportHeight,
-            .format = Render::RHI_Format::D32_SFloat,
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .usage = Render::RHI_TextureUsage::DepthStencilAttachment,
-        };
+        const TextureDesc depthDesc = PassModules::MakeSceneDepthDescription(m_viewportWidth, m_viewportHeight);
         m_depthTexture = m_rhi->CreateTexture(depthDesc);
         m_rhi->SetDebugName(m_depthTexture, "Renderer.SceneDepth");
 

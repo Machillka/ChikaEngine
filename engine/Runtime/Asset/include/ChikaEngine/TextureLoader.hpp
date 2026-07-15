@@ -12,11 +12,24 @@
 
 #include "AssetLayouts.hpp"
 #include <memory>
+#include <string>
 namespace ChikaEngine::Asset
 {
+    struct TextureLoadResult
+    {
+        std::unique_ptr<TextureData> texture;
+        TextureLoadStatus status = TextureLoadStatus::DecodeFailed;
+        std::string message;
+
+        explicit operator bool() const
+        {
+            return texture != nullptr && status == TextureLoadStatus::Success;
+        }
+    };
 
     struct TextureLoader
     {
+        static TextureLoadResult LoadWithStatus(const std::string& path);
         static std::unique_ptr<TextureData> Load(const std::string& path);
     };
 } // namespace ChikaEngine::Asset

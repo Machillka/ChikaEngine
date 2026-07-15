@@ -13,6 +13,16 @@ add_executable(ChikaAssetPipelineTests
 )
 target_link_libraries(ChikaAssetPipelineTests PRIVATE ChikaAsset)
 
+add_executable(ChikaTextureLoaderTests
+    unit/TextureLoaderTests.cpp
+)
+target_link_libraries(ChikaTextureLoaderTests PRIVATE ChikaAsset)
+
+add_executable(ChikaEnvironmentProjectionTests
+    unit/EnvironmentProjectionTests.cpp
+)
+target_link_libraries(ChikaEnvironmentProjectionTests PRIVATE ChikaAsset)
+
 add_executable(ChikaAssetJobIntegrationTests
     integration/AssetJobIntegrationTests.cpp
 )
@@ -37,6 +47,11 @@ add_executable(ChikaEnvironmentResourceTests
     unit/EnvironmentResourceTests.cpp
 )
 target_link_libraries(ChikaEnvironmentResourceTests PRIVATE ChikaRender)
+
+add_executable(ChikaRenderGraphSkyboxPassTests
+    unit/RenderGraphSkyboxPassTests.cpp
+)
+target_link_libraries(ChikaRenderGraphSkyboxPassTests PRIVATE ChikaRender)
 
 add_executable(ChikaMaterialParameterTests
     unit/MaterialParameterTests.cpp
@@ -86,11 +101,14 @@ endif()
 add_test(NAME Chika.CoreBoundary COMMAND ChikaCoreBoundaryTests)
 add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
+add_test(NAME Chika.TextureLoader COMMAND ChikaTextureLoaderTests)
+add_test(NAME Chika.EnvironmentProjection COMMAND ChikaEnvironmentProjectionTests)
 add_test(NAME Chika.AssetJobs COMMAND ChikaAssetJobIntegrationTests)
 add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
 add_test(NAME Chika.RenderPhase3 COMMAND ChikaRenderPhase3Tests)
 add_test(NAME Chika.RenderPhase4 COMMAND ChikaRenderPhase4Tests)
 add_test(NAME Chika.EnvironmentResource COMMAND ChikaEnvironmentResourceTests)
+add_test(NAME Chika.RenderGraphSkyboxPass COMMAND ChikaRenderGraphSkyboxPassTests)
 add_test(NAME Chika.MaterialParameter COMMAND ChikaMaterialParameterTests)
 add_test(NAME Chika.ShaderInterface COMMAND ChikaShaderInterfaceTests)
 add_test(NAME Chika.ProjectDescriptor COMMAND ChikaProjectDescriptorTests)
@@ -109,7 +127,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 if(CHIKA_BUILD_BENCHMARKS)

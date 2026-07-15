@@ -32,6 +32,32 @@ namespace ChikaEngine::Render
         RGBA32_SInt,
     };
 
+    /** @brief 返回紧密排列 texel 的字节数；Unknown 返回 0。 */
+    constexpr uint32_t RHIFormatBytesPerTexel(RHI_Format format)
+    {
+        switch (format)
+        {
+        case RHI_Format::RGBA8_UNorm:
+        case RHI_Format::RGBA8_SRGB:
+        case RHI_Format::BGRA8_UNorm:
+        case RHI_Format::R32_Float:
+        case RHI_Format::D32_SFloat:
+        case RHI_Format::D24S8:
+            return 4;
+        case RHI_Format::RGBA16_Float:
+        case RHI_Format::RG32_Float:
+            return 8;
+        case RHI_Format::RGB32_Float:
+            return 12;
+        case RHI_Format::RGBA32_Float:
+        case RHI_Format::RGBA32_SInt:
+            return 16;
+        case RHI_Format::Unknown:
+            return 0;
+        }
+        return 0;
+    }
+
     enum class RHI_BufferUsage : uint32_t
     {
         None = 0,

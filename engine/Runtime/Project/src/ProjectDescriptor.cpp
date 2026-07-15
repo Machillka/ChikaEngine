@@ -1,5 +1,6 @@
 #include "ChikaEngine/project/ProjectDescriptor.hpp"
 
+#include <cmath>
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -44,6 +45,63 @@ namespace ChikaEngine::Project
                 return true;
             }
             return false;
+        }
+
+        bool ParseEnvironment(const nlohmann::json& json, Render::EnvironmentSettings& environment, std::string& error)
+        {
+            if (!json.is_object())
+            {
+                error = "runtime.environment must be an object";
+                return false;
+            }
+
+            Render::EnvironmentSettings parsed;
+            parsed.enabled = json.value("enabled", parsed.enabled);
+            parsed.useFallback = json.value("useFallback", parsed.useFallback);
+            parsed.intensity = json.value("intensity", parsed.intensity);
+            if (json.contains("skybox"))
+                parsed.skybox = ParseReference(json["skybox"], Asset::AssetType::Texture);
+
+            if (json.contains("fallbackColor"))
+            {
+                const nlohmann::json& color = json["fallbackColor"];
+                if (!color.is_array() || color.size() != parsed.fallbackColor.size())
+                {
+                    error = "runtime.environment.fallbackColor must contain exactly 4 numbers";
+                    return false;
+                }
+                for (size_t index = 0; index < parsed.fallbackColor.size(); ++index)
+                {
+                    if (!color[index].is_number())
+                    {
+                        error = "runtime.environment.fallbackColor must contain exactly 4 numbers";
+                        return false;
+                    }
+                    parsed.fallbackColor[index] = color[index].get<float>();
+                }
+            }
+
+            if (!std::isfinite(parsed.intensity) || parsed.intensity < 0.0f)
+            {
+                error = "runtime.environment.intensity must be finite and non-negative";
+                return false;
+            }
+            for (float component : parsed.fallbackColor)
+            {
+                if (!std::isfinite(component))
+                {
+                    error = "runtime.environment.fallbackColor components must be finite";
+                    return false;
+                }
+            }
+            if (parsed.enabled && !parsed.skybox.IsValid() && parsed.skybox.diagnosticPath.empty() && !parsed.useFallback)
+            {
+                error = "runtime.environment requires a skybox reference when fallback is disabled";
+                return false;
+            }
+
+            environment = std::move(parsed);
+            return true;
         }
     } // namespace
 
@@ -94,6 +152,8 @@ namespace ChikaEngine::Project
                 loaded.runtime.fixedDeltaTime = runtime.value("fixedDeltaTime", loaded.runtime.fixedDeltaTime);
                 loaded.runtime.maxPhysicsStepsPerFrame = runtime.value("maxPhysicsStepsPerFrame", loaded.runtime.maxPhysicsStepsPerFrame);
                 loaded.runtime.enableScripting = runtime.value("enableScripting", loaded.runtime.enableScripting);
+                if (runtime.contains("environment") && !ParseEnvironment(runtime["environment"], loaded.runtime.environment, error))
+                    return false;
             }
 
             if (loaded.version != 1)

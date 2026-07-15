@@ -1,12 +1,13 @@
 #include "ChikaEngine/TextureLoader.hpp"
+#include "ChikaEngine/EnvironmentProjection.hpp"
 #include "ChikaEngine/debug/log_macros.h"
+#include "TextureDecoder.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
-#include <stb_image.h>
 
 namespace ChikaEngine::Asset
 {
@@ -56,25 +57,10 @@ namespace ChikaEngine::Asset
             return path.lexically_normal();
         }
 
-        bool LoadImageRGBA(const std::filesystem::path& path, std::vector<uint8_t>& outPixels, uint32_t& outWidth, uint32_t& outHeight)
+        TextureLoadResult Failure(TextureLoadStatus status, const std::filesystem::path& path, std::string message)
         {
-            int width = 0;
-            int height = 0;
-            int channels = 0;
-            stbi_uc* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
-            if (!pixels || width <= 0 || height <= 0)
-            {
-                LOG_ERROR("TextureLoader", "Failed to load texture {}", path.string());
-                stbi_image_free(pixels);
-                return false;
-            }
-
-            const size_t byteSize = static_cast<size_t>(width) * static_cast<size_t>(height) * 4u;
-            outPixels.assign(pixels, pixels + byteSize);
-            outWidth = static_cast<uint32_t>(width);
-            outHeight = static_cast<uint32_t>(height);
-            stbi_image_free(pixels);
-            return true;
+            LOG_ERROR("TextureLoader", "Texture load failed path='{}' status={} reason='{}'", path.string(), static_cast<uint32_t>(status), message);
+            return { .texture = nullptr, .status = status, .message = std::move(message) };
         }
 
         std::unique_ptr<TextureData> CreateFallbackTexture(const std::string& path, TextureAssetUsage requestedUsage, TextureFallback fallback)
@@ -91,6 +77,10 @@ namespace ChikaEngine::Asset
             texture->mipLevels = 1;
             texture->usage = requestedUsage;
             texture->fallback = fallback;
+            texture->pixelStorage = TexturePixelStorage::UNorm8;
+            texture->sourceEncoding = TextureSourceEncoding::Generated;
+            texture->rowBytes = 4;
+            texture->layerBytes = 4;
 
             std::array<uint8_t, 4> color{ 0, 0, 0, 255 };
             switch (fallback)
@@ -123,14 +113,19 @@ namespace ChikaEngine::Asset
             return texture;
         }
 
-        std::unique_ptr<TextureData> LoadTextureDescriptor(const std::string& path)
+        TextureLoadResult Successful(std::unique_ptr<TextureData> texture)
+        {
+            if (!texture || !IsTexturePayloadLayoutValid(*texture))
+                return Failure(TextureLoadStatus::InvalidPayloadLayout, texture ? texture->path : std::string{}, "final texture payload layout is invalid");
+            LOG_INFO("TextureLoader", "Texture ready path='{}' source={} size={}x{} storage={} layers={} mips={} rowBytes={} layerBytes={} totalBytes={}", texture->path, TextureSourceEncodingName(texture->sourceEncoding), texture->width, texture->height, TexturePixelStorageName(texture->pixelStorage), texture->arrayLayers, texture->mipLevels, texture->rowBytes, texture->layerBytes, texture->pixels.size());
+            return { .texture = std::move(texture), .status = TextureLoadStatus::Success };
+        }
+
+        TextureLoadResult LoadTextureDescriptor(const std::string& path)
         {
             std::ifstream file(path);
             if (!file)
-            {
-                LOG_ERROR("TextureLoader", "Failed to open texture descriptor {}", path);
-                return nullptr;
-            }
+                return Failure(TextureLoadStatus::FileIOError, path, "could not open texture descriptor");
 
             nlohmann::json json;
             try
@@ -139,108 +134,182 @@ namespace ChikaEngine::Asset
             }
             catch (const std::exception& exception)
             {
-                LOG_ERROR("TextureLoader", "Failed to parse texture descriptor {}: {}", path, exception.what());
-                return nullptr;
+                return Failure(TextureLoadStatus::InvalidDescriptor, path, std::string("JSON parse failed: ") + exception.what());
             }
 
-            const std::filesystem::path descriptorPath(path);
-            const std::filesystem::path baseDir = descriptorPath.parent_path();
-            const TextureAssetUsage usage = ParseUsage(json.value<std::string>("usage", "color"));
-            const TextureFallback fallback = ParseFallback(json.value<std::string>("fallback", "none"));
-
-            auto texture = std::make_unique<TextureData>();
-            texture->path = path;
-            texture->usage = usage;
-            texture->fallback = fallback;
-            texture->generateMips = json.value("generateMips", false);
-            texture->mipLevels = std::max(1u, json.value("mipLevels", 1u));
-            texture->srgb = json.value("srgb", usage == TextureAssetUsage::Color);
-
-            if (json.contains("cubeFaces"))
+            try
             {
-                static constexpr std::array<const char*, 6> FACE_ORDER{ "px", "nx", "py", "ny", "pz", "nz" };
-                std::vector<std::filesystem::path> faces;
-                const nlohmann::json& cubeFaces = json.at("cubeFaces");
-                if (cubeFaces.is_array())
+                const std::filesystem::path descriptorPath(path);
+                const std::filesystem::path baseDir = descriptorPath.parent_path();
+                const TextureAssetUsage usage = ParseUsage(json.value<std::string>("usage", "color"));
+                const TextureFallback fallback = ParseFallback(json.value<std::string>("fallback", "none"));
+                const auto storageRequest = Internal::ParseTextureStorageRequest(json.value<std::string>("format", "auto"));
+                if (!storageRequest)
+                    return Failure(TextureLoadStatus::InvalidDescriptor, path, "format must be auto, rgba16f or rgba32f");
+                if (json.value("generateMips", false) || json.value("mipLevels", 1u) != 1u)
+                    return Failure(TextureLoadStatus::InvalidDescriptor, path, "mip generation is not implemented; use generateMips=false and mipLevels=1");
+
+                const std::string projectionName = Lower(json.value<std::string>("projection", "none"));
+                if (projectionName != "none" && projectionName != "equirectangular")
+                    return Failure(TextureLoadStatus::InvalidDescriptor, path, "projection must be none or equirectangular");
+                const bool equirectangular = projectionName == "equirectangular";
+                if (equirectangular && json.contains("cubeFaces"))
+                    return Failure(TextureLoadStatus::InvalidDescriptor, path, "projection=equirectangular requires a single source, not cubeFaces");
+                if (!equirectangular && json.contains("outputFaceSize"))
+                    return Failure(TextureLoadStatus::InvalidDescriptor, path, "outputFaceSize is only valid with projection=equirectangular");
+
+                auto texture = std::make_unique<TextureData>();
+                texture->path = path;
+                texture->usage = usage;
+                texture->fallback = fallback;
+                texture->generateMips = false;
+                texture->mipLevels = 1;
+
+                if (json.contains("cubeFaces"))
                 {
-                    if (cubeFaces.size() != FACE_ORDER.size())
+                    static constexpr std::array<const char*, 6> FACE_ORDER{ "px", "nx", "py", "ny", "pz", "nz" };
+                    std::vector<std::filesystem::path> faces;
+                    const nlohmann::json& cubeFaces = json.at("cubeFaces");
+                    if (cubeFaces.is_array())
                     {
-                        LOG_ERROR("TextureLoader", "Texture descriptor {} must list exactly 6 cube faces", path);
-                        return nullptr;
+                        if (cubeFaces.size() != FACE_ORDER.size())
+                            return Failure(TextureLoadStatus::InvalidDescriptor, path, "cubeFaces must contain exactly 6 entries");
+                        for (const nlohmann::json& face : cubeFaces)
+                            faces.push_back(ResolvePath(baseDir, face.get<std::string>()));
                     }
-                    for (const nlohmann::json& face : cubeFaces)
-                        faces.push_back(ResolvePath(baseDir, face.get<std::string>()));
-                }
-                else if (cubeFaces.is_object())
-                {
-                    for (const char* faceName : FACE_ORDER)
+                    else if (cubeFaces.is_object())
                     {
-                        if (!cubeFaces.contains(faceName))
+                        for (const char* faceName : FACE_ORDER)
                         {
-                            LOG_ERROR("TextureLoader", "Texture descriptor {} is missing cube face {}", path, faceName);
-                            return nullptr;
+                            if (!cubeFaces.contains(faceName))
+                                return Failure(TextureLoadStatus::InvalidDescriptor, path, std::string("missing cube face ") + faceName);
+                            faces.push_back(ResolvePath(baseDir, cubeFaces.at(faceName).get<std::string>()));
                         }
-                        faces.push_back(ResolvePath(baseDir, cubeFaces.at(faceName).get<std::string>()));
                     }
-                }
-                else
-                {
-                    LOG_ERROR("TextureLoader", "Texture descriptor {} has invalid cubeFaces field", path);
-                    return nullptr;
+                    else
+                        return Failure(TextureLoadStatus::InvalidDescriptor, path, "cubeFaces must be an array or object");
+
+                    texture->shape = TextureShape::TextureCube;
+                    texture->arrayLayers = 6;
+                    texture->srgb = json.value("srgb", false);
+                    for (const std::filesystem::path& face : faces)
+                    {
+                        Internal::TextureDecodeResult decoded = Internal::DecodeTextureImage(face, *storageRequest, texture->srgb);
+                        if (!decoded.image)
+                        {
+                            if (Internal::TextureSourceEncodingFromPath(face) == TextureSourceEncoding::LDR && fallback != TextureFallback::None)
+                                return Successful(CreateFallbackTexture(path, usage, fallback));
+                            return Failure(decoded.status, face, decoded.message);
+                        }
+                        if (!texture->cubeFaces.empty() && texture->sourceEncoding != decoded.image->encoding)
+                            return Failure(TextureLoadStatus::InvalidDescriptor, path, "Cubemap faces may not mix LDR, Radiance HDR and OpenEXR encodings");
+                        if (texture->width == 0)
+                        {
+                            texture->width = decoded.image->width;
+                            texture->height = decoded.image->height;
+                            texture->sourceEncoding = decoded.image->encoding;
+                            texture->pixelStorage = decoded.image->storage;
+                            texture->rowBytes = decoded.image->rowBytes;
+                            texture->layerBytes = decoded.image->layerBytes;
+                        }
+                        else if (texture->width != decoded.image->width || texture->height != decoded.image->height)
+                            return Failure(TextureLoadStatus::InvalidDescriptor, path, "Cubemap face dimensions do not match");
+                        else if (texture->pixelStorage != decoded.image->storage || texture->rowBytes != decoded.image->rowBytes || texture->layerBytes != decoded.image->layerBytes)
+                            return Failure(TextureLoadStatus::InvalidPayloadLayout, path, "Cubemap face byte layouts do not match");
+
+                        texture->cubeFaces.push_back(face.string());
+                        texture->pixels.insert(texture->pixels.end(), decoded.image->pixels.begin(), decoded.image->pixels.end());
+                    }
+                    return Successful(std::move(texture));
                 }
 
-                texture->shape = TextureShape::TextureCube;
-                texture->arrayLayers = 6;
-                texture->srgb = json.value("srgb", false);
-                for (const std::filesystem::path& face : faces)
+                if (json.contains("source"))
                 {
-                    std::vector<uint8_t> facePixels;
-                    uint32_t faceWidth = 0;
-                    uint32_t faceHeight = 0;
-                    if (!LoadImageRGBA(face, facePixels, faceWidth, faceHeight))
-                        return CreateFallbackTexture(path, usage, fallback);
-                    if (texture->width == 0)
+                    const std::filesystem::path source = ResolvePath(baseDir, json.at("source").get<std::string>());
+                    const TextureSourceEncoding sourceEncoding = Internal::TextureSourceEncodingFromPath(source);
+                    if (equirectangular && sourceEncoding != TextureSourceEncoding::RadianceHDR && sourceEncoding != TextureSourceEncoding::OpenEXR)
+                        return Failure(TextureLoadStatus::InvalidDescriptor, path, "projection=equirectangular requires a Radiance HDR or OpenEXR source");
+                    texture->srgb = json.value("srgb", sourceEncoding == TextureSourceEncoding::LDR && usage == TextureAssetUsage::Color);
+                    Internal::TextureDecodeResult decoded = Internal::DecodeTextureImage(source, *storageRequest, texture->srgb);
+                    if (!decoded.image)
                     {
-                        texture->width = faceWidth;
-                        texture->height = faceHeight;
+                        if (sourceEncoding == TextureSourceEncoding::LDR && fallback != TextureFallback::None)
+                            return Successful(CreateFallbackTexture(path, usage, fallback));
+                        return Failure(decoded.status, source, decoded.message);
                     }
-                    else if (texture->width != faceWidth || texture->height != faceHeight)
+                    texture->shape = TextureShape::Texture2D;
+                    texture->arrayLayers = 1;
+                    texture->width = decoded.image->width;
+                    texture->height = decoded.image->height;
+                    texture->sourceEncoding = decoded.image->encoding;
+                    texture->pixelStorage = decoded.image->storage;
+                    texture->rowBytes = decoded.image->rowBytes;
+                    texture->layerBytes = decoded.image->layerBytes;
+                    texture->pixels = std::move(decoded.image->pixels);
+
+                    texture->sourcePath = source.string();
+                    if (equirectangular)
                     {
-                        LOG_ERROR("TextureLoader", "Texture descriptor {} has cube faces with mismatched dimensions", path);
-                        return nullptr;
+                        texture->projection = TextureProjection::Equirectangular;
+                        const uint32_t faceSize = json.value("outputFaceSize", 0u);
+                        EnvironmentProjectionResult projected = ConvertEquirectangularToCubemap(*texture, { .outputFaceSize = faceSize });
+                        if (!projected)
+                        {
+                            const TextureLoadStatus status = projected.status == EnvironmentProjectionStatus::InvalidFaceSize ? TextureLoadStatus::FaceSizeLimitExceeded
+                                                                                                                             : projected.status == EnvironmentProjectionStatus::InvalidFloatPayload ? TextureLoadStatus::InvalidFloatPayload
+                                                                                                                                                                                            : TextureLoadStatus::InvalidProjection;
+                            return Failure(status, path, "equirectangular projection failed for '" + source.string() + "': " + projected.message);
+                        }
+                        projected.texture->path = path;
+                        projected.texture->sourcePath = source.string();
+                        projected.texture->projection = TextureProjection::Equirectangular;
+                        return Successful(std::move(projected.texture));
                     }
-                    texture->cubeFaces.push_back(face.string());
-                    texture->pixels.insert(texture->pixels.end(), facePixels.begin(), facePixels.end());
+                    return Successful(std::move(texture));
                 }
-                return texture;
+
+                if (auto fallbackTexture = CreateFallbackTexture(path, usage, fallback))
+                    return Successful(std::move(fallbackTexture));
+                return Failure(TextureLoadStatus::InvalidDescriptor, path, "descriptor must contain source, cubeFaces or a fallback");
             }
-
-            if (json.contains("source"))
+            catch (const std::exception& exception)
             {
-                const std::filesystem::path source = ResolvePath(baseDir, json.at("source").get<std::string>());
-                if (!LoadImageRGBA(source, texture->pixels, texture->width, texture->height))
-                    return CreateFallbackTexture(path, usage, fallback);
-                texture->shape = TextureShape::Texture2D;
-                texture->arrayLayers = 1;
-                return texture;
+                return Failure(TextureLoadStatus::InvalidDescriptor, path, exception.what());
             }
-
-            return CreateFallbackTexture(path, usage, fallback);
         }
     } // namespace
 
-    std::unique_ptr<TextureData> TextureLoader::Load(const std::string& path)
+    TextureLoadResult TextureLoader::LoadWithStatus(const std::string& path)
     {
         const std::filesystem::path texturePath(path);
         if (Lower(texturePath.extension().string()) == ".texture")
             return LoadTextureDescriptor(path);
 
-        auto tex = std::make_unique<TextureData>();
-        tex->path = path;
-        if (!LoadImageRGBA(texturePath, tex->pixels, tex->width, tex->height))
-            return nullptr;
-        tex->channels = 4;
-        tex->srgb = Lower(texturePath.extension().string()) != ".hdr";
-        return tex;
+        const TextureSourceEncoding sourceEncoding = Internal::TextureSourceEncodingFromPath(texturePath);
+        const bool srgb = sourceEncoding == TextureSourceEncoding::LDR;
+        Internal::TextureDecodeResult decoded = Internal::DecodeTextureImage(texturePath, Internal::TextureStorageRequest::Auto, srgb);
+        if (!decoded.image)
+            return Failure(decoded.status, texturePath, decoded.message);
+
+        auto texture = std::make_unique<TextureData>();
+        texture->path = path;
+        texture->width = decoded.image->width;
+        texture->height = decoded.image->height;
+        texture->channels = 4;
+        texture->srgb = srgb;
+        texture->mipLevels = 1;
+        texture->arrayLayers = 1;
+        texture->sourceEncoding = decoded.image->encoding;
+        texture->pixelStorage = decoded.image->storage;
+        texture->rowBytes = decoded.image->rowBytes;
+        texture->layerBytes = decoded.image->layerBytes;
+        texture->pixels = std::move(decoded.image->pixels);
+        return Successful(std::move(texture));
+    }
+
+    std::unique_ptr<TextureData> TextureLoader::Load(const std::string& path)
+    {
+        TextureLoadResult result = LoadWithStatus(path);
+        return std::move(result.texture);
     }
 } // namespace ChikaEngine::Asset

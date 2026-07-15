@@ -24,11 +24,21 @@ namespace ChikaEngine::Render
 {
     class IRHICommandList;
 
+    struct RenderGraphTextureAccessDebugInfo
+    {
+        std::string resource;
+        ResourceState state = ResourceState::Undefined;
+        LoadOp loadOp = LoadOp::Load;
+    };
+
     struct RenderGraphPassDebugInfo
     {
         std::string name;
         RGPassType type = RGPassType::Graphics;
         std::vector<std::string> dependencies;
+        std::vector<RenderGraphTextureAccessDebugInfo> textureReads;
+        std::vector<RenderGraphTextureAccessDebugInfo> colorWrites;
+        std::string depthAttachment;
         double cpuTimeMs = 0.0;
         double gpuTimeMs = 0.0;
     };

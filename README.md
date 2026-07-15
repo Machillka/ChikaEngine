@@ -56,7 +56,7 @@ ChikaEngine 是一个 C++ 自研引擎、引擎学习和工程化项目。它的
 - Python 环境满足 `pyproject.toml`：`requires-python = ">=3.14"`，并需要 `Python3 Development.Embed`。
 - Vulkan SDK。`engine/ThirdParty/CMakeLists.txt` 使用 `find_package(Vulkan REQUIRED)`。
 - OpenGL 开发环境。当前第三方配置中仍有 OpenGL 查找需求，详见 `docs/build-after-pull.md`。
-- Git submodule 中的第三方库：`glfw`、`imgui`、`fmt`、`nlohmann/json`、`tinyobjloader`、`stb`、`JoltPhysics`、`pybind11`、`VulkanMemoryAllocator`、`tinygltf`、`SPIRV-Reflect` 等。
+- Git submodule 中的第三方库：`glfw`、`imgui`、`fmt`、`nlohmann/json`、`tinyobjloader`、`stb`、`TinyEXR`、`JoltPhysics`、`pybind11`、`VulkanMemoryAllocator`、`tinygltf`、`SPIRV-Reflect` 等。
 
 TODO / 待确认：
 

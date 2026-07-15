@@ -63,6 +63,14 @@ namespace ChikaEngine::Render
         float imageOptions[4];
     };
 
+    /** @brief Fullscreen Skybox 使用的独立帧数据，布局与 GLSL std140 保持一致。 */
+    struct SkyboxData
+    {
+        Math::Mat4 inverseViewProjection;
+        /** @brief x=intensity, y=sampleSceneDepth, z=clearDepth, w=depthEpsilon。 */
+        float options[4];
+    };
+
     struct PC
     {
         Math::Mat4 model;
@@ -119,7 +127,8 @@ namespace ChikaEngine::Render
       private:
         struct DynamicBuffer;
         void BuildRenderGraph();
-        void AddMainScenePass();
+        void AddMainScenePass(bool preserveSkybox);
+        void AddSkyboxPass(bool sampleSceneDepth, LoadOp colorLoadOp);
         void AddGBufferPass();
         void AddDeferredLightingPass();
         void AddTransparentPass();
@@ -127,7 +136,7 @@ namespace ChikaEngine::Render
         ImportedTextureMap AddUploadPasses();
         void AddShadowPass();
         void AddGpuDrivenCullPass();
-        void AddGpuDrivenForwardPass();
+        void AddGpuDrivenForwardPass(bool preserveSkybox);
         void AddGpuDrivenGBufferPass();
         void AddOverlayPass();
         /** @brief 按已排序 Batch 录制 Draw，并缓存相邻 Batch 共享的绑定状态。 */
@@ -150,8 +159,12 @@ namespace ChikaEngine::Render
         void PrepareLightData();
         /** @brief 更新独立后处理 UBO，使效果配置不污染场景/材质数据。 */
         void UpdatePostProcessData();
+        /** @brief 更新移除相机平移后的 inverse view-projection 与天空盒强度。 */
+        void UpdateSkyboxData();
         /** @brief 创建由 Fullscreen Vertex Shader 驱动的 Tone Mapping/Post Process Pipeline。 */
         void CreatePostProcessResources();
+        /** @brief 创建 reflection 驱动的 fullscreen Skybox Pipeline。 */
+        void CreateSkyboxResources();
         /** @brief 释放由 Pipeline 创建、因此必须由 Pipeline 回收的 RHI 资源。 */
         void DestroyOwnedResources();
 
@@ -217,6 +230,7 @@ namespace ChikaEngine::Render
         BufferHandle m_sceneUBO;
         BufferHandle m_lightBuffer;
         BufferHandle m_postProcessUBO;
+        BufferHandle m_skyboxUBO;
         BufferHandle m_dummyBoneUBO;
         ShaderHandle m_deferredLightingVertexShader;
         ShaderHandle m_deferredLightingFragmentShader;
@@ -224,6 +238,9 @@ namespace ChikaEngine::Render
         ShaderHandle m_postProcessVertexShader;
         ShaderHandle m_postProcessFragmentShader;
         PipelineHandle m_postProcessPipeline;
+        ShaderHandle m_skyboxVertexShader;
+        ShaderHandle m_skyboxFragmentShader;
+        PipelineHandle m_skyboxPipeline;
         ShaderHandle m_gpuCullComputeShader;
         PipelineHandle m_gpuCullPipeline;
 
@@ -241,6 +258,10 @@ namespace ChikaEngine::Render
         Shader::ShaderProgramInterface m_postProcessInterface;
         ResourceBindingHandle m_postProcessSceneColorBinding;
         ResourceBindingHandle m_postProcessDataBinding;
+        Shader::ShaderProgramInterface m_skyboxInterface;
+        ResourceBindingHandle m_skyboxDataBinding;
+        ResourceBindingHandle m_skyboxTextureBinding;
+        ResourceBindingHandle m_skyboxDepthBinding;
         Shader::ShaderProgramInterface m_gpuCullInterface;
         ResourceBindingHandle m_gpuCullFrameBinding;
         ResourceBindingHandle m_gpuCullInstancesBinding;

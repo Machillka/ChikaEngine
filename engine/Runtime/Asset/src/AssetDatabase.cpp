@@ -96,6 +96,7 @@ namespace ChikaEngine::Asset
             record.sourcePath = normalized;
             record.metaPath = normalized.string() + ".meta";
             record.sourceWriteTime = std::filesystem::last_write_time(normalized, error);
+            RefreshDependencies(record);
             SaveMeta(record);
         }
         else
@@ -103,6 +104,7 @@ namespace ChikaEngine::Asset
             if (!createMissingMeta)
                 return false;
             record.guid = GenerateGuid();
+            RefreshDependencies(record);
             if (!SaveMeta(record))
                 return false;
         }
@@ -155,11 +157,26 @@ namespace ChikaEngine::Asset
         {
             std::error_code error;
             const auto currentWriteTime = std::filesystem::last_write_time(record.sourcePath, error);
+            bool recordChanged = false;
             if (!error && currentWriteTime != record.sourceWriteTime)
             {
                 record.sourceWriteTime = currentWriteTime;
-                changed.push_back(record.guid);
+                RefreshDependencies(record);
+                SaveMeta(record);
+                recordChanged = true;
             }
+            for (size_t dependency = 0; dependency < record.dependencies.size(); ++dependency)
+            {
+                error.clear();
+                const auto dependencyWriteTime = std::filesystem::last_write_time(record.dependencies[dependency], error);
+                if (!error && dependencyWriteTime != record.dependencyWriteTimes[dependency])
+                {
+                    record.dependencyWriteTimes[dependency] = dependencyWriteTime;
+                    recordChanged = true;
+                }
+            }
+            if (recordChanged)
+                changed.push_back(record.guid);
         }
         return changed;
     }
@@ -169,7 +186,7 @@ namespace ChikaEngine::Asset
         const std::string extension = LowerExtension(path);
         if (extension == ".gltf" || extension == ".glb" || extension == ".obj")
             return AssetType::Mesh;
-        if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga" || extension == ".hdr" || extension == ".texture")
+        if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga" || extension == ".hdr" || extension == ".exr" || extension == ".texture")
             return AssetType::Texture;
         if (extension == ".vert" || extension == ".frag" || extension == ".comp" || extension == ".geom" || extension == ".tesc" || extension == ".tese")
             return AssetType::ShaderSource;
@@ -287,8 +304,17 @@ namespace ChikaEngine::Asset
             const auto relativeImportedPath = std::filesystem::relative(record.importedPath, m_assetRoot, error);
             const bool importedInsideRoot = !error && !relativeImportedPath.empty() && *relativeImportedPath.begin() != "..";
             const std::string serializedImportedPath = importedInsideRoot ? relativeImportedPath.generic_string() : record.importedPath.generic_string();
+            nlohmann::json dependencies = nlohmann::json::array();
+            for (const std::filesystem::path& dependency : record.dependencies)
+            {
+                error.clear();
+                const auto relativeDependency = std::filesystem::relative(dependency, m_assetRoot, error);
+                const bool dependencyInsideRoot = !error && !relativeDependency.empty() && *relativeDependency.begin() != "..";
+                dependencies.push_back(dependencyInsideRoot ? relativeDependency.generic_string() : dependency.generic_string());
+            }
             nlohmann::json json{
                 { "version", 1 }, { "guid", record.guid.value }, { "type", AssetTypeName(record.type) }, { "importer", record.importer }, { "imported", serializedImportedPath },
+                { "dependencies", std::move(dependencies) },
             };
             std::ofstream file(record.metaPath, std::ios::trunc);
             file << json.dump(2) << '\n';
@@ -298,6 +324,62 @@ namespace ChikaEngine::Asset
         {
             LOG_ERROR("AssetDatabase", "Failed to write meta {}: {}", record.metaPath.string(), exception.what());
             return false;
+        }
+    }
+
+    void AssetDatabase::RefreshDependencies(AssetRecord& record) const
+    {
+        record.dependencies.clear();
+        record.dependencyWriteTimes.clear();
+        if (LowerExtension(record.sourcePath) != ".texture")
+            return;
+
+        try
+        {
+            std::ifstream file(record.sourcePath);
+            const nlohmann::json descriptor = nlohmann::json::parse(file);
+            const std::filesystem::path baseDirectory = record.sourcePath.parent_path();
+            const auto addDependency = [&](const std::string& value)
+            {
+                std::filesystem::path dependency(value);
+                if (dependency.is_relative())
+                    dependency = baseDirectory / dependency;
+                dependency = NormalizePath(dependency);
+                if (std::ranges::find(record.dependencies, dependency) == record.dependencies.end())
+                    record.dependencies.push_back(std::move(dependency));
+            };
+
+            if (descriptor.contains("source"))
+                addDependency(descriptor.at("source").get<std::string>());
+            if (descriptor.contains("cubeFaces"))
+            {
+                const nlohmann::json& faces = descriptor.at("cubeFaces");
+                if (faces.is_array())
+                {
+                    for (const nlohmann::json& face : faces)
+                        addDependency(face.get<std::string>());
+                }
+                else if (faces.is_object())
+                {
+                    static constexpr std::array<const char*, 6> FACE_ORDER{ "px", "nx", "py", "ny", "pz", "nz" };
+                    for (const char* face : FACE_ORDER)
+                    {
+                        if (faces.contains(face))
+                            addDependency(faces.at(face).get<std::string>());
+                    }
+                }
+            }
+        }
+        catch (const std::exception& exception)
+        {
+            LOG_WARN("AssetDatabase", "Could not discover texture dependencies for '{}': {}", record.sourcePath.string(), exception.what());
+        }
+
+        record.dependencyWriteTimes.reserve(record.dependencies.size());
+        for (const std::filesystem::path& dependency : record.dependencies)
+        {
+            std::error_code error;
+            record.dependencyWriteTimes.push_back(std::filesystem::last_write_time(dependency, error));
         }
     }
 

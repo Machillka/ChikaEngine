@@ -38,6 +38,7 @@ namespace ChikaEngine::Resource
         /** @brief Returns immutable metadata or nullptr without dereferencing a stale resource handle. */
         const MeshGPU* TryGetMesh(MeshHandle handle) const;
         const TextureGPU* TryGetTexture(TextureHandle handle) const;
+        TextureUploadStatus GetTextureUploadStatus(Asset::TextureHandle handle) const;
         const MaterialGPU* TryGetMaterial(MaterialHandle handle) const;
         std::vector<MaterialParameterInfo> GetMaterialParameters(MaterialHandle handle) const;
         const MaterialParameterRuntime* FindMaterialParameter(MaterialHandle handle, std::string_view name) const;
@@ -81,6 +82,7 @@ namespace ChikaEngine::Resource
 
         std::unordered_map<Asset::MeshHandle, MeshHandle> m_meshCache;
         std::unordered_map<Asset::TextureHandle, TextureHandle> m_textureCache;
+        std::unordered_map<Asset::TextureHandle, TextureUploadStatus> m_textureUploadStatuses;
         std::unordered_map<Asset::MaterialHandle, MaterialHandle> m_materialCache;
 
       private:
