@@ -81,6 +81,13 @@ add_executable(ChikaProfilerTimelineModelTests
 target_include_directories(ChikaProfilerTimelineModelTests PRIVATE ${PROJECT_ROOT_DIR}/engine/Editor/include)
 target_link_libraries(ChikaProfilerTimelineModelTests PRIVATE ChikaProfiler)
 
+add_executable(ChikaHierarchyActionTests
+    unit/HierarchyActionTests.cpp
+    ${PROJECT_ROOT_DIR}/engine/Editor/src/HierarchyActions.cpp
+)
+target_include_directories(ChikaHierarchyActionTests PRIVATE ${PROJECT_ROOT_DIR}/engine/Editor/include)
+target_link_libraries(ChikaHierarchyActionTests PRIVATE ChikaEngine)
+
 add_executable(ChikaJobSystemTests
     unit/JobSystemTests.cpp
 )
@@ -114,6 +121,7 @@ add_test(NAME Chika.ShaderInterface COMMAND ChikaShaderInterfaceTests)
 add_test(NAME Chika.ProjectDescriptor COMMAND ChikaProjectDescriptorTests)
 add_test(NAME Chika.Profiler COMMAND ChikaProfilerTests)
 add_test(NAME Chika.ProfilerTimelineModel COMMAND ChikaProfilerTimelineModelTests)
+add_test(NAME Chika.HierarchyAction COMMAND ChikaHierarchyActionTests)
 add_test(NAME Chika.JobSystem COMMAND ChikaJobSystemTests)
 add_test(NAME Chika.JobStress COMMAND ChikaJobStressTests)
 set_tests_properties(Chika.JobStress PROPERTIES LABELS "stress" TIMEOUT 120)
@@ -127,7 +135,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 if(CHIKA_BUILD_BENCHMARKS)

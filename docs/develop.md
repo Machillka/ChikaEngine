@@ -14,6 +14,83 @@
 
 ---
 
+## 2026-07-16 - 完成 Create Child 延迟提交修复
+
+### Metadata
+
+- Area: Editor / Hierarchy / Test / Docs
+- Status: Complete
+
+### Goal
+
+修复 Hierarchy 在遍历 `Scene::_gameobjects` 时立即创建 child 导致的迭代器失效，并补齐失败回滚、自动展开和非 Edit Mode 提示。
+
+### Changes
+
+- 新增 `HierarchyActions.hpp/.cpp`，以稳定 parent ID 提交 Create Child；提交时重新解析 parent，并集中处理 Edit Mode 校验、创建、挂载和失败回滚。
+- `SceneHierarchyPanel` 的对象右键菜单只记录请求，在整棵树遍历结束后才修改 Scene。
+- 创建成功后才更新 selection 和 dirty，并记录一次性 parent 展开 ID；失效展开 ID 会在绘制前清理。
+- Play/Pause Mode 下对象菜单、顶部 Create GameObject 按钮和空白区域菜单保留禁用入口，并说明需要返回 Edit Mode。
+- Root GameObject 创建同样只在返回有效 ID 后更新 selection/dirty，失败时输出 Editor 日志。
+- 新增 `ChikaHierarchyActionTests`，覆盖无效 parent、50 次重复创建、父子关系、序列化 parent ID、唯一 ID 和 Play Mode 拒绝修改。
+
+### Architecture
+
+```text
+ImGui menu -> pending parent ID -> finish hierarchy traversal
+  -> CommitCreateChild(scene, parentId)
+  -> resolve -> create -> SetParent
+  -> success: selection + dirty + one-shot expand
+  -> failure: rollback + log
+```
+
+Scene/Transform 继续拥有对象和层级关系；Editor helper 只编排 authoring mutation，没有引入通用 command framework 或修改序列化格式。
+
+### Verification
+
+- `cmake --build build --target ChikaEditor ChikaHierarchyActionTests ChikaSceneIntegrationTests`：通过。
+- `build/bin/ChikaHierarchyActionTests.exe`：退出码 0。
+- `build/bin/ChikaSceneIntegrationTests.exe`：退出码 0。
+- 隐藏窗口启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `git diff --check`：通过，仅有工作区既有的 LF/CRLF 转换提示。
+
+### Remaining / Next
+
+- 自动测试不模拟 ImGui 鼠标输入；提交前仍建议人工验证对象右键 Create Child、父节点自动展开和 Play Mode 禁用提示。
+- Undo/redo、复制、重命名和通用 Editor transaction 不属于本次范围。
+
+---
+
+## 2026-07-16 - 记录 Create Child 延迟修复步骤
+
+### Metadata
+
+- Area: Editor / Hierarchy / Docs
+- Status: Planning Complete（未修改代码）
+
+### Changes
+
+- 更新 `docs/editor/dev/hierarchy-context-authoring.dev.md`，把步骤状态从完全实现纠正为 `Create Child` 待修复。
+- 记录 Hierarchy 遍历期间向 `Scene::_gameobjects` 追加对象导致迭代器失效的根因。
+- 将修复规划为“绘制时记录 parent ID、遍历后提交”的延迟命令，并补充失败回滚、selection、dirty、自动展开和 Edit Mode 提示要求。
+- 增加重复创建、父子关系一致性、失败可观测性和 Scene 集成测试等验收标准。
+
+### Reason / Architecture
+
+底层 `Scene::CreateGameobject()` 和 `Transform::SetParent()` 已有集成测试覆盖，缺陷位于 Editor 绘制阶段直接修改被遍历容器。修复应限制在 SceneHierarchy 表现/交互层，不扩大为 Scene API 或通用 undo/redo 重构。
+
+### Verification
+
+- 只读执行 `build/bin/ChikaSceneIntegrationTests.exe`：退出码 0，确认底层 hierarchy API 正常。
+- `git diff --check -- docs/editor/dev/hierarchy-context-authoring.dev.md docs/develop.md`：通过，仅有工作区既有的 LF/CRLF 转换提示。
+
+### Remaining / Next
+
+- 本次只维护步骤卡片，没有实现修复。
+- 下一步按卡片顺序实现延迟 Create Child 请求及对应验收。
+
+---
+
 ## 2026-07-16 - Inspector 可读标签与拖动输入统一
 
 ### Metadata
