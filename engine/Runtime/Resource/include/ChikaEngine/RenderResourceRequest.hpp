@@ -29,6 +29,10 @@ namespace ChikaEngine::Resource
         Render::TextureHandle dst;
         uint32_t width;
         uint32_t height;
+        uint32_t mipLevels = 1;
+        uint32_t arrayLayers = 1;
+        uint64_t size = 0;
         Render::RHI_Format format = Render::RHI_Format::RGBA8_UNorm;
+        Render::TextureDimension dimension = Render::TextureDimension::Texture2D;
     };
 } // namespace ChikaEngine::Resource

@@ -340,7 +340,7 @@ namespace ChikaEngine::Render
         vkCmdCopyBuffer(m_cmd, srcBuffer, dstBuffer, 1, &copyRegion);
     }
 
-    void VulkanCommandList::CopyBufferToTexture(BufferHandle src, TextureHandle dst, uint32_t width, uint32_t height)
+    void VulkanCommandList::CopyBufferToTexture(BufferHandle src, TextureHandle dst, uint32_t width, uint32_t height, uint32_t arrayLayers)
     {
         VkBuffer srcBuffer = m_device->GetVkBuffer(src)->buffer;
         VkImage dstImage = m_device->GetVkTexture(dst)->image;
@@ -353,7 +353,7 @@ namespace ChikaEngine::Render
         region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         region.imageSubresource.mipLevel = 0;
         region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
+        region.imageSubresource.layerCount = arrayLayers;
 
         region.imageOffset = {
             0,

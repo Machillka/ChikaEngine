@@ -68,7 +68,7 @@ namespace
         void BindIndexBuffer(ChikaEngine::Render::BufferHandle, uint64_t, bool) override {}
         void PushConstants(std::string_view, const void*, uint32_t) override {}
         void CopyBuffer(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::BufferHandle, uint64_t) override {}
-        void CopyBufferToTexture(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::TextureHandle, uint32_t, uint32_t) override {}
+        void CopyBufferToTexture(ChikaEngine::Render::BufferHandle, ChikaEngine::Render::TextureHandle, uint32_t, uint32_t, uint32_t) override {}
         void Draw(uint32_t, uint32_t instanceCount, uint32_t, uint32_t) override;
         void DrawIndexed(uint32_t, uint32_t instanceCount, uint32_t, int32_t, uint32_t) override;
         void DrawIndirect(ChikaEngine::Render::BufferHandle, uint64_t, uint32_t drawCount, uint32_t) override;
@@ -465,9 +465,61 @@ namespace
     {
         using namespace ChikaEngine::Render;
 
-        std::vector<RenderObjectSnapshot> objects(3);
+        std::vector<RenderObjectSnapshot> objects(16);
         for (uint32_t index = 0; index < objects.size(); ++index)
             objects[index].handle = RenderObjectHandle::FromParts(index + 1, 1);
+
+        const PipelineHandle sharedPipeline = PipelineHandle::FromParts(7, 1);
+        const ChikaEngine::Resource::MaterialHandle sharedMaterial = ChikaEngine::Resource::MaterialHandle::FromParts(8, 1);
+        const ChikaEngine::Resource::MeshHandle sharedMesh = ChikaEngine::Resource::MeshHandle::FromParts(9, 1);
+
+        const auto buildSharedQueue = [&](RenderPassClass pass)
+        {
+            RenderQueue result;
+            for (uint32_t index = 0; index < 10; ++index)
+            {
+                result.packets.push_back({
+                    .object = &objects[index],
+                    .pass = pass,
+                    .pipeline = sharedPipeline,
+                    .material = sharedMaterial,
+                    .mesh = sharedMesh,
+                    .viewDepth = static_cast<float>(10 - index),
+                    .instancingEligible = true,
+                });
+            }
+            return result;
+        };
+
+        RenderQueue sharedQueue = buildSharedQueue(RenderPassClass::ForwardOpaque);
+        SortAndBuildRenderBatches(sharedQueue, false);
+        Check(sharedQueue.batches.size() == 1, "shared static render state forms one batch");
+        Check(sharedQueue.batches.front().packetCount == 10 && sharedQueue.batches.front().instanced, "shared static batch keeps all packet instances");
+        Check(BuildRenderBatchKey(sharedQueue.packets.front()) == RenderBatchKey{ .pass = RenderPassClass::ForwardOpaque, .pipeline = sharedPipeline, .material = sharedMaterial, .mesh = sharedMesh }, "batch key records pass, pipeline, material and mesh");
+        Check(AssignRenderBatchInstanceRanges(sharedQueue, 1) == 11, "instance range assignment reserves one slot per shared packet");
+        Check(sharedQueue.batches.front().firstInstance == 1, "shared batch starts at the requested first instance");
+
+        const std::vector<RenderBatchDrawCommand> sharedCommands = BuildRenderBatchDrawCommands(sharedQueue);
+        Check(sharedCommands.size() == 1, "shared batch maps to one draw command");
+        Check(sharedCommands.front().instanceCount == 10 && sharedCommands.front().firstInstance == 1, "draw command preserves shared batch instance range");
+        Check(BuildRenderBatchDrawCommands(sharedQueue, true).empty(), "instanced residual CPU path skips GPU-driven batches");
+
+        RenderQueue gbufferSharedQueue = buildSharedQueue(RenderPassClass::GBufferOpaque);
+        SortAndBuildRenderBatches(gbufferSharedQueue, false);
+        Check(gbufferSharedQueue.batches.size() == 1 && gbufferSharedQueue.batches.front().packetCount == 10, "gbuffer shared static render state forms one batch");
+
+        RenderQueue shadowSharedQueue = buildSharedQueue(RenderPassClass::Shadow);
+        SortAndBuildRenderBatches(shadowSharedQueue, false);
+        Check(shadowSharedQueue.batches.size() == 1 && shadowSharedQueue.batches.front().packetCount == 10, "shadow shared static render state forms one batch");
+
+        RenderQueue passSplitQueue;
+        passSplitQueue.packets = {
+            { .object = &objects[10], .pass = RenderPassClass::ForwardOpaque, .pipeline = sharedPipeline, .material = sharedMaterial, .mesh = sharedMesh, .instancingEligible = true },
+            { .object = &objects[11], .pass = RenderPassClass::Shadow, .pipeline = sharedPipeline, .material = sharedMaterial, .mesh = sharedMesh, .instancingEligible = true },
+        };
+        SortAndBuildRenderBatches(passSplitQueue, false);
+        Check(passSplitQueue.batches.size() == 2, "batch key keeps render passes separated even when other state matches");
+        Check(!CanMergeRenderPackets(passSplitQueue.packets[0], passSplitQueue.packets[1]), "merge predicate rejects packets from different passes");
 
         RenderQueue queue;
         queue.packets = {
@@ -492,6 +544,45 @@ namespace
 
         SortAndBuildRenderBatches(queue, false);
         Check(queue.batches.size() == 2, "rebuilding a render queue replaces stale batches");
+    }
+
+    /**
+     * @brief 用 Mock RHI 复现共享状态 Batch 的最终 DrawIndexed 提交参数。
+     */
+    void TestRenderBatchDrawSubmissionMock()
+    {
+        using namespace ChikaEngine::Render;
+
+        std::vector<RenderObjectSnapshot> objects(10);
+        for (uint32_t index = 0; index < objects.size(); ++index)
+            objects[index].handle = RenderObjectHandle::FromParts(index + 100, 1);
+
+        RenderQueue queue;
+        for (RenderObjectSnapshot& object : objects)
+        {
+            queue.packets.push_back({
+                .object = &object,
+                .pass = RenderPassClass::ForwardOpaque,
+                .pipeline = PipelineHandle::FromParts(12, 1),
+                .material = ChikaEngine::Resource::MaterialHandle::FromParts(13, 1),
+                .mesh = ChikaEngine::Resource::MeshHandle::FromParts(14, 1),
+                .instancingEligible = true,
+            });
+        }
+
+        SortAndBuildRenderBatches(queue, false);
+        AssignRenderBatchInstanceRanges(queue, 1);
+        const std::vector<RenderBatchDrawCommand> commands = BuildRenderBatchDrawCommands(queue);
+
+        MockRHIDevice device;
+        device.BeginFrame();
+        ChikaEngine::Render::IRHICommandList* commandList = device.AllocateCommandList();
+        for (const RenderBatchDrawCommand& command : commands)
+            commandList->DrawIndexed(36, command.instanceCount, 0, 0, command.firstInstance);
+        device.Submit(commandList);
+
+        Check(device.statistics.drawCallCount == 1, "shared batch submits one indexed draw call");
+        Check(device.statistics.instanceCount == 10, "shared batch submits all objects as draw instances");
     }
 
     /**
@@ -815,6 +906,7 @@ int main()
     TestFrustumVisibility();
     TestParallelVisibilityMatchesSerial();
     TestRenderQueueSortAndBatch();
+    TestRenderBatchDrawSubmissionMock();
     TestRenderDebugVisualization();
     TestRHIStatisticsAndNames();
     TestRenderGraphCompileAndExecuteOrder();

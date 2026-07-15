@@ -10,7 +10,10 @@
 #include "ResourceLayout.hpp"
 #include <functional>
 #include <mutex>
+#include <span>
+#include <string_view>
 #include <unordered_map>
+#include <vector>
 namespace ChikaEngine::Resource
 {
 
@@ -25,6 +28,8 @@ namespace ChikaEngine::Resource
         MeshHandle UploadMesh(Asset::MeshHandle assetHandle);
         TextureHandle UploadTexture(Asset::TextureHandle assetHandle);
         MaterialHandle UploadMaterial(Asset::MaterialHandle assetHandle);
+        /** @brief Creates an uncached runtime material instance with its own parameter UBO. */
+        MaterialHandle CloneMaterial(MaterialHandle sourceHandle);
 
         const MeshGPU& GetMesh(MeshHandle handle) const;
         const TextureGPU& GetTexture(TextureHandle handle) const;
@@ -32,7 +37,12 @@ namespace ChikaEngine::Resource
 
         /** @brief Returns immutable metadata or nullptr without dereferencing a stale resource handle. */
         const MeshGPU* TryGetMesh(MeshHandle handle) const;
+        const TextureGPU* TryGetTexture(TextureHandle handle) const;
         const MaterialGPU* TryGetMaterial(MaterialHandle handle) const;
+        std::vector<MaterialParameterInfo> GetMaterialParameters(MaterialHandle handle) const;
+        const MaterialParameterRuntime* FindMaterialParameter(MaterialHandle handle, std::string_view name) const;
+        bool UpdateMaterialParameter(MaterialHandle handle, std::string_view name, std::span<const float> value);
+        bool UpdateMaterialParameter(MaterialHandle handle, std::string_view name, const MaterialParameterValue& value);
 
         bool Unload(MeshHandle handle);
         bool Unload(TextureHandle handle);

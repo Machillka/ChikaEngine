@@ -48,7 +48,7 @@ namespace ChikaEngine::Render
                     while (packetIndex + packetCount < queue.packets.size())
                     {
                         const RenderPacket& candidate = queue.packets[packetIndex + packetCount];
-                        if (!candidate.instancingEligible || candidate.pipeline != first.pipeline || candidate.material != first.material || candidate.mesh != first.mesh || candidate.pass != first.pass)
+                        if (!CanMergeRenderPackets(first, candidate))
                             break;
                         ++packetCount;
                     }
@@ -150,6 +150,69 @@ namespace ChikaEngine::Render
         AppendRenderPackets(queues, mainVisibility.visibleObjects, view, resources, false);
         AppendRenderPackets(queues, shadowVisibility.visibleObjects, view, resources, true);
         return queues;
+    }
+
+    RenderBatchKey BuildRenderBatchKey(const RenderPacket& packet)
+    {
+        return {
+            .pass = packet.pass,
+            .pipeline = packet.pipeline,
+            .material = packet.material,
+            .mesh = packet.mesh,
+        };
+    }
+
+    bool CanMergeRenderPackets(const RenderPacket& first, const RenderPacket& candidate)
+    {
+        return first.instancingEligible && candidate.instancingEligible && BuildRenderBatchKey(first) == BuildRenderBatchKey(candidate);
+    }
+
+    uint32_t GetRenderBatchDrawInstanceCount(const RenderBatch& batch)
+    {
+        return batch.instanced ? static_cast<uint32_t>(batch.packetCount) : 1u;
+    }
+
+    uint32_t GetRenderBatchDrawFirstInstance(const RenderBatch& batch)
+    {
+        return batch.instanced ? batch.firstInstance : 0u;
+    }
+
+    uint32_t AssignRenderBatchInstanceRanges(RenderQueue& queue, uint32_t firstInstance)
+    {
+        uint32_t nextInstance = firstInstance;
+        for (RenderBatch& batch : queue.batches)
+        {
+            if (!batch.instanced)
+                continue;
+            batch.firstInstance = nextInstance;
+            nextInstance += static_cast<uint32_t>(batch.packetCount);
+        }
+        return nextInstance;
+    }
+
+    std::vector<RenderBatchDrawCommand> BuildRenderBatchDrawCommands(const RenderQueue& queue, bool skipInstancedBatches)
+    {
+        std::vector<RenderBatchDrawCommand> commands;
+        commands.reserve(queue.batches.size());
+        for (size_t batchIndex = 0; batchIndex < queue.batches.size(); ++batchIndex)
+        {
+            const RenderBatch& batch = queue.batches[batchIndex];
+            if (skipInstancedBatches && batch.instanced)
+                continue;
+            if (batch.packetCount == 0)
+                continue;
+            commands.push_back({
+                .batchIndex = batchIndex,
+                .pass = batch.pass,
+                .pipeline = batch.pipeline,
+                .material = batch.material,
+                .mesh = batch.mesh,
+                .instanceCount = GetRenderBatchDrawInstanceCount(batch),
+                .firstInstance = GetRenderBatchDrawFirstInstance(batch),
+                .instanced = batch.instanced,
+            });
+        }
+        return commands;
     }
 
     void AppendRenderQueueSet(RenderQueueSet& destination, RenderQueueSet&& source)

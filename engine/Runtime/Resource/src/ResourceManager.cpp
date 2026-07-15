@@ -13,6 +13,8 @@
 #include <mutex>
 #include <optional>
 #include <span>
+#include <string>
+#include <unordered_map>
 
 namespace ChikaEngine::Resource
 {
@@ -125,6 +127,22 @@ namespace ChikaEngine::Resource
             return result;
         }
 
+        void ReplaceMaterialParameterBuffer(std::vector<Render::ResourceBindingGroup>& groups, Render::BufferHandle sourceBuffer, Render::BufferHandle instanceBuffer, uint64_t parameterBufferSize)
+        {
+            for (Render::ResourceBindingGroup& group : groups)
+            {
+                for (Render::ResourceBindingGroup::BufferBind& binding : group.buffers)
+                {
+                    if (binding.buf == sourceBuffer || binding.name == "material")
+                    {
+                        binding.buf = instanceBuffer;
+                        binding.offset = 0;
+                        binding.size = parameterBufferSize;
+                    }
+                }
+            }
+        }
+
         /**
          * @brief Resolves a descriptor by name first, then by the reflected slot contract.
          *
@@ -171,44 +189,136 @@ namespace ChikaEngine::Resource
             };
         }
 
-        /**
-         * @brief 将 Material 参数值写入 Reflection 指定的真实 Buffer Offset。
-         */
-        void WriteMaterialParameter(std::vector<uint8_t>& data, const Shader::ShaderBufferMember& member, const Asset::ShaderParamDesc& parameter, const Asset::MaterialData& material)
+        Render::TextureDimension ToTextureDimension(Asset::TextureShape shape)
         {
-            Shader::ShaderValueType expectedType = Shader::ShaderValueType::Unknown;
-            switch (parameter.type)
+            return shape == Asset::TextureShape::TextureCube ? Render::TextureDimension::TextureCube : Render::TextureDimension::Texture2D;
+        }
+
+        bool IsEnvironmentUsage(Asset::TextureAssetUsage usage)
+        {
+            switch (usage)
+            {
+            case Asset::TextureAssetUsage::Environment:
+            case Asset::TextureAssetUsage::EnvironmentIrradiance:
+            case Asset::TextureAssetUsage::EnvironmentPrefiltered:
+            case Asset::TextureAssetUsage::EnvironmentBrdfLut:
+            case Asset::TextureAssetUsage::ReflectionProbe:
+                return true;
+            default:
+                return false;
+            }
+        }
+
+        /**
+         * @brief 将资产参数类型映射为运行时可编辑参数类型。
+         */
+        MaterialParameterType ToMaterialParameterType(Asset::ShaderParamTypes type)
+        {
+            switch (type)
+            {
+            case Asset::ShaderParamTypes::Vec2:
+                return MaterialParameterType::Vec2;
+            case Asset::ShaderParamTypes::Vec3:
+                return MaterialParameterType::Vec3;
+            case Asset::ShaderParamTypes::Vec4:
+                return MaterialParameterType::Vec4;
+            case Asset::ShaderParamTypes::Bool:
+                return MaterialParameterType::Bool;
+            case Asset::ShaderParamTypes::Float:
+            default:
+                return MaterialParameterType::Float;
+            }
+        }
+
+        uint32_t ComponentCount(MaterialParameterType type)
+        {
+            switch (type)
+            {
+            case MaterialParameterType::Vec2:
+                return 2;
+            case MaterialParameterType::Vec3:
+                return 3;
+            case MaterialParameterType::Vec4:
+                return 4;
+            case MaterialParameterType::Bool:
+            case MaterialParameterType::Float:
+            default:
+                return 1;
+            }
+        }
+
+        Shader::ShaderValueType ExpectedShaderValueType(Asset::ShaderParamTypes type)
+        {
+            switch (type)
             {
             case Asset::ShaderParamTypes::Float:
-                expectedType = Shader::ShaderValueType::Float;
-                break;
+                return Shader::ShaderValueType::Float;
             case Asset::ShaderParamTypes::Vec2:
-                expectedType = Shader::ShaderValueType::Float2;
-                break;
+                return Shader::ShaderValueType::Float2;
             case Asset::ShaderParamTypes::Vec3:
-                expectedType = Shader::ShaderValueType::Float3;
-                break;
+                return Shader::ShaderValueType::Float3;
             case Asset::ShaderParamTypes::Vec4:
-                expectedType = Shader::ShaderValueType::Float4;
-                break;
+                return Shader::ShaderValueType::Float4;
             default:
-                break;
+                return Shader::ShaderValueType::Unknown;
             }
-            if (member.type != expectedType)
-            {
-                LOG_ERROR("ResourceManager", "Material parameter '{}' type does not match reflected Shader member", parameter.name);
-                return;
-            }
+        }
 
+        std::vector<float> NormalizeMaterialValues(std::vector<float> values, uint32_t componentCount)
+        {
+            values.resize(componentCount, 0.0f);
+            return values;
+        }
+
+        std::vector<float> ResolveMaterialParameterValue(const Asset::ShaderParamDesc& parameter, const Asset::MaterialData& material, uint32_t componentCount)
+        {
             std::vector<float> values = parameter.defaultValues;
             if (parameter.type == Asset::ShaderParamTypes::Float && material.floatParams.contains(parameter.name))
                 values = { material.floatParams.at(parameter.name) };
             else if (material.vectorParams.contains(parameter.name))
                 values = material.vectorParams.at(parameter.name);
+            return NormalizeMaterialValues(std::move(values), componentCount);
+        }
 
-            const size_t copySize = std::min<size_t>(member.size, values.size() * sizeof(float));
-            if (member.offset + copySize <= data.size() && copySize > 0)
-                std::memcpy(data.data() + member.offset, values.data(), copySize);
+        bool WriteMaterialParameterValue(std::vector<uint8_t>& data, const MaterialParameterRuntime& runtime, std::string_view name, std::span<const float> values)
+        {
+            if (values.size() != runtime.componentCount)
+            {
+                LOG_ERROR("ResourceManager", "Material parameter '{}' expected {} components but got {}", name, runtime.componentCount, values.size());
+                return false;
+            }
+
+            const size_t copySize = values.size_bytes();
+            if (copySize > runtime.size || runtime.offset + copySize > data.size())
+            {
+                LOG_ERROR("ResourceManager", "Material parameter '{}' write exceeds reflected buffer range", name);
+                return false;
+            }
+
+            std::memcpy(data.data() + runtime.offset, values.data(), copySize);
+            return true;
+        }
+
+        std::optional<MaterialParameterRuntime> BuildMaterialParameterRuntime(const Shader::ShaderBufferMember& member, const Asset::ShaderParamDesc& parameter, const Asset::MaterialData& material)
+        {
+            const Shader::ShaderValueType expectedType = ExpectedShaderValueType(parameter.type);
+            if (member.type != expectedType)
+            {
+                LOG_ERROR("ResourceManager", "Material parameter '{}' type does not match reflected Shader member", parameter.name);
+                return std::nullopt;
+            }
+
+            const MaterialParameterType runtimeType = ToMaterialParameterType(parameter.type);
+            const uint32_t componentCount = ComponentCount(runtimeType);
+            MaterialParameterRuntime runtime{
+                .type = runtimeType,
+                .componentCount = componentCount,
+                .offset = member.offset,
+                .size = member.size,
+                .value = ResolveMaterialParameterValue(parameter, material, componentCount),
+                .defaultValue = NormalizeMaterialValues(parameter.defaultValues, componentCount),
+            };
+            return runtime;
         }
     } // namespace
 
@@ -242,6 +352,38 @@ namespace ChikaEngine::Resource
         if (m_materialCache.contains(assetHandle))
             return m_materialCache[assetHandle];
         return _UploadMaterial(assetHandle);
+    }
+
+    MaterialHandle ResourceManager::CloneMaterial(MaterialHandle sourceHandle)
+    {
+        const MaterialGPU* source = m_materials.Get(sourceHandle);
+        if (!source)
+            return MaterialHandle::Invalid();
+
+        MaterialGPU instance = *source;
+        const uint64_t parameterBufferSize = std::max<uint64_t>(source->parameterBufferSize, 16);
+        instance.uboBuffer = m_rhi.CreateBuffer({
+            .size = parameterBufferSize,
+            .usage = Render::RHI_BufferUsage::Uniform,
+            .memoryUsage = Render::MemoryUsage::CPU_To_GPU,
+        });
+        if (!instance.uboBuffer.IsValid())
+            return MaterialHandle::Invalid();
+
+        m_rhi.SetDebugName(instance.uboBuffer, "Material.RuntimeInstance.Parameters");
+        if (void* mapped = m_rhi.GetMappedData(instance.uboBuffer))
+            std::memcpy(mapped, source->parameterData.data(), source->parameterData.size());
+        else
+        {
+            m_rhi.DestroyBuffer(instance.uboBuffer);
+            return MaterialHandle::Invalid();
+        }
+
+        ReplaceMaterialParameterBuffer(instance.bindings, source->uboBuffer, instance.uboBuffer, source->parameterBufferSize);
+        ReplaceMaterialParameterBuffer(instance.shadowBindings, source->uboBuffer, instance.uboBuffer, source->parameterBufferSize);
+        instance.ownsPipelineResources = false;
+        instance.runtimeInstance = true;
+        return m_materials.Create(std::move(instance));
     }
 
     /*!
@@ -349,18 +491,121 @@ namespace ChikaEngine::Resource
         if (!data)
             return TextureHandle::Invalid();
 
-        uint64_t imageSize = data->width * data->height * data->channels;
+        const uint64_t imageSize = data->pixels.size();
+        if (imageSize == 0)
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' has no pixel data", data->path);
+            return TextureHandle::Invalid();
+        }
+
+        const Render::TextureDimension dimension = ToTextureDimension(data->shape);
         Render::TextureDesc desc{
             .width = data->width,
             .height = data->height,
             .format = data->srgb ? Render::RHI_Format::RGBA8_SRGB : Render::RHI_Format::RGBA8_UNorm,
-            .mipLevels = 1,
-            .arrayLayers = 1,
+            .mipLevels = std::max(1u, data->mipLevels),
+            .arrayLayers = std::max(1u, data->arrayLayers),
             .usage = Render::RHI_TextureUsage::Sampled,
+            .dimension = dimension,
         };
+        if (!Render::IsTextureDescValid(desc))
+        {
+            LOG_ERROR("ResourceManager", "Texture '{}' has invalid RHI description", data->path);
+            return TextureHandle::Invalid();
+        }
         Render::TextureHandle tex = m_rhi.CreateTexture(desc);
+        if (!tex.IsValid())
+            return TextureHandle::Invalid();
         const std::string textureDebugName = data->path.empty() ? "Texture.Unnamed" : "Texture." + data->path;
         m_rhi.SetDebugName(tex, textureDebugName);
+
+        const Render::TextureViewDesc viewDesc{
+            .texture = tex,
+            .range = { .baseMipLevel = 0, .mipLevelCount = desc.mipLevels, .baseArrayLayer = 0, .arrayLayerCount = desc.arrayLayers },
+            .dimension = dimension,
+        };
+        Render::TextureViewHandle defaultView = m_rhi.CreateTextureView(viewDesc);
+        if (!defaultView.IsValid())
+        {
+            m_rhi.DestroyTexture(tex);
+            return TextureHandle::Invalid();
+        }
+        m_rhi.SetDebugName(defaultView, textureDebugName + ".DefaultView");
+
+        const bool clampSampler = dimension == Render::TextureDimension::TextureCube || IsEnvironmentUsage(data->usage);
+        Render::SamplerHandle sampler = m_rhi.CreateSampler({
+            .minFilter = Render::FilterMode::Linear,
+            .magFilter = Render::FilterMode::Linear,
+            .addressU = clampSampler ? Render::AddressMode::ClampToEdge : Render::AddressMode::Repeat,
+            .addressV = clampSampler ? Render::AddressMode::ClampToEdge : Render::AddressMode::Repeat,
+            .addressW = clampSampler ? Render::AddressMode::ClampToEdge : Render::AddressMode::Repeat,
+        });
+        if (!sampler.IsValid())
+        {
+            m_rhi.DestroyTextureView(defaultView);
+            m_rhi.DestroyTexture(tex);
+            return TextureHandle::Invalid();
+        }
+        m_rhi.SetDebugName(sampler, textureDebugName + ".Sampler");
+
+        std::vector<Render::TextureViewHandle> mipViews;
+        std::vector<Render::TextureViewHandle> faceViews;
+        auto destroyTextureContractHandles = [&]()
+        {
+            for (Render::TextureViewHandle view : mipViews)
+            {
+                if (view.IsValid())
+                    m_rhi.DestroyTextureView(view);
+            }
+            for (Render::TextureViewHandle view : faceViews)
+            {
+                if (view.IsValid())
+                    m_rhi.DestroyTextureView(view);
+            }
+            m_rhi.DestroySampler(sampler);
+            m_rhi.DestroyTextureView(defaultView);
+            m_rhi.DestroyTexture(tex);
+        };
+
+        if ((dimension == Render::TextureDimension::TextureCube || IsEnvironmentUsage(data->usage)) && desc.mipLevels > 1)
+        {
+            mipViews.reserve(desc.mipLevels);
+            for (uint32_t mip = 0; mip < desc.mipLevels; ++mip)
+            {
+                Render::TextureViewHandle mipView = m_rhi.CreateTextureView({
+                    .texture = tex,
+                    .range = { .baseMipLevel = mip, .mipLevelCount = 1, .baseArrayLayer = 0, .arrayLayerCount = desc.arrayLayers },
+                    .dimension = dimension,
+                });
+                if (!mipView.IsValid())
+                {
+                    destroyTextureContractHandles();
+                    return TextureHandle::Invalid();
+                }
+                m_rhi.SetDebugName(mipView, textureDebugName + ".MipView." + std::to_string(mip));
+                mipViews.push_back(mipView);
+            }
+        }
+
+        if (dimension == Render::TextureDimension::TextureCube)
+        {
+            faceViews.reserve(desc.arrayLayers);
+            for (uint32_t face = 0; face < desc.arrayLayers; ++face)
+            {
+                Render::TextureViewHandle faceView = m_rhi.CreateTextureView({
+                    .texture = tex,
+                    .range = { .baseMipLevel = 0, .mipLevelCount = desc.mipLevels, .baseArrayLayer = face, .arrayLayerCount = 1 },
+                    .dimension = Render::TextureDimension::Texture2D,
+                });
+                if (!faceView.IsValid())
+                {
+                    destroyTextureContractHandles();
+                    return TextureHandle::Invalid();
+                }
+                m_rhi.SetDebugName(faceView, textureDebugName + ".FaceView." + std::to_string(face));
+                faceViews.push_back(faceView);
+            }
+        }
 
         Render::BufferDesc stagingDesc{
             .size = imageSize,
@@ -373,20 +618,33 @@ namespace ChikaEngine::Resource
 
         {
             std::lock_guard<std::mutex> lock(m_uploadMutex);
-            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height, desc.format });
+            m_pendingTextureUploads.push_back({ staging, tex, data->width, data->height, desc.mipLevels, desc.arrayLayers, imageSize, desc.format, desc.dimension });
         }
 
         // SubmitImmediate(
         //     [&](Render::IRHICommandList* cmd)
         //     {
         //         cmd->InsertTextureBarrier(tex, Render::ResourceState::Undefined, Render::ResourceState::TransferDst);
-        //         cmd->CopyBufferToTexture(staging, tex, data->width, data->height);
+        //         cmd->CopyBufferToTexture(staging, tex, data->width, data->height, desc.arrayLayers);
         //         cmd->InsertTextureBarrier(tex, Render::ResourceState::TransferDst, Render::ResourceState::ShaderResource);
         //     });
 
         m_rhi.DestroyBuffer(staging);
 
-        TextureHandle handle = m_textures.Create({ .texture = tex });
+        TextureHandle handle = m_textures.Create({
+            .texture = tex,
+            .defaultView = defaultView,
+            .sampler = sampler,
+            .mipViews = std::move(mipViews),
+            .faceViews = std::move(faceViews),
+            .dimension = dimension,
+            .format = desc.format,
+            .usage = data->usage,
+            .width = data->width,
+            .height = data->height,
+            .mipLevels = desc.mipLevels,
+            .arrayLayers = desc.arrayLayers,
+        });
         m_textureCache[assetHandle] = handle;
         return handle;
     }
@@ -493,6 +751,7 @@ namespace ChikaEngine::Resource
             return MaterialHandle::Invalid();
         }
         std::vector<uint8_t> uboData(materialResource->buffer.size, 0);
+        std::unordered_map<std::string, MaterialParameterRuntime> materialParameters;
         for (const auto& [name, parameter] : tmplData->parameters)
         {
             const Shader::ShaderBufferMember* member = forwardInterface->FindBufferMember("material", name);
@@ -501,7 +760,12 @@ namespace ChikaEngine::Resource
                 LOG_ERROR("ResourceManager", "Material parameter '{}' is not present in reflected buffer 'material'", name);
                 continue;
             }
-            WriteMaterialParameter(uboData, *member, parameter, *materialData);
+            std::optional<MaterialParameterRuntime> runtime = BuildMaterialParameterRuntime(*member, parameter, *materialData);
+            if (!runtime)
+                continue;
+            if (!WriteMaterialParameterValue(uboData, *runtime, name, runtime->value))
+                continue;
+            materialParameters.emplace(name, std::move(*runtime));
         }
 
         Render::BufferDesc uboDesc{
@@ -540,6 +804,9 @@ namespace ChikaEngine::Resource
             .fragmentShader = fs,
             .gbufferFragmentShader = gbufferFs,
             .uboBuffer = uboHandle,
+            .parameterBufferSize = materialResource->buffer.size,
+            .parameterData = std::move(uboData),
+            .parameters = std::move(materialParameters),
             .forwardDrawBindings = ResolveMaterialDrawBindings(*forwardInterface),
             .gbufferDrawBindings = ResolveMaterialDrawBindings(*gbufferInterface),
             .shadowDrawBindings = ResolveMaterialDrawBindings(*shadowInterface),
@@ -573,9 +840,96 @@ namespace ChikaEngine::Resource
         return m_meshes.Get(handle);
     }
 
+    const TextureGPU* ResourceManager::TryGetTexture(TextureHandle handle) const
+    {
+        return m_textures.Get(handle);
+    }
+
     const MaterialGPU* ResourceManager::TryGetMaterial(MaterialHandle handle) const
     {
         return m_materials.Get(handle);
+    }
+
+    std::vector<MaterialParameterInfo> ResourceManager::GetMaterialParameters(MaterialHandle handle) const
+    {
+        const MaterialGPU* material = m_materials.Get(handle);
+        if (!material)
+            return {};
+
+        std::vector<MaterialParameterInfo> result;
+        result.reserve(material->parameters.size());
+        for (const auto& [name, runtime] : material->parameters)
+        {
+            result.push_back({
+                .name = name,
+                .type = runtime.type,
+                .componentCount = runtime.componentCount,
+                .value = runtime.value,
+                .defaultValue = runtime.defaultValue,
+            });
+        }
+        std::ranges::sort(result, {}, &MaterialParameterInfo::name);
+        return result;
+    }
+
+    const MaterialParameterRuntime* ResourceManager::FindMaterialParameter(MaterialHandle handle, std::string_view name) const
+    {
+        const MaterialGPU* material = m_materials.Get(handle);
+        if (!material)
+            return nullptr;
+        const auto found = material->parameters.find(std::string(name));
+        return found == material->parameters.end() ? nullptr : &found->second;
+    }
+
+    bool ResourceManager::UpdateMaterialParameter(MaterialHandle handle, std::string_view name, std::span<const float> value)
+    {
+        MaterialGPU* material = m_materials.Get(handle);
+        if (!material)
+        {
+            LOG_ERROR("ResourceManager", "Attempted to update an invalid material handle");
+            return false;
+        }
+
+        const auto found = material->parameters.find(std::string(name));
+        if (found == material->parameters.end())
+        {
+            LOG_ERROR("ResourceManager", "Material parameter '{}' does not exist", name);
+            return false;
+        }
+
+        MaterialParameterRuntime& runtime = found->second;
+        std::vector<uint8_t> updatedData = material->parameterData;
+        if (!WriteMaterialParameterValue(updatedData, runtime, name, value))
+            return false;
+
+        void* mapped = m_rhi.GetMappedData(material->uboBuffer);
+        if (!mapped)
+        {
+            LOG_ERROR("ResourceManager", "Material parameter '{}' cannot be updated because the UBO is not CPU mapped", name);
+            return false;
+        }
+
+        const size_t copySize = value.size_bytes();
+        std::memcpy(static_cast<uint8_t*>(mapped) + runtime.offset, value.data(), copySize);
+        material->parameterData = std::move(updatedData);
+        runtime.value.assign(value.begin(), value.end());
+        return true;
+    }
+
+    bool ResourceManager::UpdateMaterialParameter(MaterialHandle handle, std::string_view name, const MaterialParameterValue& value)
+    {
+        const MaterialParameterRuntime* runtime = FindMaterialParameter(handle, name);
+        if (!runtime)
+        {
+            LOG_ERROR("ResourceManager", "Material parameter '{}' does not exist", name);
+            return false;
+        }
+        if (runtime->type != value.type)
+        {
+            LOG_ERROR("ResourceManager", "Material parameter '{}' type does not match", name);
+            return false;
+        }
+        return UpdateMaterialParameter(handle, name, std::span<const float>(value.value.data(), value.value.size()));
     }
 
     bool ResourceManager::Unload(MeshHandle handle)
@@ -595,6 +949,20 @@ namespace ChikaEngine::Resource
         TextureGPU* texture = m_textures.Get(handle);
         if (!texture)
             return false;
+        for (Render::TextureViewHandle view : texture->mipViews)
+        {
+            if (view.IsValid())
+                m_rhi.DestroyTextureView(view);
+        }
+        for (Render::TextureViewHandle view : texture->faceViews)
+        {
+            if (view.IsValid())
+                m_rhi.DestroyTextureView(view);
+        }
+        if (texture->defaultView.IsValid())
+            m_rhi.DestroyTextureView(texture->defaultView);
+        if (texture->sampler.IsValid())
+            m_rhi.DestroySampler(texture->sampler);
         m_rhi.DestroyTexture(texture->texture);
         RemoveCachedHandle(handle, m_textureCache);
         m_textures.Destroy(handle);
@@ -606,14 +974,17 @@ namespace ChikaEngine::Resource
         MaterialGPU* material = m_materials.Get(handle);
         if (!material)
             return false;
-        m_rhi.DestroyPipeline(material->forwardPipeline);
-        if (material->gbufferPipeline != material->forwardPipeline)
-            m_rhi.DestroyPipeline(material->gbufferPipeline);
-        if (material->shadowPipeline != material->forwardPipeline && material->shadowPipeline != material->gbufferPipeline)
-            m_rhi.DestroyPipeline(material->shadowPipeline);
-        m_rhi.DestroyShader(material->vertexShader);
-        m_rhi.DestroyShader(material->fragmentShader);
-        m_rhi.DestroyShader(material->gbufferFragmentShader);
+        if (material->ownsPipelineResources)
+        {
+            m_rhi.DestroyPipeline(material->forwardPipeline);
+            if (material->gbufferPipeline != material->forwardPipeline)
+                m_rhi.DestroyPipeline(material->gbufferPipeline);
+            if (material->shadowPipeline != material->forwardPipeline && material->shadowPipeline != material->gbufferPipeline)
+                m_rhi.DestroyPipeline(material->shadowPipeline);
+            m_rhi.DestroyShader(material->vertexShader);
+            m_rhi.DestroyShader(material->fragmentShader);
+            m_rhi.DestroyShader(material->gbufferFragmentShader);
+        }
         m_rhi.DestroyBuffer(material->uboBuffer);
         RemoveCachedHandle(handle, m_materialCache);
         m_materials.Destroy(handle);

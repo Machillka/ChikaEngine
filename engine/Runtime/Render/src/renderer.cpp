@@ -108,6 +108,45 @@ namespace ChikaEngine::Render
         m_pipeline.SetOverlayPassCallback(std::move(callback));
     }
 
+    Resource::MaterialHandle Renderer::GetOrUploadMaterial(Asset::MaterialHandle material)
+    {
+        if (!material.IsValid())
+            return Resource::MaterialHandle::Invalid();
+        Resource::ResourceManager* resources = m_resourceSystem.GetResourceManager();
+        return resources ? resources->UploadMaterial(material) : Resource::MaterialHandle::Invalid();
+    }
+
+    Resource::MaterialHandle Renderer::CreateMaterialInstance(Resource::MaterialHandle sourceMaterial)
+    {
+        if (!sourceMaterial.IsValid())
+            return Resource::MaterialHandle::Invalid();
+        Resource::ResourceManager* resources = m_resourceSystem.GetResourceManager();
+        return resources ? resources->CloneMaterial(sourceMaterial) : Resource::MaterialHandle::Invalid();
+    }
+
+    std::vector<Resource::MaterialParameterInfo> Renderer::GetMaterialParameters(Resource::MaterialHandle material) const
+    {
+        Resource::ResourceManager* resources = m_resourceSystem.GetResourceManager();
+        return resources ? resources->GetMaterialParameters(material) : std::vector<Resource::MaterialParameterInfo>{};
+    }
+
+    bool Renderer::SetMaterialFloat(Resource::MaterialHandle material, std::string_view name, float value)
+    {
+        return SetMaterialVector(material, name, std::span<const float>(&value, 1));
+    }
+
+    bool Renderer::SetMaterialVector(Resource::MaterialHandle material, std::string_view name, std::span<const float> value)
+    {
+        Resource::ResourceManager* resources = m_resourceSystem.GetResourceManager();
+        return resources && resources->UpdateMaterialParameter(material, name, value);
+    }
+
+    bool Renderer::SetMaterialParameter(Resource::MaterialHandle material, std::string_view name, const Resource::MaterialParameterValue& value)
+    {
+        Resource::ResourceManager* resources = m_resourceSystem.GetResourceManager();
+        return resources && resources->UpdateMaterialParameter(material, name, value);
+    }
+
     float Renderer::GetViewportAspectRatio() const
     {
         const uint32_t height = GetViewportHeight();

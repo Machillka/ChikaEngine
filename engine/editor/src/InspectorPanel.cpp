@@ -1,17 +1,152 @@
 #include "InspectorPanel.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
 #include "ChikaEngine/component/ScriptComponent.h"
 #include "ChikaEngine/scene/scene.hpp"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/math/ChikaMath.h"
+#include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include <imgui.h>
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace ChikaEngine::Editor
 {
     bool DrawReflectedObject(void* instance, const Reflection::ClassInfo* classInfo);
+
+    std::string ToLower(std::string_view value)
+    {
+        std::string result;
+        result.reserve(value.size());
+        for (char character : value)
+            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(character))));
+        return result;
+    }
+
+    bool IsColorParameter(std::string_view name, Resource::MaterialParameterType type)
+    {
+        if (type != Resource::MaterialParameterType::Vec4)
+            return false;
+
+        const std::string lower = ToLower(name);
+        return lower.find("color") != std::string::npos || lower.find("emissive") != std::string::npos;
+    }
+
+    bool IsEmissiveParameter(std::string_view name)
+    {
+        return ToLower(name).find("emissive") != std::string::npos;
+    }
+
+    bool IsUnitParameter(std::string_view name)
+    {
+        return name == "Metallic" || name == "Roughness" || name == "OcclusionStrength";
+    }
+
+    bool IsNormalScaleParameter(std::string_view name)
+    {
+        return name == "NormalScale";
+    }
+
+    Math::Vector3 QuaternionToEulerDegrees(Math::Quaternion q)
+    {
+        const float lengthSquared = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+        if (lengthSquared <= 0.000001f)
+            return {};
+
+        const float invLength = 1.0f / std::sqrt(lengthSquared);
+        q.x *= invLength;
+        q.y *= invLength;
+        q.z *= invLength;
+        q.w *= invLength;
+
+        const float sinXCosY = 2.0f * (q.w * q.x + q.y * q.z);
+        const float cosXCosY = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+        const float x = std::atan2(sinXCosY, cosXCosY);
+
+        const float sinY = 2.0f * (q.w * q.y - q.z * q.x);
+        const float y = std::abs(sinY) >= 1.0f ? std::copysign(Math::PI * 0.5f, sinY) : std::asin(sinY);
+
+        const float sinZCosY = 2.0f * (q.w * q.z + q.x * q.y);
+        const float cosZCosY = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+        const float z = std::atan2(sinZCosY, cosZCosY);
+
+        return { x * Math::RAD2DEG, y * Math::RAD2DEG, z * Math::RAD2DEG };
+    }
+
+    Math::Quaternion EulerDegreesToQuaternion(const Math::Vector3& eulerDegrees)
+    {
+        return Math::Quaternion::FromEuler({
+            eulerDegrees.x * Math::DEG2RAD,
+            eulerDegrees.y * Math::DEG2RAD,
+            eulerDegrees.z * Math::DEG2RAD,
+        }).Normalized();
+    }
+
+    void DrawMaterialReference(const Asset::AssetReference& reference)
+    {
+        if (!reference.diagnosticPath.empty())
+        {
+            ImGui::TextDisabled("Material Asset: %s", reference.diagnosticPath.c_str());
+            return;
+        }
+        if (reference.IsValid())
+        {
+            ImGui::TextDisabled("Material GUID: %s", reference.guid.c_str());
+            return;
+        }
+        ImGui::TextDisabled("Material Asset: none");
+    }
+
+    bool DrawMaterialParameterControl(const Resource::MaterialParameterInfo& parameter, std::vector<float>& values)
+    {
+        values.resize(parameter.componentCount, 0.0f);
+
+        switch (parameter.type)
+        {
+        case Resource::MaterialParameterType::Float:
+        {
+            if (IsUnitParameter(parameter.name))
+                return ImGui::SliderFloat(parameter.name.c_str(), values.data(), 0.0f, 1.0f);
+            if (IsNormalScaleParameter(parameter.name))
+                return ImGui::SliderFloat(parameter.name.c_str(), values.data(), 0.0f, 4.0f);
+            return ImGui::DragFloat(parameter.name.c_str(), values.data(), 0.01f);
+        }
+        case Resource::MaterialParameterType::Vec2:
+            return ImGui::DragFloat2(parameter.name.c_str(), values.data(), 0.01f);
+        case Resource::MaterialParameterType::Vec3:
+            return ImGui::DragFloat3(parameter.name.c_str(), values.data(), 0.01f);
+        case Resource::MaterialParameterType::Vec4:
+        {
+            if (IsColorParameter(parameter.name, parameter.type))
+            {
+                ImGuiColorEditFlags flags = ImGuiColorEditFlags_Float;
+                if (IsEmissiveParameter(parameter.name))
+                    flags |= ImGuiColorEditFlags_HDR;
+                return ImGui::ColorEdit4(parameter.name.c_str(), values.data(), flags);
+            }
+            return ImGui::DragFloat4(parameter.name.c_str(), values.data(), 0.01f);
+        }
+        case Resource::MaterialParameterType::Bool:
+        {
+            bool enabled = !values.empty() && values[0] != 0.0f;
+            if (!ImGui::Checkbox(parameter.name.c_str(), &enabled))
+                return false;
+            values[0] = enabled ? 1.0f : 0.0f;
+            return true;
+        }
+        }
+
+        ImGui::TextDisabled("Unsupported material parameter: %s", parameter.name.c_str());
+        return false;
+    }
 
     bool DrawProperty(const Reflection::PropertyInfo& prop, void* instance)
     {
@@ -116,6 +251,18 @@ namespace ChikaEngine::Editor
                     return true;
                 }
             }
+            else if (prop.TypeName.find("Quaternion") != std::string::npos)
+            {
+                Math::Quaternion val;
+                prop.Get(instance, &val);
+                Math::Vector3 eulerDegrees = QuaternionToEulerDegrees(val);
+                if (ImGui::DragFloat3(prop.Name.c_str(), &eulerDegrees.x, 0.5f))
+                {
+                    val = EulerDegreesToQuaternion(eulerDegrees);
+                    prop.Set(instance, &val);
+                    return true;
+                }
+            }
             else
             {
                 ImGui::TextDisabled("Unsupported ByValue Object Edit: %s", prop.Name.c_str());
@@ -139,6 +286,122 @@ namespace ChikaEngine::Editor
             changed = DrawProperty(prop, instance) || changed;
         }
         return changed;
+    }
+
+    void InspectorPanel::DrawMeshRendererMaterialPanel(Framework::MeshRenderer& meshRenderer)
+    {
+        if (!ImGui::TreeNodeEx("Material", ImGuiTreeNodeFlags_DefaultOpen))
+            return;
+
+        DrawMaterialReference(meshRenderer.GetMaterialReference());
+        ImGui::TextDisabled(meshRenderer.HasRuntimeMaterialOverride() ? "Runtime material instance. Changes affect only this GameObject." : "Shared material preview. First edit creates a per-object runtime instance.");
+
+        Render::Renderer* renderer = _context ? _context->renderer : nullptr;
+        if (!renderer)
+        {
+            ImGui::TextDisabled("Renderer unavailable.");
+            ImGui::TreePop();
+            return;
+        }
+
+        Asset::AssetManager* assetManager = renderer->GetAssetManager();
+        if (!assetManager)
+        {
+            ImGui::TextDisabled("AssetManager unavailable.");
+            ImGui::TreePop();
+            return;
+        }
+
+        if (meshRenderer.NeedsAssetResolve())
+            meshRenderer.ResolveAssets(*assetManager);
+
+        const Asset::MaterialHandle materialAsset = meshRenderer.GetMaterialAsset();
+        if (!materialAsset.IsValid())
+        {
+            ImGui::TextDisabled("Material asset is not resolved.");
+            ImGui::TreePop();
+            return;
+        }
+
+        const uint32_t materialAssetId = materialAsset.raw_value;
+        Resource::MaterialHandle sharedMaterial = Resource::MaterialHandle::Invalid();
+        if (!_failedMaterialUploads.contains(materialAssetId))
+        {
+            sharedMaterial = renderer->GetOrUploadMaterial(materialAsset);
+            if (!sharedMaterial.IsValid())
+                _failedMaterialUploads.insert(materialAssetId);
+        }
+
+        if (!sharedMaterial.IsValid())
+        {
+            ImGui::TextDisabled("Material resource upload failed.");
+            if (ImGui::Button("Retry Material Upload"))
+                _failedMaterialUploads.erase(materialAssetId);
+            ImGui::TreePop();
+            return;
+        }
+        _failedMaterialUploads.erase(materialAssetId);
+
+        Resource::MaterialHandle material = meshRenderer.GetRuntimeMaterialOverride();
+        if (!material.IsValid())
+            material = sharedMaterial;
+
+        const std::vector<Resource::MaterialParameterInfo> parameters = renderer->GetMaterialParameters(material);
+        if (parameters.empty())
+        {
+            ImGui::TextDisabled("No editable material parameters.");
+            ImGui::TreePop();
+            return;
+        }
+
+        if (!_materialEditError.empty())
+            ImGui::TextDisabled("%s", _materialEditError.c_str());
+
+        for (const Resource::MaterialParameterInfo& parameter : parameters)
+        {
+            ImGui::PushID(parameter.name.c_str());
+
+            std::vector<float> values = parameter.value;
+            ImGui::SetNextItemWidth(-72.0f);
+            bool changed = DrawMaterialParameterControl(parameter, values);
+
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Reset"))
+            {
+                values = parameter.defaultValue;
+                values.resize(parameter.componentCount, 0.0f);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                if (!meshRenderer.HasRuntimeMaterialOverride())
+                {
+                    const Resource::MaterialHandle instance = renderer->CreateMaterialInstance(sharedMaterial);
+                    if (!instance.IsValid())
+                    {
+                        _materialEditError = "Failed to create runtime material instance.";
+                        ImGui::PopID();
+                        continue;
+                    }
+                    meshRenderer.SetRuntimeMaterialOverride(instance);
+                    material = instance;
+                }
+
+                Resource::MaterialParameterValue value{
+                    .type = parameter.type,
+                    .value = std::move(values),
+                };
+                if (renderer->SetMaterialParameter(material, parameter.name, value))
+                    _materialEditError.clear();
+                else
+                    _materialEditError = "Failed to update material parameter: " + parameter.name;
+            }
+
+            ImGui::PopID();
+        }
+
+        ImGui::TreePop();
     }
 
     void InspectorPanel::OnImGuiRender()
@@ -195,6 +458,8 @@ namespace ChikaEngine::Editor
                                 comp->MarkDirty();
                                 _context->isDirty = scene->IsEditing();
                             }
+                            if (auto* meshRenderer = dynamic_cast<Framework::MeshRenderer*>(comp.get()))
+                                DrawMeshRendererMaterialPanel(*meshRenderer);
                             if (comp.get() != go->transform && ImGui::Button("Remove Component"))
                                 componentToRemove = comp.get();
                             ImGui::PopID();
@@ -220,6 +485,11 @@ namespace ChikaEngine::Editor
                     if (ImGui::MenuItem("Animator"))
                     {
                         go->AddComponent<Framework::Animator>();
+                        _context->isDirty = scene->IsEditing();
+                    }
+                    if (ImGui::MenuItem("Light"))
+                    {
+                        go->AddComponent<Framework::LightComponent>();
                         _context->isDirty = scene->IsEditing();
                     }
                     if (ImGui::MenuItem("Rigidbody"))

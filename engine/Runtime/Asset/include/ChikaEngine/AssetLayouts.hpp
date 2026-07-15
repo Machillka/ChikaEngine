@@ -44,6 +44,31 @@ namespace ChikaEngine::Asset
         std::string name;
     };
 
+    enum class TextureAssetUsage
+    {
+        Color,
+        Data,
+        Environment,
+        EnvironmentIrradiance,
+        EnvironmentPrefiltered,
+        EnvironmentBrdfLut,
+        ReflectionProbe,
+    };
+
+    enum class TextureShape
+    {
+        Texture2D,
+        TextureCube,
+    };
+
+    enum class TextureFallback
+    {
+        None,
+        GrayIrradiance,
+        BlackPrefilter,
+        BrdfLut,
+    };
+
     // Shader 模板
     struct ShaderTemplateData
     {
@@ -66,6 +91,13 @@ namespace ChikaEngine::Asset
         uint32_t channels = 4;
         /** @brief 颜色纹理默认按 sRGB 采样；未来由 meta/import settings 覆盖法线等线性数据。 */
         bool srgb = true;
+        bool generateMips = false;
+        uint32_t mipLevels = 1;
+        uint32_t arrayLayers = 1;
+        TextureAssetUsage usage = TextureAssetUsage::Color;
+        TextureShape shape = TextureShape::Texture2D;
+        TextureFallback fallback = TextureFallback::None;
+        std::vector<std::string> cubeFaces;
 
         std::vector<uint8_t> pixels;
     };
