@@ -33,6 +33,7 @@ namespace ChikaEngine::Editor
 
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+        io.ConfigDragClickToInputText = true;
 
         ImGui::StyleColorsDark();
 

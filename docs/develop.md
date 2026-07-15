@@ -14,12 +14,47 @@
 
 ---
 
+## 2026-07-16 - Inspector 可读标签与拖动输入统一
+
+### Metadata
+
+- Area: Editor / Inspector UI
+- Status: Complete
+
+### Goal
+
+隐藏反射字段在 Inspector 显示名称中的前导下划线，并让数值控件统一支持鼠标拖动调整和键盘精确输入。
+
+### Changes
+
+- `InspectorPanel.cpp` 增加只作用于 UI 的标签格式化：去除 `_`、按 camelCase 分词并把首字母大写，例如 `_colliderRadius` 显示为 `Collider Radius`、`nearClip` 显示为 `Near Clip`。
+- 原始反射字段名和材质参数名保留在 ImGui `##` 后作为稳定 ID；Reflection、场景序列化和 Shader 参数契约均未修改。
+- 反射 `int/float/Vector3/Vector4/Quaternion` 与材质数值参数使用 Drag 控件。鼠标拖动可以连续调节，单击并松开且未发生拖动时直接切换为文本输入；Ctrl+单击和双击仍可使用。
+- Metallic、Roughness、OcclusionStrength 和 NormalScale 从纯 Slider 统一为带范围约束的 DragFloat，保留原有 `[0, 1]` / `[0, 4]` 合法范围。
+- 颜色字段继续使用 ColorEdit，数值分量同样支持拖动和直接输入，并保留取色弹窗。
+- `VulkanAdapter.cpp` 启用 ImGui `ConfigDragClickToInputText`，让上述单击输入行为对整个 Editor 的 Drag 数值控件生效。
+
+### Architecture
+
+显示标签和交互样式仍由 Editor Inspector 决定。Runtime 字段名、Reflection metadata、序列化键和 Material parameter identity 不感知 UI 格式化，避免为了可读性破坏资产兼容性。
+
+### Verification
+
+- `cmake --build build --target ChikaEditor`：通过，包含 `InspectorPanel.cpp`、`VulkanAdapter.cpp` 重新编译和 `ChikaEditor.exe` 链接。
+- `git diff --check -- engine/editor/src/InspectorPanel.cpp engine/editor/src/VulkanAdapter.cpp docs/develop.md`：通过，仅有工作区既有的 LF/CRLF 转换提示。
+
+### Remaining / Next
+
+- 当前格式化覆盖 Inspector 的反射属性和材质参数；其他面板后续出现用户可编辑数值时应复用同一标签/Drag 约定。
+
+---
+
 ## 2026-07-15 - 统一编辑器颜色取色与数值输入
 
 ### Metadata
 
 - Area: Editor / Inspector / Material UI
-- Status: Implemented（最终链接验证被正在运行的编辑器进程阻塞）
+- Status: Complete
 
 ### Goal
 
@@ -39,12 +74,13 @@
 ### Verification
 
 - `cmake --build build --target ChikaEditor`：`InspectorPanel.cpp` 编译成功并生成 object；链接阶段因为 PID 46020 正在运行并锁定 `build/bin/ChikaEditor.exe` 而失败，错误为 `failed to write output 'bin\\ChikaEditor.exe': permission denied`。未擅自终止用户进程。
+- 2026-07-16 关闭旧进程后重新执行相同构建命令：通过，`ChikaEditor.exe` 链接成功。
 - `git diff --check -- engine/editor/src/InspectorPanel.cpp`：通过，仅有工作区既有的 LF/CRLF 转换提示。
 - 确认生成的 `InspectorPanel.cpp.obj` 时间已更新到本次构建。
 
 ### Remaining / Next
 
-- 关闭当前运行的编辑器后重新执行 `cmake --build build --target ChikaEditor`，并在 Inspector 中分别检查 Light RGB、材质 BaseColor RGBA 和 Emissive HDR 输入。
+- 可继续在 Inspector 中手动检查 Light RGB、材质 BaseColor RGBA 和 Emissive HDR 输入体验。
 - 本次“所有颜色”指 Inspector 中的用户数据字段，不包含 Log、Profiler、Gizmo 等只读编辑器主题颜色。
 
 ---
