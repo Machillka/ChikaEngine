@@ -85,6 +85,50 @@ namespace ChikaEngine::Physics
     using PhysicsBodyHandle = PhysicsHandle<PhysicsBodyHandleTag>;
     using PhysicsColliderHandle = PhysicsHandle<PhysicsColliderHandleTag>;
 
+    /** @brief Opaque backend-owned body identifier used only across the Physics adapter boundary. */
+    class PhysicsBackendBodyToken
+    {
+      public:
+        using ValueType = std::uint64_t;
+        static constexpr ValueType InvalidValue = 0xFFFFFFFFFFFFFFFFull;
+
+        constexpr PhysicsBackendBodyToken() noexcept = default;
+
+        [[nodiscard]] static constexpr PhysicsBackendBodyToken Invalid() noexcept
+        {
+            return {};
+        }
+
+        [[nodiscard]] static constexpr PhysicsBackendBodyToken FromValue(ValueType value) noexcept
+        {
+            return value == InvalidValue ? Invalid() : PhysicsBackendBodyToken(value);
+        }
+
+        [[nodiscard]] constexpr bool IsValid() const noexcept
+        {
+            return _value != InvalidValue;
+        }
+
+        [[nodiscard]] constexpr ValueType Value() const noexcept
+        {
+            return _value;
+        }
+
+        constexpr explicit operator bool() const noexcept
+        {
+            return IsValid();
+        }
+
+        [[nodiscard]] constexpr bool operator==(const PhysicsBackendBodyToken& other) const noexcept
+        {
+            return _value == other._value;
+        }
+
+      private:
+        explicit constexpr PhysicsBackendBodyToken(ValueType value) noexcept : _value(value) {}
+        ValueType _value = InvalidValue;
+    };
+
     struct PhysicsHandleHash
     {
         template <typename Tag> std::size_t operator()(PhysicsHandle<Tag> handle) const noexcept

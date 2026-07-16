@@ -14,6 +14,67 @@
 
 ---
 
+## 2026-07-16 - 完成 Physics Step 0.2 Body Lifecycle 与 Command Buffer
+
+### Metadata
+
+- Area: Physics / Framework / Test / Docs
+- Status: Complete
+
+### Goal
+
+将 Body create、destroy、rebuild 和运动修改统一到 fixed-step `PreStep`，建立 Scene-owned Registry 与确定性命令顺序，消除 Rigidbody immediate create、延迟 destroy 和同 owner 重复 Body 的生命周期竞态。
+
+### Changes
+
+- 新增 `PhysicsCommandBuffer.hpp/.cpp`：
+  - command variant 覆盖 Create、Destroy、Rebuild、Teleport、KinematicTarget、Velocity、Force、Impulse。
+  - 队列线程安全且有固定容量，记录 pending、peak、enqueued、rejected 和 cleared。
+  - Scene drain 后对同 owner 的结构命令保留最后意图，再按 `Destroy -> Create/Rebuild -> Transform -> Velocity/Force` 稳定执行。
+- 新增 `PhysicsBodyRegistry.hpp/.cpp`：
+  - Scene 分配 index + process-unique generation handle。
+  - record 保存 opaque backend token、owner、Collider Handle 占位、MotionType 和 active state，并维护 owner -> handle 索引。
+  - reservation、commit、replace、remove 分离，创建失败不会注册 Handle，slot 复用不会接受 stale Handle。
+- 重构 `IPhysicsBackend` 与 Jolt adapter：
+  - engine handle 与 backend token 分离，Jolt `BodyID` 不进入 Framework。
+  - Backend 追踪自身 token 集合，destroy/clear 都执行完整 remove + destroy。
+  - 新增 immediate adapter 操作：Force、Teleport、KinematicTarget；Force/Teleport 支持 wake policy。
+- 重构 `PhysicsScene`：
+  - 新增 queue API、`PreStep`、execution trace 与 lifecycle statistics。
+  - Rebuild 先 create-new；创建失败保留旧 Body，成功才 retire-old 并替换 owner mapping。
+  - owner-target command 可作用于同一 PreStep 新建/重建的 Body；handle-target command 严格拒绝旧 generation。
+  - `ResetSceneState` 幂等清空 command、Body、backend token、raw contact queue 和 transform snapshot。
+- 迁移 Framework：
+  - Rigidbody 在 Edit 模式不创建 runtime Body；`Start`、Enable/Dirty、Disable/Destroy 只提交 owner-targeted command。
+  - Scene StartPlay 前清理旧状态，StopPlay 恢复 snapshot 前清空物理状态；未执行首个 fixed step 的 pending create 也会被取消。
+  - PhysicsSubsystem 增加 queue、Force 和 Reset 包装。
+- 新增 `ChikaPhysicsLifecycleTests`，覆盖 atomic rebuild、duplicate owner、失败 create、stale handle、phase order、kinematic/force/impulse、queue overflow、幂等 reset，以及 1000 次 Rigidbody 启停和 1000 次 Dirty 压力。
+- 更新 `PhysicsContractTests` 以覆盖新的 command target 和默认 queue capacity。
+
+### Reason / Architecture
+
+Engine Handle 与 Jolt BodyID 的生命周期不同：前者用于 gameplay 长期引用，后者只在一个 backend world 内有效。Step 0.2 将 engine Handle ownership 上移到 Scene Registry，并让 Jolt 只返回 opaque token，从而使 owner mapping、generation、rebuild transaction 和 backend resource cleanup 各自只有一个 owner。
+
+命令既支持 Handle target，也支持 owner target。Handle target 不允许 fallback，保证旧 Handle 不会误操作 replacement；owner target 在执行阶段解析，允许 Rigidbody 在 Body 尚未创建时先提交 Velocity/Force，并由 phase order 保证 Create/Rebuild 先执行。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake -S . -B build`：通过。
+- `$env:PYTHONUTF8='1'; cmake --build build --target ChikaEditor ChikaPhysicsLifecycleTests ChikaPhysicsContractTests ChikaSceneIntegrationTests ChikaCoreBoundaryTests -- -j1`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika\\.(PhysicsContract|PhysicsLifecycle|CoreBoundary|SceneIntegration)"`：4/4 通过。
+- Debug stress：1000 次 Rigidbody disable/enable、1000 次 Dirty rebuild 后，registry active body 与 backend body 均保持 1；StopPlay 后均为 0。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `git diff --check`、public header Jolt boundary、legacy lifecycle symbol 和 trailing whitespace 检查：通过。
+
+### Remaining / Next
+
+- Step 1.1 建立 raw contact packet 到 canonical pair state 的转换，并在 Body destroy/filter change 时生成确定的 pair cleanup 输入。
+- Step 1.2 才向 EventBus、Component 和 Script 广播 Collision/Trigger Enter、Stay、Exit。
+- `CreateBodyImmediate` 仍为 Step 0.1 契约测试和初始化夹具保留，但 runtime Framework 已不再调用。
+- 当前反射生成器仍会打印非致命 MSVC 标准库 Clang diagnostic；Framework/Editor 生成与链接正常，本步骤没有扩大该工具问题。
+
+---
+
 ## 2026-07-16 - 完成 Physics Step 0.1 契约与 Runtime Ownership
 
 ### Metadata

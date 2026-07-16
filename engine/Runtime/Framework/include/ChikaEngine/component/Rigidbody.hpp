@@ -17,7 +17,12 @@ namespace ChikaEngine::Framework
         Rigidbody() = default;
         ~Rigidbody() override;
         void SetLinearVelocity(Math::Vector3 v);
+        void AddForce(Math::Vector3 force);
         void Impulse(Math::Vector3 impulse);
+        [[nodiscard]] Physics::PhysicsBodyHandle GetPhysicsHandle() const noexcept
+        {
+            return _physicsHandle;
+        }
 
         float GetColliderRadius() const
         {
@@ -37,6 +42,8 @@ namespace ChikaEngine::Framework
         }
 
         void Awake() override;
+        void Start() override;
+        void FixedTick(float fixedDeltaTime) override;
         void OnGizmo() const override;
         void OnDirty() override;
         void OnEnable() override;
@@ -44,7 +51,8 @@ namespace ChikaEngine::Framework
         void OnDestroy() override;
 
       private:
-        void CreateRigidbody();
+        bool QueueRigidbodyCreateOrRebuild();
+        void RefreshPhysicsHandle();
         Scene* GetSceneSave();
 
       private:

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <unordered_set>
 #include <vector>
 
 namespace JPH
@@ -33,33 +34,28 @@ namespace ChikaEngine::Physics
         void Shutdown() noexcept override;
         [[nodiscard]] bool IsInitialized() const noexcept override;
         [[nodiscard]] PhysicsBackendCapabilities GetCapabilities() const noexcept override;
+        void ClearBodies() noexcept override;
 
         [[nodiscard]] bool Simulate(float fixedDeltaTime) override;
-        [[nodiscard]] PhysicsBodyCreateResult CreateBodyFromDesc(const PhysicsBodyCreateDesc& desc) override;
-        [[nodiscard]] bool DestroyPhysicsBody(PhysicsBodyHandle handle) override;
-        [[nodiscard]] bool TrySyncTransform(PhysicsBodyHandle handle, PhysicsTransform& transform) override;
+        [[nodiscard]] PhysicsBackendBodyCreateResult CreateBodyFromDesc(PhysicsBodyHandle engineHandle, const PhysicsBodyCreateDesc& desc) override;
+        [[nodiscard]] bool DestroyPhysicsBody(PhysicsBackendBodyToken token) override;
+        [[nodiscard]] bool TrySyncTransform(PhysicsBackendBodyToken token, PhysicsTransform& transform) override;
         [[nodiscard]] std::vector<CollisionEvent> PollCollisionEvents() override;
-        [[nodiscard]] bool SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3& velocity) override;
-        [[nodiscard]] bool ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3& impulse) override;
+        [[nodiscard]] bool SetLinearVelocity(PhysicsBackendBodyToken token, const Math::Vector3& velocity) override;
+        [[nodiscard]] bool AddForce(PhysicsBackendBodyToken token, const Math::Vector3& force, PhysicsWakePolicy wakePolicy) override;
+        [[nodiscard]] bool ApplyImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse) override;
+        [[nodiscard]] bool TeleportBody(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity, PhysicsWakePolicy wakePolicy) override;
+        [[nodiscard]] bool SetKinematicTarget(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, float deltaTime) override;
         [[nodiscard]] bool SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask) override;
         [[nodiscard]] PhysicsLayerMask GetLayerCollisionMask(PhysicsLayerID layerId) const override;
-        [[nodiscard]] bool HasBody(PhysicsBodyHandle handle) const override;
+        [[nodiscard]] bool HasBody(PhysicsBackendBodyToken token) const override;
+        [[nodiscard]] std::size_t GetBodyCount() const noexcept override;
         [[nodiscard]] bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit) override;
-        [[nodiscard]] bool SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot) override;
 
       private:
-        struct BodySlot
-        {
-            std::uint32_t backendBodyId = 0xFFFFFFFFu;
-            std::uint32_t generation = 1;
-            bool occupied = false;
-        };
-
         [[nodiscard]] JPH::Ref<JPH::Shape> CreateShape(const ColliderShapeDesc& desc);
-        [[nodiscard]] PhysicsBodyHandle ReserveBodyHandle();
-        [[nodiscard]] bool BindBodyHandle(PhysicsBodyHandle handle, std::uint32_t backendBodyId);
-        [[nodiscard]] bool ResolveBodyId(PhysicsBodyHandle handle, std::uint32_t& backendBodyId) const;
-        [[nodiscard]] bool ReleaseBodyHandle(PhysicsBodyHandle handle);
+        [[nodiscard]] bool ResolveBodyId(PhysicsBackendBodyToken token, std::uint32_t& backendBodyId) const;
+        [[nodiscard]] bool IsTrackedBodyId(std::uint32_t backendBodyId) const;
         void DestroyAllBodies() noexcept;
 
         std::unique_ptr<JPH::TempAllocatorImpl> _tempAllocator;
@@ -70,9 +66,8 @@ namespace ChikaEngine::Physics
         PhysicsRuntime::Lease _runtimeLease;
         bool _initialized = false;
 
-        mutable std::mutex _bodyRegistryMutex;
-        std::vector<BodySlot> _bodySlots;
-        std::vector<std::uint32_t> _freeBodySlots;
+        mutable std::mutex _bodySetMutex;
+        std::unordered_set<std::uint32_t> _bodyIds;
 
         std::mutex _eventMutex;
         std::vector<CollisionEvent> _eventQueue;
@@ -86,10 +81,6 @@ namespace ChikaEngine::Physics
 
         mutable std::mutex _maskMutex;
         std::vector<PhysicsLayerMask> _masks;
-
-        mutable std::mutex _commandMutex;
-        std::vector<VelocityCommand> _velocityCommands;
-        std::vector<ImpulseCommand> _impulseCommands;
 
         PhysicsJoltBackend(const PhysicsJoltBackend&) = delete;
         PhysicsJoltBackend& operator=(const PhysicsJoltBackend&) = delete;

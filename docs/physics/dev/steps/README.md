@@ -14,7 +14,7 @@
 | Order | Card | Priority | Status |
 | --- | --- | --- | --- |
 | 1 | [Step 0.1 - Contract and Runtime Ownership](0.1-physics-contract-runtime.future.md) | Core | Implemented |
-| 2 | [Step 0.2 - Body Lifecycle and Command Buffer](0.2-body-lifecycle-command-buffer.future.md) | Core | Planned |
+| 2 | [Step 0.2 - Body Lifecycle and Command Buffer](0.2-body-lifecycle-command-buffer.future.md) | Core | Implemented |
 | 3 | [Step 1.1 - Contact State Stream](1.1-contact-state-stream.future.md) | Core | Planned |
 | 4 | [Step 1.2 - Collision and Trigger Broadcast](1.2-collision-trigger-broadcast.future.md) | Core | Planned |
 | 5 | [Step 2.1 - Collider and Rigidbody Authoring](2.1-collider-rigidbody-authoring.future.md) | Core | Planned |

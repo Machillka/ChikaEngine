@@ -19,7 +19,6 @@
 #include "Jolt/Physics/Body/BodyID.h"
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/CastResult.h>
-#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <exception>
@@ -33,16 +32,6 @@ namespace ChikaEngine::Physics
 {
     namespace
     {
-        std::atomic<std::uint64_t> g_nextHandleGeneration{ 1 };
-
-        std::uint32_t AcquireHandleGeneration()
-        {
-            const std::uint64_t generation = g_nextHandleGeneration.fetch_add(1, std::memory_order_relaxed);
-            if (generation == 0 || generation > std::numeric_limits<std::uint32_t>::max())
-                return 0;
-            return static_cast<std::uint32_t>(generation);
-        }
-
         bool IsFinite(const Math::Vector3& value)
         {
             return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
@@ -74,6 +63,20 @@ namespace ChikaEngine::Physics
                 return std::isfinite(desc.radius) && std::isfinite(desc.height) && desc.radius > 0.0f && desc.height > 0.0f;
             }
             return false;
+        }
+
+        JPH::EActivation ToJoltActivation(PhysicsWakePolicy wakePolicy, bool isActive) noexcept
+        {
+            switch (wakePolicy)
+            {
+            case PhysicsWakePolicy::Wake:
+                return JPH::EActivation::Activate;
+            case PhysicsWakePolicy::DoNotWake:
+                return JPH::EActivation::DontActivate;
+            case PhysicsWakePolicy::KeepState:
+                return isActive ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
+            }
+            return JPH::EActivation::Activate;
         }
     } // namespace
 
@@ -241,12 +244,6 @@ namespace ChikaEngine::Physics
             std::lock_guard lock(_eventMutex);
             _eventQueue.clear();
         }
-        {
-            std::lock_guard lock(_commandMutex);
-            _velocityCommands.clear();
-            _impulseCommands.clear();
-        }
-
         _initialized = false;
         _runtimeLease.Reset();
         if (hadState)
@@ -270,93 +267,31 @@ namespace ChikaEngine::Physics
         };
     }
 
-    PhysicsBodyHandle PhysicsJoltBackend::ReserveBodyHandle()
+    void PhysicsJoltBackend::ClearBodies() noexcept
     {
-        std::lock_guard lock(_bodyRegistryMutex);
-        while (!_freeBodySlots.empty())
-        {
-            const std::uint32_t index = _freeBodySlots.back();
-            _freeBodySlots.pop_back();
-            BodySlot& slot = _bodySlots[index];
-            if (slot.occupied)
-                continue;
-
-            const std::uint32_t generation = AcquireHandleGeneration();
-            if (generation == 0)
-                return PhysicsBodyHandle::Invalid();
-
-            slot.occupied = true;
-            slot.backendBodyId = JPH::BodyID::cInvalidBodyID;
-            slot.generation = generation;
-            return PhysicsBodyHandle::FromParts(index, generation);
-        }
-
-        if (_bodySlots.size() >= static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
-            return PhysicsBodyHandle::Invalid();
-
-        const std::uint32_t generation = AcquireHandleGeneration();
-        if (generation == 0)
-            return PhysicsBodyHandle::Invalid();
-
-        const std::uint32_t index = static_cast<std::uint32_t>(_bodySlots.size());
-        _bodySlots.push_back(BodySlot{ .backendBodyId = JPH::BodyID::cInvalidBodyID, .generation = generation, .occupied = true });
-        return PhysicsBodyHandle::FromParts(index, generation);
+        DestroyAllBodies();
     }
 
-    bool PhysicsJoltBackend::BindBodyHandle(PhysicsBodyHandle handle, std::uint32_t backendBodyId)
+    bool PhysicsJoltBackend::ResolveBodyId(PhysicsBackendBodyToken token, std::uint32_t& backendBodyId) const
     {
-        std::lock_guard lock(_bodyRegistryMutex);
-        if (!handle || handle.Index() >= _bodySlots.size())
+        if (!token || token.Value() > std::numeric_limits<std::uint32_t>::max())
             return false;
-
-        BodySlot& slot = _bodySlots[handle.Index()];
-        if (!slot.occupied || slot.generation != handle.Generation())
-            return false;
-        slot.backendBodyId = backendBodyId;
-        return true;
+        backendBodyId = static_cast<std::uint32_t>(token.Value());
+        return backendBodyId != JPH::BodyID::cInvalidBodyID && IsTrackedBodyId(backendBodyId);
     }
 
-    bool PhysicsJoltBackend::ResolveBodyId(PhysicsBodyHandle handle, std::uint32_t& backendBodyId) const
+    bool PhysicsJoltBackend::IsTrackedBodyId(std::uint32_t backendBodyId) const
     {
-        std::lock_guard lock(_bodyRegistryMutex);
-        if (!handle || handle.Index() >= _bodySlots.size())
-            return false;
-
-        const BodySlot& slot = _bodySlots[handle.Index()];
-        if (!slot.occupied || slot.generation != handle.Generation() || slot.backendBodyId == JPH::BodyID::cInvalidBodyID)
-            return false;
-        backendBodyId = slot.backendBodyId;
-        return true;
-    }
-
-    bool PhysicsJoltBackend::ReleaseBodyHandle(PhysicsBodyHandle handle)
-    {
-        std::lock_guard lock(_bodyRegistryMutex);
-        if (!handle || handle.Index() >= _bodySlots.size())
-            return false;
-
-        BodySlot& slot = _bodySlots[handle.Index()];
-        if (!slot.occupied || slot.generation != handle.Generation())
-            return false;
-
-        slot.occupied = false;
-        slot.backendBodyId = JPH::BodyID::cInvalidBodyID;
-        slot.generation = 0;
-        _freeBodySlots.push_back(handle.Index());
-        return true;
+        std::lock_guard lock(_bodySetMutex);
+        return _bodyIds.contains(backendBodyId);
     }
 
     void PhysicsJoltBackend::DestroyAllBodies() noexcept
     {
         std::vector<std::uint32_t> bodies;
         {
-            std::lock_guard lock(_bodyRegistryMutex);
-            bodies.reserve(_bodySlots.size());
-            for (const BodySlot& slot : _bodySlots)
-            {
-                if (slot.occupied && slot.backendBodyId != JPH::BodyID::cInvalidBodyID)
-                    bodies.push_back(slot.backendBodyId);
-            }
+            std::lock_guard lock(_bodySetMutex);
+            bodies.assign(_bodyIds.begin(), _bodyIds.end());
         }
 
         if (_bodyInterface)
@@ -371,29 +306,76 @@ namespace ChikaEngine::Physics
         }
 
         {
-            std::lock_guard lock(_bodyRegistryMutex);
-            _bodySlots.clear();
-            _freeBodySlots.clear();
+            std::lock_guard lock(_bodySetMutex);
+            _bodyIds.clear();
         }
     }
 
-    bool PhysicsJoltBackend::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3& velocity)
+    bool PhysicsJoltBackend::SetLinearVelocity(PhysicsBackendBodyToken token, const Math::Vector3& velocity)
     {
         std::uint32_t backendBodyId = 0;
-        if (!_initialized || !IsFinite(velocity) || !ResolveBodyId(handle, backendBodyId))
+        if (!_initialized || !IsFinite(velocity) || !ResolveBodyId(token, backendBodyId))
             return false;
-        std::lock_guard lock(_commandMutex);
-        _velocityCommands.push_back(VelocityCommand{ .handle = handle, .v = velocity });
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        _bodyInterface->SetLinearVelocity(id, JPH::Vec3(velocity.x, velocity.y, velocity.z));
         return true;
     }
 
-    bool PhysicsJoltBackend::ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3& impulse)
+    bool PhysicsJoltBackend::AddForce(PhysicsBackendBodyToken token, const Math::Vector3& force, PhysicsWakePolicy wakePolicy)
     {
         std::uint32_t backendBodyId = 0;
-        if (!_initialized || !IsFinite(impulse) || !ResolveBodyId(handle, backendBodyId))
+        if (!_initialized || !IsFinite(force) || !ResolveBodyId(token, backendBodyId))
             return false;
-        std::lock_guard lock(_commandMutex);
-        _impulseCommands.push_back(ImpulseCommand{ .handle = handle, .impulse = impulse });
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        _bodyInterface->AddForce(id, JPH::Vec3(force.x, force.y, force.z), ToJoltActivation(wakePolicy, _bodyInterface->IsActive(id)));
+        return true;
+    }
+
+    bool PhysicsJoltBackend::ApplyImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_initialized || !IsFinite(impulse) || !ResolveBodyId(token, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        _bodyInterface->AddImpulse(id, JPH::Vec3(impulse.x, impulse.y, impulse.z));
+        return true;
+    }
+
+    bool PhysicsJoltBackend::TeleportBody(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity, PhysicsWakePolicy wakePolicy)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_initialized || !IsFinite(position) || !IsFinite(rotation) || !IsNormalized(rotation) || !ResolveBodyId(token, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        const bool wasActive = _bodyInterface->IsActive(id);
+        _bodyInterface->SetPositionAndRotation(id, JPH::RVec3(position.x, position.y, position.z), JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w), ToJoltActivation(wakePolicy, wasActive));
+        if (resetVelocity)
+        {
+            _bodyInterface->SetLinearVelocity(id, JPH::Vec3::sZero());
+            _bodyInterface->SetAngularVelocity(id, JPH::Vec3::sZero());
+        }
+        if (wakePolicy == PhysicsWakePolicy::DoNotWake || (wakePolicy == PhysicsWakePolicy::KeepState && !wasActive))
+            _bodyInterface->DeactivateBody(id);
+        return true;
+    }
+
+    bool PhysicsJoltBackend::SetKinematicTarget(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, float deltaTime)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_initialized || !IsFinite(position) || !IsFinite(rotation) || !IsNormalized(rotation) || !std::isfinite(deltaTime) || deltaTime <= 0.0f || !ResolveBodyId(token, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        _bodyInterface->MoveKinematic(id, JPH::RVec3(position.x, position.y, position.z), JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w), deltaTime);
         return true;
     }
 
@@ -401,33 +383,6 @@ namespace ChikaEngine::Physics
     {
         if (!_initialized || !_physicsSystem || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f)
             return false;
-
-        {
-            std::lock_guard lock(_commandMutex);
-            for (const auto& velocityCmd : _velocityCommands)
-            {
-                std::uint32_t backendBodyId = 0;
-                if (ResolveBodyId(velocityCmd.handle, backendBodyId))
-                {
-                    const JPH::BodyID id(backendBodyId);
-                    if (_bodyInterface->IsAdded(id))
-                        _bodyInterface->SetLinearVelocity(id, JPH::Vec3(velocityCmd.v.x, velocityCmd.v.y, velocityCmd.v.z));
-                }
-            }
-            _velocityCommands.clear();
-
-            for (const auto& impulseCmd : _impulseCommands)
-            {
-                std::uint32_t backendBodyId = 0;
-                if (ResolveBodyId(impulseCmd.handle, backendBodyId))
-                {
-                    const JPH::BodyID id(backendBodyId);
-                    if (_bodyInterface->IsAdded(id))
-                        _bodyInterface->AddImpulse(id, JPH::Vec3(impulseCmd.impulse.x, impulseCmd.impulse.y, impulseCmd.impulse.z));
-                }
-            }
-            _impulseCommands.clear();
-        }
 
         _physicsSystem->Update(fixedDeltaTime, 1, _tempAllocator.get(), _jobSystem.get());
         return true;
@@ -450,10 +405,12 @@ namespace ChikaEngine::Physics
         return _masks[layerId];
     }
 
-    PhysicsBodyCreateResult PhysicsJoltBackend::CreateBodyFromDesc(const PhysicsBodyCreateDesc& desc)
+    PhysicsBackendBodyCreateResult PhysicsJoltBackend::CreateBodyFromDesc(PhysicsBodyHandle engineHandle, const PhysicsBodyCreateDesc& desc)
     {
         if (!_initialized || !_bodyInterface)
             return { .result = PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Jolt backend is not initialized") };
+        if (!engineHandle)
+            return { .result = PhysicsResult::Failure(PhysicsStatus::InvalidHandle, "Engine body handle is invalid") };
         if (desc.layer >= PHYSICS_LAYER_COUNT)
             return { .result = PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics body layer must be in [0, 31]") };
         if (!GetCapabilities().SupportsShape(desc.shapeDesc.type))
@@ -461,17 +418,10 @@ namespace ChikaEngine::Physics
         if (!IsFinite(desc.position) || !IsFinite(desc.rotation) || !IsNormalized(desc.rotation) || !IsValidShape(desc.shapeDesc) || !std::isfinite(desc.mass) || !std::isfinite(desc.friction) || !std::isfinite(desc.restitution) || desc.mass <= 0.0f || desc.friction < 0.0f || desc.restitution < 0.0f || desc.restitution > 1.0f)
             return { .result = PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics body descriptor contains invalid numeric values") };
 
-        const PhysicsBodyHandle handle = ReserveBodyHandle();
-        if (!handle)
-            return { .result = PhysicsResult::Failure(PhysicsStatus::CapacityExceeded, "Physics body handle registry is exhausted") };
-
         using namespace JPH;
         JPH::Ref<JPH::Shape> shape = CreateShape(desc.shapeDesc);
         if (!shape)
-        {
-            (void)ReleaseBodyHandle(handle);
             return { .result = PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Jolt failed to create collider shape") };
-        }
 
         RVec3 pos(desc.position.x, desc.position.y, desc.position.z);
         Quat rot(desc.rotation.x, desc.rotation.y, desc.rotation.z, desc.rotation.w);
@@ -480,7 +430,7 @@ namespace ChikaEngine::Physics
         settings.mPosition = pos;
         settings.mRotation = rot;
         settings.SetShape(shape);
-        settings.mUserData = handle.Value();
+        settings.mUserData = engineHandle.Value();
 
         if (desc.motionType == MotionType::Static)
             settings.mMotionType = EMotionType::Static;
@@ -507,40 +457,35 @@ namespace ChikaEngine::Physics
         settings.mRestitution = desc.restitution;
         BodyID id = _bodyInterface->CreateAndAddBody(settings, EActivation::Activate);
         if (id.IsInvalid())
-        {
-            (void)ReleaseBodyHandle(handle);
             return { .result = PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Jolt failed to create physics body") };
-        }
 
-        if (!BindBodyHandle(handle, id.GetIndexAndSequenceNumber()))
         {
-            _bodyInterface->RemoveBody(id);
-            _bodyInterface->DestroyBody(id);
-            (void)ReleaseBodyHandle(handle);
-            return { .result = PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Failed to bind engine physics handle") };
+            std::lock_guard lock(_bodySetMutex);
+            _bodyIds.insert(id.GetIndexAndSequenceNumber());
         }
 
-        LOG_INFO("Physics", "Created body handle index={}, generation={}", handle.Index(), handle.Generation());
-        return { .result = PhysicsResult::Ok(), .handle = handle };
+        LOG_INFO("Physics", "Created body handle index={}, generation={}", engineHandle.Index(), engineHandle.Generation());
+        return { .result = PhysicsResult::Ok(), .token = PhysicsBackendBodyToken::FromValue(id.GetIndexAndSequenceNumber()) };
     }
 
-    bool PhysicsJoltBackend::DestroyPhysicsBody(PhysicsBodyHandle handle)
+    bool PhysicsJoltBackend::DestroyPhysicsBody(PhysicsBackendBodyToken token)
     {
         std::uint32_t backendBodyId = 0;
-        if (!_bodyInterface || !ResolveBodyId(handle, backendBodyId))
+        if (!_bodyInterface || !ResolveBodyId(token, backendBodyId))
             return false;
 
         const JPH::BodyID id(backendBodyId);
         if (_bodyInterface->IsAdded(id))
             _bodyInterface->RemoveBody(id);
         _bodyInterface->DestroyBody(id);
-        return ReleaseBodyHandle(handle);
+        std::lock_guard lock(_bodySetMutex);
+        return _bodyIds.erase(backendBodyId) == 1;
     }
 
-    bool PhysicsJoltBackend::TrySyncTransform(PhysicsBodyHandle handle, PhysicsTransform& transform)
+    bool PhysicsJoltBackend::TrySyncTransform(PhysicsBackendBodyToken token, PhysicsTransform& transform)
     {
         std::uint32_t backendBodyId = 0;
-        if (!_bodyInterface || !ResolveBodyId(handle, backendBodyId))
+        if (!_bodyInterface || !ResolveBodyId(token, backendBodyId))
             return false;
         const JPH::BodyID id(backendBodyId);
         if (!_bodyInterface->IsAdded(id))
@@ -553,12 +498,18 @@ namespace ChikaEngine::Physics
         return true;
     }
 
-    bool PhysicsJoltBackend::HasBody(PhysicsBodyHandle handle) const
+    bool PhysicsJoltBackend::HasBody(PhysicsBackendBodyToken token) const
     {
         std::uint32_t backendBodyId = 0;
-        if (!_bodyInterface || !ResolveBodyId(handle, backendBodyId))
+        if (!_bodyInterface || !ResolveBodyId(token, backendBodyId))
             return false;
         return _bodyInterface->IsAdded(JPH::BodyID(backendBodyId));
+    }
+
+    std::size_t PhysicsJoltBackend::GetBodyCount() const noexcept
+    {
+        std::lock_guard lock(_bodySetMutex);
+        return _bodyIds.size();
     }
 
     bool PhysicsJoltBackend::Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit)
@@ -582,8 +533,7 @@ namespace ChikaEngine::Physics
             {
                 const JPH::Body& body = lock.GetBody();
                 const PhysicsBodyHandle handle = PhysicsBodyHandle::FromValue(body.GetUserData());
-                std::uint32_t resolvedBodyId = 0;
-                if (!ResolveBodyId(handle, resolvedBodyId) || resolvedBodyId != hit.mBodyID.GetIndexAndSequenceNumber())
+                if (!handle || !IsTrackedBodyId(hit.mBodyID.GetIndexAndSequenceNumber()))
                     return false;
 
                 outHit.hasHit = true;
@@ -598,20 +548,5 @@ namespace ChikaEngine::Physics
         }
 
         return false;
-    }
-
-    bool PhysicsJoltBackend::SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot)
-    {
-        std::uint32_t backendBodyId = 0;
-        if (!_bodyInterface || !IsFinite(pos) || !IsFinite(rot) || !IsNormalized(rot) || !ResolveBodyId(handle, backendBodyId))
-            return false;
-        const JPH::BodyID id(backendBodyId);
-        if (!_bodyInterface->IsAdded(id))
-            return false;
-
-        _bodyInterface->SetPositionAndRotation(id, JPH::RVec3(pos.x, pos.y, pos.z), JPH::Quat(rot.x, rot.y, rot.z, rot.w), JPH::EActivation::Activate);
-        _bodyInterface->SetLinearVelocity(id, JPH::Vec3::sZero());
-        _bodyInterface->SetAngularVelocity(id, JPH::Vec3::sZero());
-        return true;
     }
 } // namespace ChikaEngine::Physics

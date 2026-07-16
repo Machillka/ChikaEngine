@@ -374,6 +374,9 @@ namespace ChikaEngine::Framework
         SaveToStream(mem);
         _playBackup = mem.GetRawData();
 
+        if (_physicsSubsystem)
+            _physicsSubsystem->ResetSceneState();
+
         SetMode(SceneModes::EnteringPlay);
         _isTicking = true;
         for (auto* gameObject : SnapshotGameObjects())
@@ -419,6 +422,9 @@ namespace ChikaEngine::Framework
             gameObject->EndPlay();
         _isTicking = false;
         FlushPendingChanges();
+
+        if (_physicsSubsystem)
+            _physicsSubsystem->ResetSceneState();
 
         IO::MemoryStream mem(_playBackup.data(), _playBackup.size());
         LoadFromStream(mem);

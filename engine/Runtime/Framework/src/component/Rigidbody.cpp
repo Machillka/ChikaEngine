@@ -24,7 +24,7 @@ namespace ChikaEngine::Framework
         return scene;
     }
 
-    void Rigidbody::CreateRigidbody()
+    bool Rigidbody::QueueRigidbodyCreateOrRebuild()
     {
         Physics::PhysicsBodyCreateDesc createInfo{};
 
@@ -33,11 +33,10 @@ namespace ChikaEngine::Framework
         if (!owner)
         {
             LOG_WARN("Rigidbody Component", "Did not have a owner gameobject");
-            return;
+            return false;
         }
 
         createInfo.ownerId = owner->GetID();
-        LOG_INFO("Rigidbody", "Gameobject ID = {}", owner->GetID());
         createInfo.position = owner->transform->GetWorldPosition();
         createInfo.rotation = owner->transform->GetWorldRotation();
         createInfo.shapeDesc = Physics::ColliderShapeDesc{
@@ -54,72 +53,94 @@ namespace ChikaEngine::Framework
         if (!scene)
         {
             LOG_WARN("Rigidbody Component", "Did not have a owner scene");
-            return;
+            return false;
         }
 
         auto* physics = scene->GetPhysicsSubsystem();
         if (!physics)
         {
             LOG_WARN("Rigidbody Component", "Owner scene does not have an initialized physics subsystem");
-            return;
+            return false;
         }
 
-        if (_physicsHandle)
-            (void)physics->EnqueueRigidbodyDestroy(_physicsHandle);
+        const Physics::PhysicsBodyHandle activeHandle = physics->GetBodyHandle(owner->GetID());
+        const Physics::PhysicsResult result = activeHandle ? physics->QueueRebuildBody(createInfo) : physics->QueueCreateBody(createInfo);
+        if (result)
+        {
+            _physicsHandle = activeHandle;
+            return true;
+        }
 
-        const Physics::PhysicsBodyCreateResult createResult = physics->CreateBodyImmediate(createInfo);
-        _physicsHandle = createResult.handle;
-        if (_physicsHandle)
-        {
-            LOG_INFO("Rigidbody", "Created body handle index={}, generation={}", _physicsHandle.Index(), _physicsHandle.Generation());
-        }
-        else
-        {
-            LOG_ERROR("Rigidbody", "Failed to create body: {}", createResult.result.diagnostic);
-        }
+        LOG_ERROR("Rigidbody", "Failed to queue body lifecycle command: {}", result.diagnostic);
+        return false;
     }
 
     void Rigidbody::Awake()
     {
+        _need2RecreateRigidbody = true;
+    }
+
+    void Rigidbody::Start()
+    {
         if (_need2RecreateRigidbody)
-            CreateRigidbody();
-        _need2RecreateRigidbody = false;
+            _need2RecreateRigidbody = !QueueRigidbodyCreateOrRebuild();
+    }
+
+    void Rigidbody::FixedTick(float)
+    {
+        RefreshPhysicsHandle();
     }
 
     void Rigidbody::OnDirty()
     {
         _need2RecreateRigidbody = true;
-        if (IsActiveAndEnabled())
+        Scene* scene = GetSceneSave();
+        if (IsActiveAndEnabled() && scene && (scene->IsPlaying() || scene->IsPaused()))
         {
-            CreateRigidbody();
-            _need2RecreateRigidbody = false;
+            _need2RecreateRigidbody = !QueueRigidbodyCreateOrRebuild();
         }
     }
 
     // TODO: 跳过 Rigidbody 运算, 位移等移交给 transform
     void Rigidbody::OnEnable()
     {
-        if (_need2RecreateRigidbody)
-        {
-            CreateRigidbody();
-            _need2RecreateRigidbody = false;
-        }
+        Scene* scene = GetSceneSave();
+        if (_need2RecreateRigidbody && scene && (scene->IsPlaying() || scene->IsPaused()))
+            _need2RecreateRigidbody = !QueueRigidbodyCreateOrRebuild();
     }
 
     void Rigidbody::OnDisable()
     {
-        OnDestroy();
+        Scene* scene = GetSceneSave();
+        auto owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem() && (scene->IsPlaying() || scene->IsPaused()))
+            (void)scene->GetPhysicsSubsystem()->QueueDestroyBody(owner->GetID());
+        _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
         _need2RecreateRigidbody = true;
     }
 
     void Rigidbody::OnDestroy()
     {
         auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || !_physicsHandle)
+        auto owner = GetOwner();
+        _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
+        if (!scene || !owner || !scene->GetPhysicsSubsystem())
             return;
 
-        (void)scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
-        _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
+        if (scene->IsPlaying() || scene->IsPaused())
+            (void)scene->GetPhysicsSubsystem()->QueueDestroyBody(owner->GetID());
+    }
+
+    void Rigidbody::RefreshPhysicsHandle()
+    {
+        auto scene = GetSceneSave();
+        auto owner = GetOwner();
+        if (!scene || !owner || !scene->GetPhysicsSubsystem())
+        {
+            _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
+            return;
+        }
+        _physicsHandle = scene->GetPhysicsSubsystem()->GetBodyHandle(owner->GetID());
     }
 
     void Rigidbody::OnGizmo() const
@@ -149,17 +170,28 @@ namespace ChikaEngine::Framework
     void Rigidbody::SetLinearVelocity(Math::Vector3 v)
     {
         auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || !_physicsHandle)
+        auto owner = GetOwner();
+        if (!scene || !owner || !scene->GetPhysicsSubsystem())
             return;
 
-        (void)scene->GetPhysicsSubsystem()->SetLinearVelocity(_physicsHandle, v);
+        (void)scene->GetPhysicsSubsystem()->QueueSetLinearVelocity(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), v);
+    }
+    void Rigidbody::AddForce(Math::Vector3 force)
+    {
+        auto scene = GetSceneSave();
+        auto owner = GetOwner();
+        if (!scene || !owner || !scene->GetPhysicsSubsystem())
+            return;
+
+        (void)scene->GetPhysicsSubsystem()->QueueAddForce(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), force);
     }
     void Rigidbody::Impulse(Math::Vector3 impulse)
     {
         auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || !_physicsHandle)
+        auto owner = GetOwner();
+        if (!scene || !owner || !scene->GetPhysicsSubsystem())
             return;
-        (void)scene->GetPhysicsSubsystem()->ApplyImpulse(_physicsHandle, impulse);
+        (void)scene->GetPhysicsSubsystem()->QueueApplyImpulse(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), impulse);
     }
 
 } // namespace ChikaEngine::Framework

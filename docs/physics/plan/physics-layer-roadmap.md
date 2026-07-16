@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: In Progress（Step 0.1 Implemented）
+- Status: In Progress（M0 Stabilize Complete）
 - Planning date: 2026-07-16
 - Scope: Runtime Physics / Framework / Editor / Test / Docs
 - Backend baseline: Jolt Physics
@@ -28,6 +28,9 @@ authoring components
 
 ### Already available
 
+- `PhysicsCommandBuffer` 已统一 Body 结构与运动命令，并在 `PreStep` 按固定 phase 提交；同 owner 结构命令使用 last-intent coalescing。
+- `PhysicsBodyRegistry` 已统一 engine handle、opaque backend token、owner 和 active state；同 owner 单 Body、atomic rebuild、stale handle 和清理统计已有测试锁定。
+- Rigidbody runtime 生命周期已迁移为 deferred command；StartPlay/StopPlay、disable、destroy 和 Cleanup 不再遗留 pending command 或 Jolt Body。
 - `PhysicsRuntime` 已通过引用计数 Lease 管理进程级 Jolt 注册，支持两个 PhysicsScene 同时存在并按最后一个 lease 释放。
 - 公共 Body/Collider Handle 已使用 index + generation；Jolt BodyID 仅存在于 backend registry，stale 与 wrong-scene handle 会被拒绝。
 - Physics 初始化、Body 创建和 capability 已形成可诊断契约；默认单位为米、秒、千克，Y-up、右手系，默认重力 `{0, -9.81, 0}`。
@@ -46,7 +49,7 @@ authoring components
 4. 原始事件只保存 Body Handle，缺少稳定 Collider ID、GameObject ID、事件阶段、Trigger 类型和销毁时语义。
 5. `Rigidbody` 同时保存碰撞形状和动力学属性；没有独立 Collider，也无法自然表达静态碰撞体。
 6. Capsule 枚举存在但后端未创建 Capsule；center、scale、`_colliderOffset` 和每 Body `collisionMask` 没有形成完整行为。
-7. Runtime RAII 与 generation-safe Handle 已由 Step 0.1 完成；Body 创建/销毁/重建仍需在 Step 0.2 收敛到 fixed-step command buffer，并补齐 owner/registry 事务语义。
+7. Runtime RAII、generation-safe Handle、Body registry 与 fixed-step command buffer 已由 Step 0.1/0.2 完成；下一阶段需要把 Body 销毁与 contact pair cleanup/Exit 语义接通。
 8. Dynamic、Kinematic、Static 的 Transform 权威方向不完整；没有插值、Kinematic target 和正式 Teleport 语义。
 9. 查询只有 closest Raycast，没有 query filter、multi-hit、overlap、shape cast、ignore self 或 Trigger 策略。
 10. 缺少物理集成测试、事件顺序测试、层矩阵测试、资源泄漏门禁和可视化调试。
@@ -106,7 +109,7 @@ authoring components
 
 | Milestone | Steps | Outcome |
 | --- | --- | --- |
-| M0 Stabilize | 0.1, 0.2 | 后端契约、Runtime RAII、Handle 与 Body 生命周期可靠 |
+| M0 Stabilize | 0.1, 0.2 | 后端契约、Runtime RAII、Handle 与 Body 生命周期可靠（Complete） |
 | M1 Events | 1.1, 1.2 | Collision/Trigger Enter/Stay/Exit 完整到达游戏层 |
 | M2 Authoring | 2.1, 2.2 | Collider/Rigidbody 分离，Transform 与常用运动 API 明确 |
 | M3 Filtering & Queries | 3.1, 3.2 | 命名层、响应矩阵和常用 Scene Query 可用 |
@@ -119,7 +122,7 @@ authoring components
 严格按以下顺序实施：
 
 1. Step 0.1：冻结公共契约和 Runtime ownership。**已完成（2026-07-16）**
-2. Step 0.2：修复 Body lifecycle、Handle 和 command buffer。
+2. Step 0.2：修复 Body lifecycle、Handle 和 command buffer。**已完成（2026-07-16）**
 3. Step 1.1：建立 raw contact 到稳定 pair state 的转换。
 4. Step 1.2：接入 Scene EventBus、Component 和 Script 回调。
 5. Step 2.1：拆分 Collider/Rigidbody，并迁移序列化与 Editor。

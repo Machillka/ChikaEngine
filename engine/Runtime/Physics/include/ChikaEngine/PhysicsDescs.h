@@ -5,6 +5,7 @@
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -33,6 +34,8 @@ namespace ChikaEngine::Physics
         InvalidArgument,
         InvalidHandle,
         CapacityExceeded,
+        QueueFull,
+        DuplicateOwner,
         BackendFailure,
     };
 
@@ -67,6 +70,13 @@ namespace ChikaEngine::Physics
         Static,
         Kinematic,
         Dynamic,
+    };
+
+    enum class PhysicsWakePolicy
+    {
+        KeepState,
+        Wake,
+        DoNotWake,
     };
 
     enum class ColliderShapeType
@@ -111,6 +121,7 @@ namespace ChikaEngine::Physics
     {
         PhysicsBackendType backendType = PhysicsBackendType::Jolt;
         PhysicsInitDesc initDesc;
+        std::size_t commandQueueCapacity = 4096;
     };
 
     struct PhysicsTransform
@@ -184,15 +195,4 @@ namespace ChikaEngine::Physics
         bool hasHit = false;
     };
 
-    struct VelocityCommand
-    {
-        PhysicsBodyHandle handle = PhysicsBodyHandle::Invalid();
-        Math::Vector3 v;
-    };
-
-    struct ImpulseCommand
-    {
-        PhysicsBodyHandle handle = PhysicsBodyHandle::Invalid();
-        Math::Vector3 impulse;
-    };
 } // namespace ChikaEngine::Physics

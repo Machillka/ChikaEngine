@@ -15,12 +15,16 @@ namespace ChikaEngine::Framework
         Physics::PhysicsScene* GetPhysicsInstace();
         void Tick(float dt) override;
         void Cleanup() override;
+        void ResetSceneState();
 
       public:
         bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, Physics::RaycastHit& outHit);
-        Physics::PhysicsBodyCreateResult CreateBodyImmediate(const Physics::PhysicsBodyCreateDesc& desc);
+        Physics::PhysicsResult QueueCreateBody(const Physics::PhysicsBodyCreateDesc& desc);
+        Physics::PhysicsResult QueueRebuildBody(const Physics::PhysicsBodyCreateDesc& desc);
+        Physics::PhysicsResult QueueDestroyBody(Core::GameObjectID ownerId);
 
         bool SetLinearVelocity(Physics::PhysicsBodyHandle handle, const Math::Vector3& velocity);
+        bool ApplyForce(Physics::PhysicsBodyHandle handle, const Math::Vector3& force, Physics::PhysicsWakePolicy wakePolicy = Physics::PhysicsWakePolicy::Wake);
         bool ApplyImpulse(Physics::PhysicsBodyHandle handle, const Math::Vector3& impulse);
 
         void SyncTransform();

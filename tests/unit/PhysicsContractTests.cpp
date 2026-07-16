@@ -1,6 +1,7 @@
 #include "ChikaEngine/IPhysicsBackend.h"
 #include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/PhysicsHandles.hpp"
+#include "ChikaEngine/PhysicsCommandBuffer.hpp"
 #include "ChikaEngine/PhysicsRuntime.hpp"
 #include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/PhysicsSystem.h"
@@ -51,6 +52,7 @@ namespace
         static_assert(std::is_trivially_copyable_v<Physics::PhysicsBodyHandle>);
         static_assert(!std::is_constructible_v<Physics::PhysicsBodyHandle, std::uint64_t>);
         static_assert(!std::is_convertible_v<std::uint64_t, Physics::PhysicsBodyHandle>);
+        static_assert(!std::is_same_v<Physics::PhysicsBodyHandle, Physics::PhysicsBackendBodyToken>);
 
         constexpr Physics::PhysicsBodyHandle invalid;
         constexpr Physics::PhysicsBodyHandle handle = Physics::PhysicsBodyHandle::FromParts(7, 9);
@@ -76,6 +78,7 @@ namespace
         Check(systemDesc.backendType == Physics::PhysicsBackendType::Jolt, "Jolt is the explicit default backend");
         Check(NearlyEqual(systemDesc.initDesc.gravity.x, 0.0f) && NearlyEqual(systemDesc.initDesc.gravity.y, -9.81f) && NearlyEqual(systemDesc.initDesc.gravity.z, 0.0f), "default gravity uses meters per second squared with Y-up");
         Check(systemDesc.initDesc.workerThreadCount == -1, "default worker count delegates sizing to the backend");
+        Check(systemDesc.commandQueueCapacity == 4096, "default command queue capacity supports lifecycle bursts");
 
         const Physics::PhysicsBodyCreateDesc bodyDesc;
         Check(bodyDesc.shapeDesc.type == Physics::ColliderShapeType::Box, "default collider shape is Box");
@@ -84,11 +87,11 @@ namespace
 
         const Physics::CollisionEvent event;
         const Physics::RaycastHit hit;
-        const Physics::VelocityCommand velocity;
-        const Physics::ImpulseCommand impulse;
+        const Physics::PhysicsVelocityCommand velocity;
+        const Physics::PhysicsImpulseCommand impulse;
         Check(!event.selfRigidbodyHandle && !event.otherRigidbodyHandle, "collision events default to invalid strong handles");
         Check(!hit.bodyHandle && !hit.hasHit, "raycast results default to a miss with an invalid handle");
-        Check(!velocity.handle && !impulse.handle, "deferred body commands default to invalid handles");
+        Check(!velocity.target.handle && !impulse.target.handle, "deferred body commands default to invalid handles");
     }
 
     void TestFailedInitializationIsSafe()
