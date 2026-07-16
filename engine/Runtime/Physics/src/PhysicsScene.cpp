@@ -1,6 +1,6 @@
 #include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/PhysicsDescs.h"
-#include "ChikaEngine/PhysicsJoltBackend.h"
+#include "PhysicsJoltBackend.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include <algorithm>
@@ -14,25 +14,53 @@ namespace ChikaEngine::Physics
 {
     PhysicsScene::PhysicsScene(const PhysicsSystemDesc& desc)
     {
-        Initialize(desc);
+        _initializationResult = Initialize(desc);
     }
 
-    bool PhysicsScene::Initialize(const PhysicsSystemDesc& desc)
+    PhysicsScene::~PhysicsScene()
     {
-        switch (desc.backendType)
+        Shutdown();
+    }
+
+    PhysicsResult PhysicsScene::Initialize(const PhysicsSystemDesc& desc)
+    {
+        if (IsInitialized())
         {
-        case PhysicsBackendTypes::None:
-            LOG_ERROR("Physics", "No supported backend");
-            return false;
-        case PhysicsBackendTypes::Jolt:
-        default:
-            _backend = std::make_unique<PhysicsJoltBackend>();
+            _initializationResult = PhysicsResult{ .status = PhysicsStatus::AlreadyInitialized, .diagnostic = "Physics scene is already initialized" };
+            return _initializationResult;
         }
 
-        return _backend->Initialize(desc.initDesc);
+        std::unique_ptr<IPhysicsBackend> candidate;
+        switch (desc.backendType)
+        {
+        case PhysicsBackendType::None:
+            _initializationResult = PhysicsResult::Failure(PhysicsStatus::UnsupportedBackend, "Physics backend 'None' cannot create a simulation world");
+            return _initializationResult;
+        case PhysicsBackendType::Jolt:
+            candidate = std::make_unique<PhysicsJoltBackend>();
+            break;
+        }
+
+        if (!candidate)
+        {
+            _initializationResult = PhysicsResult::Failure(PhysicsStatus::UnsupportedBackend, "Unknown physics backend");
+            return _initializationResult;
+        }
+
+        PhysicsResult result = candidate->Initialize(desc.initDesc);
+        if (!result)
+        {
+            candidate->Shutdown();
+            _initializationResult = std::move(result);
+            return _initializationResult;
+        }
+
+        _backend = std::move(candidate);
+        _initializationResult = std::move(result);
+        return _initializationResult;
     }
 
-    void PhysicsScene::Shutdown()
+    void PhysicsScene::Shutdown() noexcept
     {
         if (_backend)
         {
@@ -40,17 +68,34 @@ namespace ChikaEngine::Physics
             _backend.reset();
         }
         _physicsHandleToGO.clear();
+        _updatedTransforms.clear();
+        {
+            std::lock_guard lock(_destroyRigidbodyMutex);
+            std::queue<PhysicsBodyHandle> empty;
+            std::swap(_destroyRigidbodyQueue, empty);
+        }
+        _initializationResult = PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Physics scene is not initialized");
     }
 
-    // void PhysicsScene::EnqueueRigidbodyCreate(const PhysicsBodyCreateDesc& desc)
-    // {
-    //     std::lock_guard lock(_createRigidbodyMutex);
-    //     _createRigidbodyQueue.push(desc);
-    // }
+    bool PhysicsScene::IsInitialized() const noexcept
+    {
+        return _backend && _backend->IsInitialized();
+    }
+
+    const PhysicsResult& PhysicsScene::GetInitializationResult() const noexcept
+    {
+        return _initializationResult;
+    }
+
+    PhysicsBackendCapabilities PhysicsScene::GetCapabilities() const noexcept
+    {
+        return _backend ? _backend->GetCapabilities() : PhysicsBackendCapabilities{};
+    }
 
     bool PhysicsScene::Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit)
     {
-        if (!_backend)
+        outHit = {};
+        if (!IsInitialized())
             return false;
 
         if (_backend->Raycast(origin, direction, maxDistance, outHit))
@@ -63,45 +108,42 @@ namespace ChikaEngine::Physics
                 return true;
             }
         }
+        outHit = {};
         return false;
     }
 
-    void PhysicsScene::EnqueueRigidbodyDestroy(PhysicsBodyHandle handle)
+    bool PhysicsScene::EnqueueRigidbodyDestroy(PhysicsBodyHandle handle)
     {
+        if (!HasBody(handle))
+            return false;
         std::lock_guard lock(_destroyRigidbodyMutex);
         _destroyRigidbodyQueue.push(handle);
+        return true;
     }
 
     void PhysicsScene::Tick(float dt)
     {
-        // LOG_INFO("Physics System", "Tick");
-
-        // ProcessCreateRigidbodyQueue();
+        if (!IsInitialized())
+            return;
         ProcessDestroyRigidbodyQueue();
-
-        // 物理计算
-        _backend->Simulate(dt);
-
-        // TODO[x]: 更新位置
-        // TODO[x]: 实现 scene
-
-        // TODO: 加入碰撞事件处理
+        (void)_backend->Simulate(dt);
     }
 
     const std::vector<std::pair<Core::GameObjectID, PhysicsTransform>>& PhysicsScene::PollTransform()
     {
-        // 做一次 snapshot 防止意外修改数据
+        _updatedTransforms.clear();
+        if (!IsInitialized())
+            return _updatedTransforms;
+
         std::vector<std::pair<PhysicsBodyHandle, Core::GameObjectID>> snapshot;
         snapshot.reserve(_physicsHandleToGO.size());
         for (auto const& kv : _physicsHandleToGO)
             snapshot.emplace_back(kv.first, kv.second);
-        _updatedTransforms.clear();
         for (auto const& p : snapshot)
         {
             PhysicsTransform ts;
             if (_backend->TrySyncTransform(p.first, ts))
             {
-                // LOG_INFO("Physics", "{}, {}", p.first, p.second);
                 _updatedTransforms.push_back(std::make_pair(p.second, ts));
             }
         }
@@ -109,77 +151,32 @@ namespace ChikaEngine::Physics
         return _updatedTransforms;
     }
 
-    // NOTE: 是否要改成批处理??
-    void PhysicsScene::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3 v)
+    bool PhysicsScene::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3& velocity)
     {
-        if (_backend)
-            _backend->SetLinearVelocity(handle, v);
-    }
-    void PhysicsScene::ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse)
-    {
-        if (_backend)
-            _backend->ApplyImpulse(handle, impulse);
+        return IsInitialized() && _backend->SetLinearVelocity(handle, velocity);
     }
 
-    void PhysicsScene::SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask)
+    bool PhysicsScene::ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3& impulse)
     {
-        if (_backend)
-            _backend->SetLayerCollisionMask(layerId, mask);
+        return IsInitialized() && _backend->ApplyImpulse(handle, impulse);
     }
 
-    PhysicsLayerMask PhysicsScene::GetLayerCollisionMask(PhysicsLayerID layerId)
+    bool PhysicsScene::SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask)
     {
-        if (_backend)
+        return IsInitialized() && _backend->SetLayerCollisionMask(layerId, mask);
+    }
+
+    PhysicsLayerMask PhysicsScene::GetLayerCollisionMask(PhysicsLayerID layerId) const
+    {
+        if (IsInitialized())
             return _backend->GetLayerCollisionMask(layerId);
-        return PhysicsLayerMask(0);
+        return 0;
     }
 
     void PhysicsScene::RegisterRigidbody(PhysicsBodyHandle handle, Core::GameObjectID id)
     {
-        // NOTE: 允许覆盖
-        // auto it = std::find_if(_physicsHandleToGO.begin(), _physicsHandleToGO.end(), [id](const auto& kv) { return kv.second == id; });
-
-        // // 说明重复
-        // if (it != _physicsHandleToGO.end())
-        //     return;
-
         _physicsHandleToGO[handle] = id;
     }
-
-    // void PhysicsScene::ProcessCreateRigidbodyQueue()
-    // {
-    //     std::queue<PhysicsBodyCreateDesc> q;
-    //     {
-    //         std::lock_guard lock(_createRigidbodyMutex);
-    //         std::swap(q, _createRigidbodyQueue);
-    //     }
-
-    //     while (!q.empty())
-    //     {
-    //         auto desc = q.front();
-    //         q.pop();
-    //         // 去重
-    //         bool ownerHasBody = false;
-    //         for (const auto& kv : _physicsHandleToGO)
-    //         {
-    //             if (kv.second == desc.ownerId)
-    //             {
-    //                 ownerHasBody = true;
-    //                 break;
-    //             }
-    //         }
-    //         if (ownerHasBody)
-    //             continue;
-    //         if (!_backend)
-    //             continue;
-    //         PhysicsBodyHandle handle = _backend->CreateBodyFromDesc(desc);
-    //         if (handle != 0)
-    //         {
-    //             LOG_INFO("Physics System", "Successfully Register, id = {}", desc.ownerId);
-    //             RegisterRigidbody(handle, desc.ownerId);
-    //         }
-    //     }
-    // }
 
     void PhysicsScene::ProcessDestroyRigidbodyQueue()
     {
@@ -191,33 +188,38 @@ namespace ChikaEngine::Physics
 
         while (!q.empty())
         {
-            auto handle = q.front();
+            const PhysicsBodyHandle handle = q.front();
             q.pop();
 
-            auto it = _physicsHandleToGO.find(handle);
-            if (it != _physicsHandleToGO.end())
-                _physicsHandleToGO.erase(it);
-            if (_backend)
-                _backend->DestroyPhysicsBody(handle);
+            if (_backend && _backend->DestroyPhysicsBody(handle))
+                _physicsHandleToGO.erase(handle);
         }
     }
-    PhysicsBodyHandle PhysicsScene::CreateBodyImmediate(const PhysicsBodyCreateDesc& desc)
+
+    PhysicsBodyCreateResult PhysicsScene::CreateBodyImmediate(const PhysicsBodyCreateDesc& desc)
     {
         std::lock_guard lock(_createRigidbodyMutex);
+        if (!IsInitialized())
+            return { .result = PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Physics scene is not initialized") };
 
-        PhysicsBodyHandle handle = _backend->CreateBodyFromDesc(desc);
-        if (handle == 0)
+        PhysicsBodyCreateResult createResult = _backend->CreateBodyFromDesc(desc);
+        if (!createResult)
         {
-            LOG_INFO("Physics System", "Failed to reate physicsbody, ownerId = {}", desc.ownerId);
-            return 0;
+            LOG_ERROR("Physics", "Failed to create body for owner {}: {}", desc.ownerId, createResult.result.diagnostic);
+            return createResult;
         }
 
-        RegisterRigidbody(handle, desc.ownerId);
-        LOG_INFO("Physics System", "Create physicsbody successfully, phyid = {}, ownerId = {}", handle, desc.ownerId);
-        return handle;
+        RegisterRigidbody(createResult.handle, desc.ownerId);
+        return createResult;
     }
-    void PhysicsScene::SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot)
+
+    bool PhysicsScene::SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot)
     {
-        _backend->SetBodyTransform(handle, pos, rot);
+        return IsInitialized() && _backend->SetBodyTransform(handle, pos, rot);
+    }
+
+    bool PhysicsScene::HasBody(PhysicsBodyHandle handle) const
+    {
+        return IsInitialized() && _backend->HasBody(handle);
     }
 } // namespace ChikaEngine::Physics

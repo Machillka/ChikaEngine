@@ -1,13 +1,10 @@
-#include "ChikaEngine/PhysicsJoltBackend.h"
+#include "PhysicsJoltBackend.hpp"
 #include <Jolt/Jolt.h>
-#include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
-#include "ChikaEngine/JoltLayer.h"
+#include "JoltLayer.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "Jolt/Core/Reference.h"
-#include "Jolt/Core/Memory.h"
-#include "Jolt/RegisterTypes.h"
 #include "Jolt/Physics/PhysicsSettings.h"
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -22,79 +19,130 @@
 #include "Jolt/Physics/Body/BodyID.h"
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <atomic>
+#include <cmath>
 #include <cstdint>
-#include <memory>
+#include <exception>
+#include <limits>
 #include <mutex>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace ChikaEngine::Physics
 {
-    // 把 jplt 碰撞事件 转化成 chika 的碰撞事件
-    class PhysicsJoltBackend::JoltBackendContactListener : public JPH::ContactListener
+    namespace
+    {
+        std::atomic<std::uint64_t> g_nextHandleGeneration{ 1 };
+
+        std::uint32_t AcquireHandleGeneration()
+        {
+            const std::uint64_t generation = g_nextHandleGeneration.fetch_add(1, std::memory_order_relaxed);
+            if (generation == 0 || generation > std::numeric_limits<std::uint32_t>::max())
+                return 0;
+            return static_cast<std::uint32_t>(generation);
+        }
+
+        bool IsFinite(const Math::Vector3& value)
+        {
+            return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+        }
+
+        bool IsFinite(const Math::Quaternion& value)
+        {
+            return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z) && std::isfinite(value.w);
+        }
+
+        bool IsNormalized(const Math::Quaternion& value)
+        {
+            const float lengthSquared = value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w;
+            return std::abs(lengthSquared - 1.0f) <= 1.0e-3f;
+        }
+
+        bool IsValidShape(const ColliderShapeDesc& desc)
+        {
+            if (!IsFinite(desc.center))
+                return false;
+
+            switch (desc.type)
+            {
+            case ColliderShapeType::Box:
+                return IsFinite(desc.halfExtents) && desc.halfExtents.x > 0.0f && desc.halfExtents.y > 0.0f && desc.halfExtents.z > 0.0f;
+            case ColliderShapeType::Sphere:
+                return std::isfinite(desc.radius) && desc.radius > 0.0f;
+            case ColliderShapeType::Capsule:
+                return std::isfinite(desc.radius) && std::isfinite(desc.height) && desc.radius > 0.0f && desc.height > 0.0f;
+            }
+            return false;
+        }
+    } // namespace
+
+    class PhysicsJoltBackend::JoltBackendContactListener final : public JPH::ContactListener
     {
       public:
-        JoltBackendContactListener(PhysicsJoltBackend* physicsBackend) : _physicsBackend(physicsBackend) {} // On Cillision Enter
-        void OnContactAdded(const JPH::Body& b1, const JPH::Body& b2, const JPH::ContactManifold& manifold, JPH::ContactSettings& ioSettings) override
+        explicit JoltBackendContactListener(PhysicsJoltBackend* physicsBackend) : _physicsBackend(physicsBackend) {}
+
+        void OnContactAdded(const JPH::Body& bodyA, const JPH::Body& bodyB, const JPH::ContactManifold& manifold, JPH::ContactSettings&) override
         {
-            JPH::RVec3 p = manifold.GetWorldSpaceContactPointOn1(0);
-            JPH::Vec3 n = manifold.mWorldSpaceNormal;
-            float penetration = manifold.mPenetrationDepth;
+            if (!_physicsBackend)
+                return;
 
-            CollisionEvent e1;
-            e1.selfRigidbodyHandle = b1.GetID().GetIndex();
-            e1.oherRigidbodyHandle = b2.GetID().GetIndex();
-            e1.contactPoint = ChikaEngine::Math::Vector3(p.GetX(), p.GetY(), p.GetZ());
-            e1.contactNormal = ChikaEngine::Math::Vector3(n.GetX(), n.GetY(), n.GetZ());
-            e1.impulse = 0.0f;
+            const PhysicsBodyHandle handleA = PhysicsBodyHandle::FromValue(bodyA.GetUserData());
+            const PhysicsBodyHandle handleB = PhysicsBodyHandle::FromValue(bodyB.GetUserData());
+            if (!handleA || !handleB)
+                return;
 
-            CollisionEvent e2 = e1;
-            e2.selfRigidbodyHandle = e1.oherRigidbodyHandle;
-            e2.oherRigidbodyHandle = e1.selfRigidbodyHandle;
-            e2.contactNormal = ChikaEngine::Math::Vector3(-e1.contactNormal.x, -e1.contactNormal.y, -e1.contactNormal.z);
-            if (_physicsBackend)
-            {
-                _physicsBackend->PushEvent(e1);
-                _physicsBackend->PushEvent(e2);
-            }
+            const JPH::RVec3 point = manifold.GetWorldSpaceContactPointOn1(0);
+            const JPH::Vec3 normal = manifold.mWorldSpaceNormal;
+
+            CollisionEvent eventA;
+            eventA.selfRigidbodyHandle = handleA;
+            eventA.otherRigidbodyHandle = handleB;
+            eventA.contactPoint = Math::Vector3(static_cast<float>(point.GetX()), static_cast<float>(point.GetY()), static_cast<float>(point.GetZ()));
+            eventA.contactNormal = Math::Vector3(normal.GetX(), normal.GetY(), normal.GetZ());
+
+            CollisionEvent eventB = eventA;
+            eventB.selfRigidbodyHandle = handleB;
+            eventB.otherRigidbodyHandle = handleA;
+            eventB.contactNormal = Math::Vector3(-eventA.contactNormal.x, -eventA.contactNormal.y, -eventA.contactNormal.z);
+
+            _physicsBackend->PushEvent(eventA);
+            _physicsBackend->PushEvent(eventB);
         }
-        // 持续碰撞
-        void OnContactPersisted(const JPH::Body& b1, const JPH::Body& b2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings) override {}
-        // exit
-        void OnContactRemoved(const JPH::SubShapeIDPair& inSubShapePair) override {}
 
       private:
-        PhysicsJoltBackend* _physicsBackend;
+        PhysicsJoltBackend* _physicsBackend = nullptr;
     };
 
-    PhysicsJoltBackend::PhysicsJoltBackend() : _listener(nullptr)
+    PhysicsJoltBackend::PhysicsJoltBackend()
     {
-        // 默认初始化 Mask 数组，防止越界访问
-        _masks.resize(32, 0xFFFFFFFF);
+        _masks.resize(PHYSICS_LAYER_COUNT, PHYSICS_LAYER_MASK_ALL);
     }
+
     PhysicsJoltBackend::~PhysicsJoltBackend()
     {
         Shutdown();
     }
 
-    void PhysicsJoltBackend::PushEvent(const CollisionEvent& e)
+    void PhysicsJoltBackend::PushEvent(const CollisionEvent& event)
     {
         std::lock_guard lock(_eventMutex);
-        _eventQueue.push_back(e);
+        _eventQueue.push_back(event);
     }
 
     std::vector<CollisionEvent> PhysicsJoltBackend::PollCollisionEvents()
     {
         std::lock_guard lock(_eventMutex);
-        std::vector<CollisionEvent> snap;
-        snap.swap(_eventQueue);
-        return snap;
+        std::vector<CollisionEvent> snapshot;
+        snapshot.swap(_eventQueue);
+        return snapshot;
     }
 
     JPH::Ref<JPH::Shape> PhysicsJoltBackend::CreateShape(const ColliderShapeDesc& desc)
     {
         switch (desc.type)
         {
-        case ChikaEngine::Physics::RigidbodyShapes::Box:
+        case ColliderShapeType::Box:
         {
             JPH::Vec3 half(desc.halfExtents.x, desc.halfExtents.y, desc.halfExtents.z);
             JPH::BoxShapeSettings settings(half);
@@ -108,8 +156,7 @@ namespace ChikaEngine::Physics
             return shape;
         }
 
-        case ChikaEngine::Physics::RigidbodyShapes::Sphere:
-        default:
+        case ColliderShapeType::Sphere:
         {
             JPH::SphereShapeSettings settings(desc.radius);
             JPH::SphereShapeSettings::ShapeResult res = settings.Create();
@@ -121,159 +168,310 @@ namespace ChikaEngine::Physics
             JPH::Ref<JPH::Shape> shape = res.Get();
             return shape;
         }
+        case ColliderShapeType::Capsule:
+            return nullptr;
         }
+        return nullptr;
     }
 
-    bool PhysicsJoltBackend::Initialize(const PhysicsInitDesc& desc)
+    PhysicsResult PhysicsJoltBackend::Initialize(const PhysicsInitDesc& desc)
     {
-        // 初始化 jph 设置
-        JPH::RegisterDefaultAllocator();
-        JPH::Factory::sInstance = new JPH::Factory();
-        JPH::RegisterTypes();
+        if (_initialized)
+            return PhysicsResult{ .status = PhysicsStatus::AlreadyInitialized, .diagnostic = "Jolt backend is already initialized" };
+        if (!IsFinite(desc.gravity) || desc.workerThreadCount < -1)
+            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics initialization contains invalid gravity or worker count");
 
-        _tempAllocator = std::make_unique<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
-        _jobSystem = std::make_unique<JPH::JobSystemThreadPool>(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers);
-        _physicsSystem = std::make_unique<JPH::PhysicsSystem>();
+        PhysicsResult runtimeResult = PhysicsRuntime::Acquire(_runtimeLease);
+        if (!runtimeResult)
+            return runtimeResult;
 
-        // 创建实例
-        _bpInterface = std::make_unique<JoltHelper::BitmaskBroadPhaseLayerInterface>();
-        _objVsBPFilter = std::make_unique<JoltHelper::BitmaskObjectVsBroadPhaseLayerFilter>();
-        _pairFilter = std::make_unique<JoltHelper::BitmaskObjectLayerPairFilter>(this);
+        try
+        {
+            _tempAllocator = std::make_unique<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
+            _jobSystem = std::make_unique<JPH::JobSystemThreadPool>(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, desc.workerThreadCount);
+            _physicsSystem = std::make_unique<JPH::PhysicsSystem>();
+            _bpInterface = std::make_unique<JoltHelper::BitmaskBroadPhaseLayerInterface>();
+            _objVsBPFilter = std::make_unique<JoltHelper::BitmaskObjectVsBroadPhaseLayerFilter>();
+            _pairFilter = std::make_unique<JoltHelper::BitmaskObjectLayerPairFilter>(this);
 
-        const uint32_t cMaxBodies = 2048;
-        const uint32_t cNumBodyMutexes = 0;
-        const uint32_t cMaxBodyPairs = 2048;
-        const uint32_t cMaxContactConstraints = 1024;
+            constexpr std::uint32_t maxBodies = 2048;
+            constexpr std::uint32_t bodyMutexCount = 0;
+            constexpr std::uint32_t maxBodyPairs = 2048;
+            constexpr std::uint32_t maxContactConstraints = 1024;
+            _physicsSystem->Init(maxBodies, bodyMutexCount, maxBodyPairs, maxContactConstraints, *_bpInterface, *_objVsBPFilter, *_pairFilter);
 
-        _physicsSystem->Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, *_bpInterface, *_objVsBPFilter, *_pairFilter);
+            _bodyInterface = &_physicsSystem->GetBodyInterface();
+            _physicsSystem->SetGravity(JPH::Vec3(desc.gravity.x, desc.gravity.y, desc.gravity.z));
+            _listener = std::make_unique<JoltBackendContactListener>(this);
+            _physicsSystem->SetContactListener(_listener.get());
+            _initialized = true;
+        }
+        catch (const std::exception& exception)
+        {
+            const std::string diagnostic = std::string("Failed to initialize Jolt backend: ") + exception.what();
+            Shutdown();
+            return PhysicsResult::Failure(PhysicsStatus::BackendFailure, diagnostic);
+        }
+        catch (...)
+        {
+            Shutdown();
+            return PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Failed to initialize Jolt backend");
+        }
 
-        _bodyInterface = &_physicsSystem->GetBodyInterface();
-        _physicsSystem->SetGravity(JPH::Vec3(desc.gravity.x, desc.gravity.y, desc.gravity.z));
-
-        _listener = std::make_unique<JoltBackendContactListener>(this);
-        _physicsSystem->SetContactListener(_listener.get());
-
-        LOG_INFO("JoltBackend", "Initialized");
-        return true;
+        LOG_INFO("JoltBackend", "Initialized with {} worker thread(s)", desc.workerThreadCount);
+        return PhysicsResult::Ok();
     }
 
-    void PhysicsJoltBackend::Shutdown()
+    void PhysicsJoltBackend::Shutdown() noexcept
     {
-
-        if (_physicsSystem)
-        {
-            if (_listener)
-            {
-                _physicsSystem->SetContactListener(nullptr);
-                _listener.reset();
-            }
-        }
-
-        if (_physicsSystem)
-        {
-            _physicsSystem.reset();
-            _bodyInterface = nullptr;
-        }
-
-        if (_jobSystem)
-        {
-            _jobSystem.reset();
-        }
-
-        if (_tempAllocator)
-        {
-            _tempAllocator.reset();
-        }
-
-        if (JPH::Factory::sInstance)
-        {
-            delete JPH::Factory::sInstance;
-            JPH::Factory::sInstance = nullptr;
-        }
-
+        const bool hadState = _initialized || _runtimeLease.IsActive() || _physicsSystem != nullptr;
+        if (_physicsSystem && _listener)
+            _physicsSystem->SetContactListener(nullptr);
+        _listener.reset();
+        DestroyAllBodies();
+        _bodyInterface = nullptr;
+        _physicsSystem.reset();
         _pairFilter.reset();
         _objVsBPFilter.reset();
         _bpInterface.reset();
+        _jobSystem.reset();
+        _tempAllocator.reset();
 
         {
             std::lock_guard lock(_eventMutex);
             _eventQueue.clear();
         }
+        {
+            std::lock_guard lock(_commandMutex);
+            _velocityCommands.clear();
+            _impulseCommands.clear();
+        }
 
-        LOG_INFO("JoltBackend", "Shutdown complete");
+        _initialized = false;
+        _runtimeLease.Reset();
+        if (hadState)
+            LOG_INFO("JoltBackend", "Shutdown complete");
     }
 
-    void PhysicsJoltBackend::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3 v)
+    bool PhysicsJoltBackend::IsInitialized() const noexcept
     {
+        return _initialized;
+    }
+
+    PhysicsBackendCapabilities PhysicsJoltBackend::GetCapabilities() const noexcept
+    {
+        return PhysicsBackendCapabilities{
+            .boxShape = true,
+            .sphereShape = true,
+            .capsuleShape = false,
+            .closestRaycast = true,
+            .constraints = false,
+            .continuousCollisionDetection = false,
+        };
+    }
+
+    PhysicsBodyHandle PhysicsJoltBackend::ReserveBodyHandle()
+    {
+        std::lock_guard lock(_bodyRegistryMutex);
+        while (!_freeBodySlots.empty())
+        {
+            const std::uint32_t index = _freeBodySlots.back();
+            _freeBodySlots.pop_back();
+            BodySlot& slot = _bodySlots[index];
+            if (slot.occupied)
+                continue;
+
+            const std::uint32_t generation = AcquireHandleGeneration();
+            if (generation == 0)
+                return PhysicsBodyHandle::Invalid();
+
+            slot.occupied = true;
+            slot.backendBodyId = JPH::BodyID::cInvalidBodyID;
+            slot.generation = generation;
+            return PhysicsBodyHandle::FromParts(index, generation);
+        }
+
+        if (_bodySlots.size() >= static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
+            return PhysicsBodyHandle::Invalid();
+
+        const std::uint32_t generation = AcquireHandleGeneration();
+        if (generation == 0)
+            return PhysicsBodyHandle::Invalid();
+
+        const std::uint32_t index = static_cast<std::uint32_t>(_bodySlots.size());
+        _bodySlots.push_back(BodySlot{ .backendBodyId = JPH::BodyID::cInvalidBodyID, .generation = generation, .occupied = true });
+        return PhysicsBodyHandle::FromParts(index, generation);
+    }
+
+    bool PhysicsJoltBackend::BindBodyHandle(PhysicsBodyHandle handle, std::uint32_t backendBodyId)
+    {
+        std::lock_guard lock(_bodyRegistryMutex);
+        if (!handle || handle.Index() >= _bodySlots.size())
+            return false;
+
+        BodySlot& slot = _bodySlots[handle.Index()];
+        if (!slot.occupied || slot.generation != handle.Generation())
+            return false;
+        slot.backendBodyId = backendBodyId;
+        return true;
+    }
+
+    bool PhysicsJoltBackend::ResolveBodyId(PhysicsBodyHandle handle, std::uint32_t& backendBodyId) const
+    {
+        std::lock_guard lock(_bodyRegistryMutex);
+        if (!handle || handle.Index() >= _bodySlots.size())
+            return false;
+
+        const BodySlot& slot = _bodySlots[handle.Index()];
+        if (!slot.occupied || slot.generation != handle.Generation() || slot.backendBodyId == JPH::BodyID::cInvalidBodyID)
+            return false;
+        backendBodyId = slot.backendBodyId;
+        return true;
+    }
+
+    bool PhysicsJoltBackend::ReleaseBodyHandle(PhysicsBodyHandle handle)
+    {
+        std::lock_guard lock(_bodyRegistryMutex);
+        if (!handle || handle.Index() >= _bodySlots.size())
+            return false;
+
+        BodySlot& slot = _bodySlots[handle.Index()];
+        if (!slot.occupied || slot.generation != handle.Generation())
+            return false;
+
+        slot.occupied = false;
+        slot.backendBodyId = JPH::BodyID::cInvalidBodyID;
+        slot.generation = 0;
+        _freeBodySlots.push_back(handle.Index());
+        return true;
+    }
+
+    void PhysicsJoltBackend::DestroyAllBodies() noexcept
+    {
+        std::vector<std::uint32_t> bodies;
+        {
+            std::lock_guard lock(_bodyRegistryMutex);
+            bodies.reserve(_bodySlots.size());
+            for (const BodySlot& slot : _bodySlots)
+            {
+                if (slot.occupied && slot.backendBodyId != JPH::BodyID::cInvalidBodyID)
+                    bodies.push_back(slot.backendBodyId);
+            }
+        }
+
+        if (_bodyInterface)
+        {
+            for (const std::uint32_t backendBodyId : bodies)
+            {
+                const JPH::BodyID id(backendBodyId);
+                if (_bodyInterface->IsAdded(id))
+                    _bodyInterface->RemoveBody(id);
+                _bodyInterface->DestroyBody(id);
+            }
+        }
+
+        {
+            std::lock_guard lock(_bodyRegistryMutex);
+            _bodySlots.clear();
+            _freeBodySlots.clear();
+        }
+    }
+
+    bool PhysicsJoltBackend::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3& velocity)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_initialized || !IsFinite(velocity) || !ResolveBodyId(handle, backendBodyId))
+            return false;
         std::lock_guard lock(_commandMutex);
-        _velocityCommands.push_back(VelocityCommand{ .handle = handle, .v = v });
+        _velocityCommands.push_back(VelocityCommand{ .handle = handle, .v = velocity });
+        return true;
     }
 
-    void PhysicsJoltBackend::ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3 impulse)
+    bool PhysicsJoltBackend::ApplyImpulse(PhysicsBodyHandle handle, const Math::Vector3& impulse)
     {
+        std::uint32_t backendBodyId = 0;
+        if (!_initialized || !IsFinite(impulse) || !ResolveBodyId(handle, backendBodyId))
+            return false;
         std::lock_guard lock(_commandMutex);
         _impulseCommands.push_back(ImpulseCommand{ .handle = handle, .impulse = impulse });
+        return true;
     }
 
-    void PhysicsJoltBackend::Simulate(float fixedDeltaTime)
+    bool PhysicsJoltBackend::Simulate(float fixedDeltaTime)
     {
-        if (!_physicsSystem)
-            return;
+        if (!_initialized || !_physicsSystem || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f)
+            return false;
 
-        // TODO[x]: 提供设置速度,以及impulse
         {
-            std::lock_guard lk(_commandMutex);
-            for (auto& velocityCmd : _velocityCommands)
+            std::lock_guard lock(_commandMutex);
+            for (const auto& velocityCmd : _velocityCommands)
             {
-                JPH::BodyID id(velocityCmd.handle);
-                if (_bodyInterface->IsAdded(id))
+                std::uint32_t backendBodyId = 0;
+                if (ResolveBodyId(velocityCmd.handle, backendBodyId))
                 {
-                    _bodyInterface->SetLinearVelocity(id, JPH::Vec3(velocityCmd.v.x, velocityCmd.v.y, velocityCmd.v.z));
+                    const JPH::BodyID id(backendBodyId);
+                    if (_bodyInterface->IsAdded(id))
+                        _bodyInterface->SetLinearVelocity(id, JPH::Vec3(velocityCmd.v.x, velocityCmd.v.y, velocityCmd.v.z));
                 }
             }
             _velocityCommands.clear();
-            for (auto& impulseCmd : _impulseCommands)
+
+            for (const auto& impulseCmd : _impulseCommands)
             {
-                JPH::BodyID id(impulseCmd.handle);
-                if (_bodyInterface->IsAdded(id))
+                std::uint32_t backendBodyId = 0;
+                if (ResolveBodyId(impulseCmd.handle, backendBodyId))
                 {
-                    _bodyInterface->AddImpulse(id, JPH::Vec3(impulseCmd.impulse.x, impulseCmd.impulse.y, impulseCmd.impulse.z));
+                    const JPH::BodyID id(backendBodyId);
+                    if (_bodyInterface->IsAdded(id))
+                        _bodyInterface->AddImpulse(id, JPH::Vec3(impulseCmd.impulse.x, impulseCmd.impulse.y, impulseCmd.impulse.z));
                 }
             }
             _impulseCommands.clear();
         }
 
         _physicsSystem->Update(fixedDeltaTime, 1, _tempAllocator.get(), _jobSystem.get());
+        return true;
     }
 
-    void PhysicsJoltBackend::SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask)
+    bool PhysicsJoltBackend::SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask)
     {
+        if (layerId >= PHYSICS_LAYER_COUNT)
+            return false;
         std::lock_guard lock(_maskMutex);
-        if (layerId >= _masks.size())
-        {
-            // 扩容并默认填充全1 (默认碰撞)
-            _masks.resize(layerId + 8, 0xFFFFFFFF);
-        }
         _masks[layerId] = mask;
+        return true;
     }
 
     PhysicsLayerMask PhysicsJoltBackend::GetLayerCollisionMask(PhysicsLayerID layerId) const
     {
+        if (layerId >= PHYSICS_LAYER_COUNT)
+            return 0;
         std::lock_guard lock(_maskMutex);
-        if (layerId >= _masks.size())
-            return 0xFFFFFFFF; // 默认返回全碰撞或0，视策略而定
         return _masks[layerId];
     }
 
-    PhysicsBodyHandle PhysicsJoltBackend::CreateBodyFromDesc(const PhysicsBodyCreateDesc& desc)
+    PhysicsBodyCreateResult PhysicsJoltBackend::CreateBodyFromDesc(const PhysicsBodyCreateDesc& desc)
     {
-        if (!_bodyInterface)
-            return 0;
+        if (!_initialized || !_bodyInterface)
+            return { .result = PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Jolt backend is not initialized") };
+        if (desc.layer >= PHYSICS_LAYER_COUNT)
+            return { .result = PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics body layer must be in [0, 31]") };
+        if (!GetCapabilities().SupportsShape(desc.shapeDesc.type))
+            return { .result = PhysicsResult::Failure(PhysicsStatus::UnsupportedFeature, "Requested collider shape is not implemented by the Jolt adapter") };
+        if (!IsFinite(desc.position) || !IsFinite(desc.rotation) || !IsNormalized(desc.rotation) || !IsValidShape(desc.shapeDesc) || !std::isfinite(desc.mass) || !std::isfinite(desc.friction) || !std::isfinite(desc.restitution) || desc.mass <= 0.0f || desc.friction < 0.0f || desc.restitution < 0.0f || desc.restitution > 1.0f)
+            return { .result = PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics body descriptor contains invalid numeric values") };
+
+        const PhysicsBodyHandle handle = ReserveBodyHandle();
+        if (!handle)
+            return { .result = PhysicsResult::Failure(PhysicsStatus::CapacityExceeded, "Physics body handle registry is exhausted") };
 
         using namespace JPH;
         JPH::Ref<JPH::Shape> shape = CreateShape(desc.shapeDesc);
         if (!shape)
-            return 0;
+        {
+            (void)ReleaseBodyHandle(handle);
+            return { .result = PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Jolt failed to create collider shape") };
+        }
 
         RVec3 pos(desc.position.x, desc.position.y, desc.position.z);
         Quat rot(desc.rotation.x, desc.rotation.y, desc.rotation.z, desc.rotation.w);
@@ -282,6 +480,7 @@ namespace ChikaEngine::Physics
         settings.mPosition = pos;
         settings.mRotation = rot;
         settings.SetShape(shape);
+        settings.mUserData = handle.Value();
 
         if (desc.motionType == MotionType::Static)
             settings.mMotionType = EMotionType::Static;
@@ -306,125 +505,113 @@ namespace ChikaEngine::Physics
         settings.mIsSensor = desc.isTrigger;
         settings.mFriction = desc.friction;
         settings.mRestitution = desc.restitution;
-        settings.mMassPropertiesOverride.mMass = desc.mass;
-        settings.mAllowDynamicOrKinematic = true;
-
-        // 创建并且激活body
         BodyID id = _bodyInterface->CreateAndAddBody(settings, EActivation::Activate);
         if (id.IsInvalid())
         {
-            LOG_WARN("Physics System", "Failed to create Physics Body");
-            return 0;
+            (void)ReleaseBodyHandle(handle);
+            return { .result = PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Jolt failed to create physics body") };
         }
 
-        LOG_WARN("Physics System", "Created Successfully ID = {}", id.GetIndexAndSequenceNumber());
-        return id.GetIndexAndSequenceNumber();
-    }
-
-    void PhysicsJoltBackend::DestroyPhysicsBody(PhysicsBodyHandle handle)
-    {
-        if (!_bodyInterface)
-            return;
-        JPH::BodyID id(handle);
-        if (_bodyInterface->IsAdded(id))
+        if (!BindBodyHandle(handle, id.GetIndexAndSequenceNumber()))
         {
             _bodyInterface->RemoveBody(id);
+            _bodyInterface->DestroyBody(id);
+            (void)ReleaseBodyHandle(handle);
+            return { .result = PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Failed to bind engine physics handle") };
         }
+
+        LOG_INFO("Physics", "Created body handle index={}, generation={}", handle.Index(), handle.Generation());
+        return { .result = PhysicsResult::Ok(), .handle = handle };
     }
 
-    bool PhysicsJoltBackend::TrySyncTransform(PhysicsBodyHandle handle, PhysicsTransform& trans)
+    bool PhysicsJoltBackend::DestroyPhysicsBody(PhysicsBodyHandle handle)
     {
-        if (!_bodyInterface)
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !ResolveBodyId(handle, backendBodyId))
             return false;
-        JPH::BodyID id(handle);
+
+        const JPH::BodyID id(backendBodyId);
+        if (_bodyInterface->IsAdded(id))
+            _bodyInterface->RemoveBody(id);
+        _bodyInterface->DestroyBody(id);
+        return ReleaseBodyHandle(handle);
+    }
+
+    bool PhysicsJoltBackend::TrySyncTransform(PhysicsBodyHandle handle, PhysicsTransform& transform)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !ResolveBodyId(handle, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
         if (!_bodyInterface->IsAdded(id))
             return false;
 
-        JPH::RVec3 p = _bodyInterface->GetPosition(id);
-        JPH::Quat r = _bodyInterface->GetRotation(id);
-
-        trans.pos = Math::Vector3(static_cast<float>(p.GetX()), static_cast<float>(p.GetY()), static_cast<float>(p.GetZ()));
-        trans.rot = Math::Quaternion(static_cast<float>(r.GetX()), static_cast<float>(r.GetY()), static_cast<float>(r.GetZ()), static_cast<float>(r.GetW()));
-
+        const JPH::RVec3 position = _bodyInterface->GetPosition(id);
+        const JPH::Quat rotation = _bodyInterface->GetRotation(id);
+        transform.pos = Math::Vector3(static_cast<float>(position.GetX()), static_cast<float>(position.GetY()), static_cast<float>(position.GetZ()));
+        transform.rot = Math::Quaternion(rotation.GetX(), rotation.GetY(), rotation.GetZ(), rotation.GetW());
         return true;
     }
 
-    bool PhysicsJoltBackend::HasRigidbody(PhysicsBodyHandle handle)
+    bool PhysicsJoltBackend::HasBody(PhysicsBodyHandle handle) const
     {
-        if (!_bodyInterface)
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !ResolveBodyId(handle, backendBodyId))
             return false;
-        JPH::BodyID id(handle);
-        if (!_bodyInterface->IsAdded(id))
-            return false;
-        return true;
+        return _bodyInterface->IsAdded(JPH::BodyID(backendBodyId));
     }
 
     bool PhysicsJoltBackend::Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit)
     {
-        if (!_physicsSystem)
+        outHit = {};
+        if (!_initialized || !_physicsSystem || !IsFinite(origin) || !IsFinite(direction) || !std::isfinite(maxDistance) || maxDistance <= 0.0f)
             return false;
 
-        // 创建射线
-        JPH::RVec3 start(origin.x, origin.y, origin.z);
-        JPH::Vec3 dir(direction.x, direction.y, direction.z);
+        JPH::Vec3 castDirection(direction.x, direction.y, direction.z);
+        if (castDirection.LengthSq() <= 0.0f)
+            return false;
+        castDirection = castDirection.Normalized() * maxDistance;
 
-        // 包括距离
-        dir = dir.Normalized() * maxDistance;
-
-        JPH::RRayCast ray(start, dir);
+        const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), castDirection);
         JPH::RayCastResult hit;
-
-        // TODO: 加入层级信息
         const JPH::NarrowPhaseQuery& query = _physicsSystem->GetNarrowPhaseQuery();
-
-        // if (query.CastRay(ray, hit))
-        // if (query.CastRay(ray, hit, JPH::SpecifiedBroadPhaseLayerFilter(JoltHelper::BroadPhaseLayers::NON_MOVING), JPH::ObjectLayerFilter(), JPH::BodyFilter()))
         if (query.CastRay(ray, hit))
         {
-            // 3. 获取详细信息
             JPH::BodyLockRead lock(_physicsSystem->GetBodyLockInterface(), hit.mBodyID);
             if (lock.Succeeded())
             {
                 const JPH::Body& body = lock.GetBody();
+                const PhysicsBodyHandle handle = PhysicsBodyHandle::FromValue(body.GetUserData());
+                std::uint32_t resolvedBodyId = 0;
+                if (!ResolveBodyId(handle, resolvedBodyId) || resolvedBodyId != hit.mBodyID.GetIndexAndSequenceNumber())
+                    return false;
 
                 outHit.hasHit = true;
-                outHit.bodyHandle = body.GetID().GetIndexAndSequenceNumber();
-
-                // 转化到距离
+                outHit.bodyHandle = handle;
                 outHit.distance = hit.mFraction * maxDistance;
-
-                // 计算世界空间击中点
-                JPH::RVec3 hitPos = ray.GetPointOnRay(hit.mFraction);
+                const JPH::RVec3 hitPos = ray.GetPointOnRay(hit.mFraction);
                 outHit.point = Math::Vector3(static_cast<float>(hitPos.GetX()), static_cast<float>(hitPos.GetY()), static_cast<float>(hitPos.GetZ()));
-
-                // 计算世界空间法线
-                JPH::Vec3 normal = body.GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, hitPos);
+                const JPH::Vec3 normal = body.GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, hitPos);
                 outHit.normal = Math::Vector3(normal.GetX(), normal.GetY(), normal.GetZ());
-
                 return true;
             }
         }
 
-        outHit.hasHit = false;
         return false;
     }
-    void PhysicsJoltBackend::SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot)
+
+    bool PhysicsJoltBackend::SetBodyTransform(PhysicsBodyHandle handle, const Math::Vector3& pos, const Math::Quaternion& rot)
     {
-        if (!_bodyInterface)
-            return;
-
-        JPH::BodyID id(handle);
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !IsFinite(pos) || !IsFinite(rot) || !IsNormalized(rot) || !ResolveBodyId(handle, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
         if (!_bodyInterface->IsAdded(id))
-            return;
+            return false;
 
-        JPH::RVec3 p(pos.x, pos.y, pos.z);
-        JPH::Quat q(rot.x, rot.y, rot.z, rot.w);
-
-        // 强制设置位置和旋转
-        _bodyInterface->SetPositionAndRotation(id, p, q, JPH::EActivation::Activate);
-
-        // 重置 防止按照瞬时速度飞走
+        _bodyInterface->SetPositionAndRotation(id, JPH::RVec3(pos.x, pos.y, pos.z), JPH::Quat(rot.x, rot.y, rot.z, rot.w), JPH::EActivation::Activate);
         _bodyInterface->SetLinearVelocity(id, JPH::Vec3::sZero());
         _bodyInterface->SetAngularVelocity(id, JPH::Vec3::sZero());
+        return true;
     }
 } // namespace ChikaEngine::Physics

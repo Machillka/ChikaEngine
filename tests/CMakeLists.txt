@@ -3,6 +3,12 @@ add_executable(ChikaCoreBoundaryTests
 )
 target_link_libraries(ChikaCoreBoundaryTests PRIVATE ChikaFramework)
 
+add_executable(ChikaPhysicsContractTests
+    unit/PhysicsContractTests.cpp
+)
+target_compile_definitions(ChikaPhysicsContractTests PRIVATE CHIKA_PROJECT_ROOT_DIR="${PROJECT_ROOT_DIR}")
+target_link_libraries(ChikaPhysicsContractTests PRIVATE ChikaPhysics)
+
 add_executable(ChikaSceneIntegrationTests
     integration/SceneIntegrationTests.cpp
 )
@@ -106,6 +112,7 @@ if(CHIKA_BUILD_BENCHMARKS)
 endif()
 
 add_test(NAME Chika.CoreBoundary COMMAND ChikaCoreBoundaryTests)
+add_test(NAME Chika.PhysicsContract COMMAND ChikaPhysicsContractTests)
 add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.TextureLoader COMMAND ChikaTextureLoaderTests)
@@ -135,9 +142,10 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
+set_tests_properties(Chika.PhysicsContract PROPERTIES LABELS "physics")
 if(CHIKA_BUILD_BENCHMARKS)
     set_tests_properties(Chika.Benchmark PROPERTIES WORKING_DIRECTORY "${PROJECT_ROOT_DIR}")
 endif()

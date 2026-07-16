@@ -1,6 +1,6 @@
 set(TARGET_NAME ChikaPhysics)
 
-file(GLOB_RECURSE CORE_PUBLIC_HEADERS "include/*.h")
+file(GLOB_RECURSE CORE_PUBLIC_HEADERS CONFIGURE_DEPENDS "include/*.h" "include/*.hpp")
 file(GLOB_RECURSE CORE_SOURCES "src/*.cpp")
 
 add_library(${TARGET_NAME} STATIC
@@ -18,8 +18,9 @@ target_include_directories(${TARGET_NAME}
 
 target_link_libraries(${TARGET_NAME}
     PUBLIC
-        ChikaThirdParty
         ChikaCore
+    PRIVATE
+        ChikaThirdParty
 )
 
 reflection_generator(${TARGET_NAME})

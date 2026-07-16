@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/PhysicsHandles.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
@@ -48,7 +48,7 @@ namespace ChikaEngine::Framework
         Scene* GetSceneSave();
 
       private:
-        Physics::PhysicsBodyHandle _physicsHandle = 0;
+        Physics::PhysicsBodyHandle _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
         MFIELD()
         Math::Vector3 _colliderCenter = Math::Vector3::zero;
         MFIELD()

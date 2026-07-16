@@ -18,10 +18,10 @@ namespace ChikaEngine::Framework
 
       public:
         bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, Physics::RaycastHit& outHit);
-        Physics::PhysicsBodyHandle CreateBodyImmediate(const Physics::PhysicsBodyCreateDesc& desc);
+        Physics::PhysicsBodyCreateResult CreateBodyImmediate(const Physics::PhysicsBodyCreateDesc& desc);
 
-        void SetLinearVelocity(Physics::PhysicsBodyHandle handle, const Math::Vector3 v);
-        void ApplyImpulse(Physics::PhysicsBodyHandle handle, const Math::Vector3 impulse);
+        bool SetLinearVelocity(Physics::PhysicsBodyHandle handle, const Math::Vector3& velocity);
+        bool ApplyImpulse(Physics::PhysicsBodyHandle handle, const Math::Vector3& impulse);
 
         void SyncTransform();
 

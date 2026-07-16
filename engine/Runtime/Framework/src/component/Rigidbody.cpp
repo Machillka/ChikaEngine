@@ -41,7 +41,7 @@ namespace ChikaEngine::Framework
         createInfo.position = owner->transform->GetWorldPosition();
         createInfo.rotation = owner->transform->GetWorldRotation();
         createInfo.shapeDesc = Physics::ColliderShapeDesc{
-            .type = Physics::RigidbodyShapes::Box,
+            .type = Physics::ColliderShapeType::Box,
             .center = _colliderCenter,
             .halfExtents = Math::Vector3{ 0.5f, 0.5f, 0.5f },
             .radius = _colliderRadius,
@@ -64,12 +64,19 @@ namespace ChikaEngine::Framework
             return;
         }
 
-        if (_physicsHandle != 0)
-            physics->EnqueueRigidbodyDestroy(_physicsHandle);
-
-        _physicsHandle = physics->CreateBodyImmediate(createInfo);
         if (_physicsHandle)
-            LOG_INFO("Rigidbody", "Create Rigidbody handle {} successfully!", _physicsHandle);
+            (void)physics->EnqueueRigidbodyDestroy(_physicsHandle);
+
+        const Physics::PhysicsBodyCreateResult createResult = physics->CreateBodyImmediate(createInfo);
+        _physicsHandle = createResult.handle;
+        if (_physicsHandle)
+        {
+            LOG_INFO("Rigidbody", "Created body handle index={}, generation={}", _physicsHandle.Index(), _physicsHandle.Generation());
+        }
+        else
+        {
+            LOG_ERROR("Rigidbody", "Failed to create body: {}", createResult.result.diagnostic);
+        }
     }
 
     void Rigidbody::Awake()
@@ -108,11 +115,11 @@ namespace ChikaEngine::Framework
     void Rigidbody::OnDestroy()
     {
         auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
+        if (!scene || !scene->GetPhysicsSubsystem() || !_physicsHandle)
             return;
 
-        scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
-        _physicsHandle = 0;
+        (void)scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
+        _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
     }
 
     void Rigidbody::OnGizmo() const
@@ -142,17 +149,17 @@ namespace ChikaEngine::Framework
     void Rigidbody::SetLinearVelocity(Math::Vector3 v)
     {
         auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
+        if (!scene || !scene->GetPhysicsSubsystem() || !_physicsHandle)
             return;
 
-        scene->GetPhysicsSubsystem()->SetLinearVelocity(_physicsHandle, v);
+        (void)scene->GetPhysicsSubsystem()->SetLinearVelocity(_physicsHandle, v);
     }
     void Rigidbody::Impulse(Math::Vector3 impulse)
     {
         auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
+        if (!scene || !scene->GetPhysicsSubsystem() || !_physicsHandle)
             return;
-        scene->GetPhysicsSubsystem()->ApplyImpulse(_physicsHandle, impulse);
+        (void)scene->GetPhysicsSubsystem()->ApplyImpulse(_physicsHandle, impulse);
     }
 
 } // namespace ChikaEngine::Framework

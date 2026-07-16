@@ -13,6 +13,11 @@ namespace ChikaEngine::Framework
         Physics::PhysicsSystemDesc createInfo{};
 
         _physics = std::make_unique<Physics::PhysicsScene>(createInfo);
+        if (!_physics->IsInitialized())
+        {
+            const Physics::PhysicsResult& result = _physics->GetInitializationResult();
+            LOG_ERROR("Physics Subsystem", "Failed to initialize physics scene: {}", result.diagnostic);
+        }
     }
 
     Physics::PhysicsScene* PhysicsSubsystem::GetPhysicsInstace()
@@ -38,24 +43,24 @@ namespace ChikaEngine::Framework
 
     bool PhysicsSubsystem::Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, Physics::RaycastHit& outHit)
     {
-        auto isHit = _physics->Raycast(origin, direction, maxDistance, outHit);
-        return isHit;
+        return _physics && _physics->Raycast(origin, direction, maxDistance, outHit);
     }
 
-    Physics::PhysicsBodyHandle PhysicsSubsystem::CreateBodyImmediate(const Physics::PhysicsBodyCreateDesc& desc)
+    Physics::PhysicsBodyCreateResult PhysicsSubsystem::CreateBodyImmediate(const Physics::PhysicsBodyCreateDesc& desc)
     {
-        auto handle = _physics->CreateBodyImmediate(desc);
-        return handle;
+        if (!_physics)
+            return { .result = Physics::PhysicsResult::Failure(Physics::PhysicsStatus::NotInitialized, "Physics subsystem is not initialized") };
+        return _physics->CreateBodyImmediate(desc);
     }
 
-    void PhysicsSubsystem::SetLinearVelocity(Physics::PhysicsBodyHandle handle, const Math::Vector3 v)
+    bool PhysicsSubsystem::SetLinearVelocity(Physics::PhysicsBodyHandle handle, const Math::Vector3& velocity)
     {
-        _physics->SetLinearVelocity(handle, v);
+        return _physics && _physics->SetLinearVelocity(handle, velocity);
     }
 
-    void PhysicsSubsystem::ApplyImpulse(Physics::PhysicsBodyHandle handle, const Math::Vector3 impulse)
+    bool PhysicsSubsystem::ApplyImpulse(Physics::PhysicsBodyHandle handle, const Math::Vector3& impulse)
     {
-        _physics->ApplyImpulse(handle, impulse);
+        return _physics && _physics->ApplyImpulse(handle, impulse);
     }
 
     void PhysicsSubsystem::SyncTransform()
