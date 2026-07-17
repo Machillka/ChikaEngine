@@ -170,15 +170,6 @@ namespace ChikaEngine::Physics
         }
     };
 
-    struct CollisionEvent
-    {
-        PhysicsBodyHandle selfRigidbodyHandle = PhysicsBodyHandle::Invalid();
-        PhysicsBodyHandle otherRigidbodyHandle = PhysicsBodyHandle::Invalid();
-        Math::Vector3 contactPoint;
-        Math::Vector3 contactNormal;
-        float impulse = 0.0f;
-    };
-
     struct Ray
     {
         Math::Vector3 origin;

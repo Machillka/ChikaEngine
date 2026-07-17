@@ -14,6 +14,11 @@ add_executable(ChikaPhysicsLifecycleTests
 )
 target_link_libraries(ChikaPhysicsLifecycleTests PRIVATE ChikaEngine)
 
+add_executable(ChikaPhysicsContactTests
+    integration/PhysicsContactTests.cpp
+)
+target_link_libraries(ChikaPhysicsContactTests PRIVATE ChikaPhysics)
+
 add_executable(ChikaSceneIntegrationTests
     integration/SceneIntegrationTests.cpp
 )
@@ -119,6 +124,7 @@ endif()
 add_test(NAME Chika.CoreBoundary COMMAND ChikaCoreBoundaryTests)
 add_test(NAME Chika.PhysicsContract COMMAND ChikaPhysicsContractTests)
 add_test(NAME Chika.PhysicsLifecycle COMMAND ChikaPhysicsLifecycleTests)
+add_test(NAME Chika.PhysicsContact COMMAND ChikaPhysicsContactTests)
 add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.TextureLoader COMMAND ChikaTextureLoaderTests)
@@ -151,7 +157,7 @@ add_test(
 set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
-set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle PROPERTIES LABELS "physics")
+set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsContact PROPERTIES LABELS "physics")
 if(CHIKA_BUILD_BENCHMARKS)
     set_tests_properties(Chika.Benchmark PROPERTIES WORKING_DIRECTORY "${PROJECT_ROOT_DIR}")
 endif()

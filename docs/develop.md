@@ -14,6 +14,76 @@
 
 ---
 
+## 2026-07-16 - 完成 Physics Step 1.1 Contact State Stream
+
+### Metadata
+
+- Area: Physics / Test / Docs
+- Status: Complete
+
+### Goal
+
+把 Jolt 多线程 contact callbacks 转换为 backend-neutral、只在主线程 post-step 消费、按 canonical pair 去重的 Collision/Trigger Enter、Stay、Exit 流，并让 sleep、真实分离和 Body 销毁具有不同的终止语义。
+
+### Changes
+
+- 新增 `PhysicsEvents.hpp`：
+  - 定义 `RawContactPacket`、`PhysicsPairEvent`、排序后的 `PhysicsPairKey`、sub-shape feature key。
+  - point、normal、penetration、relative velocity、impulse 均有独立有效位；pre-solver impulse 明确为 unavailable。
+  - canonical event 缓存 A/B Body、Collider 占位 Handle 与 GameObject ID，并携带 Collision/Trigger、fixed-step 和 termination reason。
+- 重构 `IPhysicsBackend` 与 Jolt adapter：
+  - `Simulate` 接收 Scene fixed-step index；`DrainRawContactPackets` 替代旧的双份 self-oriented `PollCollisionEvents`。
+  - ContactListener 实现 Added、Persisted、Removed；Removed 只读取 Added/Persisted 时缓存的 identity，不访问 Jolt Body。
+  - callback 仅复制值数据到互斥队列；Update 返回后才查询 Body exists/active 与 `WereBodiesInContact`，分类为 separation、remaining sub-contact、deactivation 或 missing Body。
+  - engine Handle 到 Jolt BodyID 的映射只留在 backend，用于 post-step 状态补充；Reset 同时清空 Body、raw queue 和 listener contact identity。
+- 扩展 `PhysicsScene`：
+  - 维护按 Body/Collider Handle 排序的 pair cache，以 sub-shape feature set 聚合 contact，并为同一 pair/fixed-step/phase 去重。
+  - canonical normal 固定从 A 指向 B，relative velocity 与 normal 在 canonical swap 时同时反向。
+  - sleep/deactivation removal 不产生伪 Exit；真实分离产生 `Separated`，Body destroy/rebuild 产生一次 `BodyDestroyed` Exit。
+  - destroy 前暂存 pair Exit，backend destroy 失败时撤销；事件只有在 `PhysicsSystem::Update` 返回并 publish 后才可由 `DrainPairEvents()` 取得。
+  - 增加 active pair、pending event、raw packet、emitted event 和 suppressed deactivation Exit 统计。
+- 新增 `PhysicsContactTests.cpp` 与 `Chika.PhysicsContact`：
+  - 覆盖 Box Collision 的 Enter/Stay/Exit、Trigger 序列、canonical owner/normal、数据有效位、pair 去重/排序。
+  - 覆盖接触中销毁、registry identity 清理、PreStep 后不可见/PostStep 后可见，以及 180 fixed-step sleep suppression。
+- 更新 `PhysicsContractTests`、Step 1.1/1.2 卡片、步骤索引与物理路线图，使文档状态和公共 API 名称与实现一致。
+
+### Reason / Architecture
+
+Jolt contact callback 运行在物理工作线程且 Body 被锁定，Removed 阶段甚至可能已经销毁 Body。因此 callback 不能解析 Scene owner、发布 EventBus 或执行 gameplay mutation。实现把流程明确拆为三层：
+
+```text
+Jolt callback
+  -> RawContactPacket + cached sub-shape identity (worker-safe)
+  -> backend post-step removal classification
+  -> PhysicsScene canonical pair cache
+  -> ready PhysicsPairEvent queue
+  -> Step 1.2 Framework dispatch
+```
+
+Jolt 在 Body sleep 时会移除 contact constraint；如果直接把 Removed 映射为 Exit，静止物体会反复 Exit/Enter。当前由 post-step active 状态与 `WereBodiesInContact` 共同分类：deactivation 保留 pair state，真实 separation 才移除最后一个 active feature 并 Exit。Body destroy 则由 Scene 在 backend destroy 前使用已缓存 owner identity 主动生成一次 Exit，避免下一步 Removed 访问 stale registry 或重复发布。
+
+### Verification
+
+- `cmake --build build --target ChikaPhysicsContactTests`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.PhysicsContact"`：1/1 通过。
+- `cmake --build build --target ChikaPhysicsLifecycleTests ChikaPhysicsContractTests`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.Physics(Contract|Lifecycle|Contact)"`：3/3 通过。
+- `cmake --build build`：完整工程构建通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.(CoreBoundary|PhysicsContract|PhysicsLifecycle|PhysicsContact|SceneIntegration)"`：5/5 通过。
+- `clang-format --dry-run --Werror <本次 C++ 文件>`：通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `git diff --check`：通过，仅报告仓库既有 Windows CRLF 转换提示。
+
+### Remaining / Next
+
+- Step 1.2 将在 PhysicsSubsystem 的 Simulate/Transform Sync 后 drain canonical events，投影 A/B self-oriented view，并接入 Scene EventBus、Component 和 Script；本步骤没有提前发布 gameplay callback。
+- Collider Handle 继续保持 invalid 占位，直到 Step 2.1 引入独立 Collider registry/authoring。
+- Jolt Added/Persisted 位于 solver 前，真实 impulse 暂无数据源并保持 `hasImpulse=false`；不得把数值 0 当作已计算冲量。
+- `FilterChanged` termination reason 已预留，实际 layer/profile 安全更新与 contact refresh 由 Step 3.1 完成。
+- 当前 Windows/Clang 配置未启用 ThreadSanitizer；线程边界由 callback queue/identity mutex 与 Scene post-step 单线程访问约束，并由集成测试锁定可见时序。
+
+---
+
 ## 2026-07-16 - 完成 Physics Step 0.2 Body Lifecycle 与 Command Buffer
 
 ### Metadata

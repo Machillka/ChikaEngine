@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/PhysicsEvents.hpp"
 
 #include <vector>
 
@@ -33,7 +34,7 @@ namespace ChikaEngine::Physics
         [[nodiscard]] virtual PhysicsBackendCapabilities GetCapabilities() const noexcept = 0;
         virtual void ClearBodies() noexcept = 0;
 
-        [[nodiscard]] virtual bool Simulate(float dt) = 0;
+        [[nodiscard]] virtual bool Simulate(float dt, std::uint64_t fixedStepIndex) = 0;
         [[nodiscard]] virtual PhysicsBackendBodyCreateResult CreateBodyFromDesc(PhysicsBodyHandle engineHandle, const PhysicsBodyCreateDesc& desc) = 0;
         [[nodiscard]] virtual bool DestroyPhysicsBody(PhysicsBackendBodyToken token) = 0;
         [[nodiscard]] virtual bool TrySyncTransform(PhysicsBackendBodyToken token, PhysicsTransform& transform) = 0;
@@ -50,6 +51,7 @@ namespace ChikaEngine::Physics
         [[nodiscard]] virtual bool HasBody(PhysicsBackendBodyToken token) const = 0;
         [[nodiscard]] virtual std::size_t GetBodyCount() const noexcept = 0;
         [[nodiscard]] virtual bool Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, RaycastHit& outHit) = 0;
-        [[nodiscard]] virtual std::vector<CollisionEvent> PollCollisionEvents() = 0;
+        /** @brief Drains callback packets after Simulate has returned; never publishes gameplay events. */
+        [[nodiscard]] virtual std::vector<RawContactPacket> DrainRawContactPackets() = 0;
     };
 } // namespace ChikaEngine::Physics

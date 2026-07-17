@@ -25,6 +25,7 @@
 #include <limits>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -85,7 +86,56 @@ namespace ChikaEngine::Physics
       public:
         explicit JoltBackendContactListener(PhysicsJoltBackend* physicsBackend) : _physicsBackend(physicsBackend) {}
 
-        void OnContactAdded(const JPH::Body& bodyA, const JPH::Body& bodyB, const JPH::ContactManifold& manifold, JPH::ContactSettings&) override
+        void OnContactAdded(const JPH::Body& bodyA, const JPH::Body& bodyB, const JPH::ContactManifold& manifold, JPH::ContactSettings& settings) override
+        {
+            CaptureContact(RawContactPhase::Added, bodyA, bodyB, manifold, settings);
+        }
+
+        void OnContactPersisted(const JPH::Body& bodyA, const JPH::Body& bodyB, const JPH::ContactManifold& manifold, JPH::ContactSettings& settings) override
+        {
+            CaptureContact(RawContactPhase::Persisted, bodyA, bodyB, manifold, settings);
+        }
+
+        void OnContactRemoved(const JPH::SubShapeIDPair& subShapePair) override
+        {
+            if (!_physicsBackend)
+                return;
+
+            CachedContactIdentity identity;
+            {
+                std::lock_guard lock(_contactMutex);
+                const auto it = _contactIdentities.find(subShapePair);
+                if (it == _contactIdentities.end())
+                    return;
+                identity = it->second;
+                _contactIdentities.erase(it);
+            }
+
+            RawContactPacket packet;
+            packet.phase = RawContactPhase::Removed;
+            packet.bodyA = identity.bodyA;
+            packet.bodyB = identity.bodyB;
+            packet.feature = identity.feature;
+            packet.isSensorPair = identity.isSensorPair;
+            _physicsBackend->PushRawContactPacket(packet);
+        }
+
+        void ClearCachedContacts()
+        {
+            std::lock_guard lock(_contactMutex);
+            _contactIdentities.clear();
+        }
+
+      private:
+        struct CachedContactIdentity
+        {
+            PhysicsBodyHandle bodyA = PhysicsBodyHandle::Invalid();
+            PhysicsBodyHandle bodyB = PhysicsBodyHandle::Invalid();
+            PhysicsContactFeatureKey feature;
+            bool isSensorPair = false;
+        };
+
+        void CaptureContact(RawContactPhase phase, const JPH::Body& bodyA, const JPH::Body& bodyB, const JPH::ContactManifold& manifold, const JPH::ContactSettings& settings)
         {
             if (!_physicsBackend)
                 return;
@@ -95,26 +145,52 @@ namespace ChikaEngine::Physics
             if (!handleA || !handleB)
                 return;
 
-            const JPH::RVec3 point = manifold.GetWorldSpaceContactPointOn1(0);
+            RawContactPacket packet;
+            packet.phase = phase;
+            packet.bodyA = handleA;
+            packet.bodyB = handleB;
+            packet.feature = {
+                .featureA = manifold.mSubShapeID1.GetValue(),
+                .featureB = manifold.mSubShapeID2.GetValue(),
+            };
+            packet.isSensorPair = settings.mIsSensor || bodyA.IsSensor() || bodyB.IsSensor();
+            packet.bodyAExists = true;
+            packet.bodyBExists = true;
+            packet.bodyAActive = bodyA.IsActive();
+            packet.bodyBActive = bodyB.IsActive();
+
             const JPH::Vec3 normal = manifold.mWorldSpaceNormal;
+            packet.contact.normal = Math::Vector3(normal.GetX(), normal.GetY(), normal.GetZ());
+            packet.contact.hasNormal = true;
+            packet.contact.penetration = manifold.mPenetrationDepth;
+            packet.contact.hasPenetration = true;
 
-            CollisionEvent eventA;
-            eventA.selfRigidbodyHandle = handleA;
-            eventA.otherRigidbodyHandle = handleB;
-            eventA.contactPoint = Math::Vector3(static_cast<float>(point.GetX()), static_cast<float>(point.GetY()), static_cast<float>(point.GetZ()));
-            eventA.contactNormal = Math::Vector3(normal.GetX(), normal.GetY(), normal.GetZ());
+            if (!manifold.mRelativeContactPointsOn1.empty())
+            {
+                const JPH::RVec3 point = manifold.GetWorldSpaceContactPointOn1(0);
+                packet.contact.point = Math::Vector3(static_cast<float>(point.GetX()), static_cast<float>(point.GetY()), static_cast<float>(point.GetZ()));
+                packet.contact.hasPoint = true;
+                const JPH::Vec3 relativeVelocity = bodyB.GetPointVelocity(point) - bodyA.GetPointVelocity(point);
+                packet.contact.relativeVelocity = Math::Vector3(relativeVelocity.GetX(), relativeVelocity.GetY(), relativeVelocity.GetZ());
+                packet.contact.hasRelativeVelocity = true;
+            }
 
-            CollisionEvent eventB = eventA;
-            eventB.selfRigidbodyHandle = handleB;
-            eventB.otherRigidbodyHandle = handleA;
-            eventB.contactNormal = Math::Vector3(-eventA.contactNormal.x, -eventA.contactNormal.y, -eventA.contactNormal.z);
-
-            _physicsBackend->PushEvent(eventA);
-            _physicsBackend->PushEvent(eventB);
+            const JPH::SubShapeIDPair subShapePair(bodyA.GetID(), manifold.mSubShapeID1, bodyB.GetID(), manifold.mSubShapeID2);
+            {
+                std::lock_guard lock(_contactMutex);
+                _contactIdentities[subShapePair] = CachedContactIdentity{
+                    .bodyA = handleA,
+                    .bodyB = handleB,
+                    .feature = packet.feature,
+                    .isSensorPair = packet.isSensorPair,
+                };
+            }
+            _physicsBackend->PushRawContactPacket(packet);
         }
 
-      private:
         PhysicsJoltBackend* _physicsBackend = nullptr;
+        std::mutex _contactMutex;
+        std::unordered_map<JPH::SubShapeIDPair, CachedContactIdentity> _contactIdentities;
     };
 
     PhysicsJoltBackend::PhysicsJoltBackend()
@@ -127,18 +203,66 @@ namespace ChikaEngine::Physics
         Shutdown();
     }
 
-    void PhysicsJoltBackend::PushEvent(const CollisionEvent& event)
+    void PhysicsJoltBackend::PushRawContactPacket(RawContactPacket packet)
     {
+        packet.fixedStepIndex = _currentFixedStepIndex.load(std::memory_order_relaxed);
+        packet.sequence = _nextContactSequence.fetch_add(1, std::memory_order_relaxed);
         std::lock_guard lock(_eventMutex);
-        _eventQueue.push_back(event);
+        _eventQueue.push_back(packet);
     }
 
-    std::vector<CollisionEvent> PhysicsJoltBackend::PollCollisionEvents()
+    std::vector<RawContactPacket> PhysicsJoltBackend::DrainRawContactPackets()
     {
-        std::lock_guard lock(_eventMutex);
-        std::vector<CollisionEvent> snapshot;
-        snapshot.swap(_eventQueue);
+        std::vector<RawContactPacket> snapshot;
+        {
+            std::lock_guard lock(_eventMutex);
+            snapshot.swap(_eventQueue);
+        }
+        for (RawContactPacket& packet : snapshot)
+        {
+            if (packet.phase == RawContactPhase::Removed)
+                EnrichRemovalState(packet);
+        }
         return snapshot;
+    }
+
+    void PhysicsJoltBackend::EnrichRemovalState(RawContactPacket& packet) const
+    {
+        std::uint32_t bodyIdA = JPH::BodyID::cInvalidBodyID;
+        std::uint32_t bodyIdB = JPH::BodyID::cInvalidBodyID;
+        {
+            std::lock_guard lock(_bodySetMutex);
+            const auto itA = _bodyIdByEngineHandle.find(packet.bodyA);
+            const auto itB = _bodyIdByEngineHandle.find(packet.bodyB);
+            if (itA != _bodyIdByEngineHandle.end())
+                bodyIdA = itA->second;
+            if (itB != _bodyIdByEngineHandle.end())
+                bodyIdB = itB->second;
+        }
+
+        const JPH::BodyID joltBodyA(bodyIdA);
+        const JPH::BodyID joltBodyB(bodyIdB);
+        packet.bodyAExists = _bodyInterface && bodyIdA != JPH::BodyID::cInvalidBodyID && _bodyInterface->IsAdded(joltBodyA);
+        packet.bodyBExists = _bodyInterface && bodyIdB != JPH::BodyID::cInvalidBodyID && _bodyInterface->IsAdded(joltBodyB);
+        packet.bodyAActive = packet.bodyAExists && _bodyInterface->IsActive(joltBodyA);
+        packet.bodyBActive = packet.bodyBExists && _bodyInterface->IsActive(joltBodyB);
+
+        if (!packet.bodyAExists || !packet.bodyBExists)
+        {
+            packet.removalState = RawContactRemovalState::BodyMissing;
+            return;
+        }
+        if (_physicsSystem && _physicsSystem->WereBodiesInContact(joltBodyA, joltBodyB))
+        {
+            packet.removalState = RawContactRemovalState::OtherContactActive;
+            return;
+        }
+        if (!packet.bodyAActive && !packet.bodyBActive)
+        {
+            packet.removalState = RawContactRemovalState::Deactivated;
+            return;
+        }
+        packet.removalState = RawContactRemovalState::Separated;
     }
 
     JPH::Ref<JPH::Shape> PhysicsJoltBackend::CreateShape(const ColliderShapeDesc& desc)
@@ -244,6 +368,8 @@ namespace ChikaEngine::Physics
             std::lock_guard lock(_eventMutex);
             _eventQueue.clear();
         }
+        _currentFixedStepIndex.store(0, std::memory_order_relaxed);
+        _nextContactSequence.store(1, std::memory_order_relaxed);
         _initialized = false;
         _runtimeLease.Reset();
         if (hadState)
@@ -270,6 +396,10 @@ namespace ChikaEngine::Physics
     void PhysicsJoltBackend::ClearBodies() noexcept
     {
         DestroyAllBodies();
+        if (_listener)
+            _listener->ClearCachedContacts();
+        std::lock_guard lock(_eventMutex);
+        _eventQueue.clear();
     }
 
     bool PhysicsJoltBackend::ResolveBodyId(PhysicsBackendBodyToken token, std::uint32_t& backendBodyId) const
@@ -308,6 +438,7 @@ namespace ChikaEngine::Physics
         {
             std::lock_guard lock(_bodySetMutex);
             _bodyIds.clear();
+            _bodyIdByEngineHandle.clear();
         }
     }
 
@@ -379,11 +510,12 @@ namespace ChikaEngine::Physics
         return true;
     }
 
-    bool PhysicsJoltBackend::Simulate(float fixedDeltaTime)
+    bool PhysicsJoltBackend::Simulate(float fixedDeltaTime, std::uint64_t fixedStepIndex)
     {
-        if (!_initialized || !_physicsSystem || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f)
+        if (!_initialized || !_physicsSystem || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f || fixedStepIndex == 0)
             return false;
 
+        _currentFixedStepIndex.store(fixedStepIndex, std::memory_order_relaxed);
         _physicsSystem->Update(fixedDeltaTime, 1, _tempAllocator.get(), _jobSystem.get());
         return true;
     }
@@ -461,7 +593,9 @@ namespace ChikaEngine::Physics
 
         {
             std::lock_guard lock(_bodySetMutex);
-            _bodyIds.insert(id.GetIndexAndSequenceNumber());
+            const std::uint32_t backendBodyId = id.GetIndexAndSequenceNumber();
+            _bodyIds.insert(backendBodyId);
+            _bodyIdByEngineHandle[engineHandle] = backendBodyId;
         }
 
         LOG_INFO("Physics", "Created body handle index={}, generation={}", engineHandle.Index(), engineHandle.Generation());
@@ -479,7 +613,15 @@ namespace ChikaEngine::Physics
             _bodyInterface->RemoveBody(id);
         _bodyInterface->DestroyBody(id);
         std::lock_guard lock(_bodySetMutex);
-        return _bodyIds.erase(backendBodyId) == 1;
+        const bool erased = _bodyIds.erase(backendBodyId) == 1;
+        for (auto it = _bodyIdByEngineHandle.begin(); it != _bodyIdByEngineHandle.end();)
+        {
+            if (it->second == backendBodyId)
+                it = _bodyIdByEngineHandle.erase(it);
+            else
+                ++it;
+        }
+        return erased;
     }
 
     bool PhysicsJoltBackend::TrySyncTransform(PhysicsBackendBodyToken token, PhysicsTransform& transform)

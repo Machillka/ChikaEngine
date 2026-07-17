@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -15,6 +16,47 @@
 
 namespace ChikaEngine::Physics
 {
+    namespace
+    {
+        void Negate(Math::Vector3& value) noexcept
+        {
+            value.x = -value.x;
+            value.y = -value.y;
+            value.z = -value.z;
+        }
+
+        PhysicsPairKey CanonicalizePacket(RawContactPacket& packet)
+        {
+            if (packet.bodyB.Value() < packet.bodyA.Value())
+            {
+                std::swap(packet.bodyA, packet.bodyB);
+                std::swap(packet.colliderA, packet.colliderB);
+                std::swap(packet.feature.featureA, packet.feature.featureB);
+                std::swap(packet.bodyAExists, packet.bodyBExists);
+                std::swap(packet.bodyAActive, packet.bodyBActive);
+                if (packet.contact.hasNormal)
+                    Negate(packet.contact.normal);
+                if (packet.contact.hasRelativeVelocity)
+                    Negate(packet.contact.relativeVelocity);
+            }
+            return PhysicsPairKey{
+                .bodyA = packet.bodyA,
+                .bodyB = packet.bodyB,
+                .colliderA = packet.colliderA,
+                .colliderB = packet.colliderB,
+            };
+        }
+
+        bool PairEventLess(const PhysicsPairEvent& lhs, const PhysicsPairEvent& rhs)
+        {
+            if (lhs.fixedStepIndex != rhs.fixedStepIndex)
+                return lhs.fixedStepIndex < rhs.fixedStepIndex;
+            if (lhs.phase != rhs.phase)
+                return lhs.phase < rhs.phase;
+            return lhs.pair < rhs.pair;
+        }
+    } // namespace
+
     PhysicsScene::PhysicsScene(const PhysicsSystemDesc& desc)
     {
         _initializationResult = Initialize(desc);
@@ -87,10 +129,14 @@ namespace ChikaEngine::Physics
         if (_backend)
         {
             _backend->ClearBodies();
-            (void)_backend->PollCollisionEvents();
+            (void)_backend->DrainRawContactPackets();
         }
         _bodyRegistry.Clear();
         _updatedTransforms.clear();
+        _contactPairs.clear();
+        _stagedPairEvents.clear();
+        _readyPairEvents.clear();
+        _fixedStepIndex = 0;
         std::lock_guard lock(_statisticsMutex);
         _lastExecutionTrace.clear();
     }
@@ -316,7 +362,17 @@ namespace ChikaEngine::Physics
 
     bool PhysicsScene::Simulate(float fixedDeltaTime)
     {
-        return IsInitialized() && _backend->Simulate(fixedDeltaTime);
+        if (!IsInitialized())
+            return false;
+
+        const std::uint64_t nextFixedStepIndex = _fixedStepIndex + 1;
+        if (!_backend->Simulate(fixedDeltaTime, nextFixedStepIndex))
+            return false;
+
+        _fixedStepIndex = nextFixedStepIndex;
+        ProcessRawContactPackets(_backend->DrainRawContactPackets());
+        PublishStagedPairEvents();
+        return true;
     }
 
     const std::vector<std::pair<Core::GameObjectID, PhysicsTransform>>& PhysicsScene::PollTransform()
@@ -333,6 +389,194 @@ namespace ChikaEngine::Physics
         }
 
         return _updatedTransforms;
+    }
+
+    std::vector<PhysicsPairEvent> PhysicsScene::DrainPairEvents()
+    {
+        std::vector<PhysicsPairEvent> events;
+        events.swap(_readyPairEvents);
+        return events;
+    }
+
+    void PhysicsScene::ProcessRawContactPackets(std::vector<RawContactPacket> packets)
+    {
+        {
+            std::lock_guard lock(_statisticsMutex);
+            _rawContactPackets += packets.size();
+        }
+
+        for (RawContactPacket& packet : packets)
+            (void)CanonicalizePacket(packet);
+
+        std::stable_sort(packets.begin(),
+                         packets.end(),
+                         [](const RawContactPacket& lhs, const RawContactPacket& rhs)
+                         {
+                             if (lhs.fixedStepIndex != rhs.fixedStepIndex)
+                                 return lhs.fixedStepIndex < rhs.fixedStepIndex;
+                             const PhysicsPairKey lhsKey{ .bodyA = lhs.bodyA, .bodyB = lhs.bodyB, .colliderA = lhs.colliderA, .colliderB = lhs.colliderB };
+                             const PhysicsPairKey rhsKey{ .bodyA = rhs.bodyA, .bodyB = rhs.bodyB, .colliderA = rhs.colliderA, .colliderB = rhs.colliderB };
+                             if (lhsKey != rhsKey)
+                                 return lhsKey < rhsKey;
+                             return lhs.sequence < rhs.sequence;
+                         });
+
+        for (const RawContactPacket& packet : packets)
+        {
+            if (!packet.bodyA || !packet.bodyB || packet.fixedStepIndex == 0)
+                continue;
+
+            const PhysicsPairKey key{
+                .bodyA = packet.bodyA,
+                .bodyB = packet.bodyB,
+                .colliderA = packet.colliderA,
+                .colliderB = packet.colliderB,
+            };
+
+            if (packet.phase != RawContactPhase::Removed)
+            {
+                const auto recordA = _bodyRegistry.Find(packet.bodyA);
+                const auto recordB = _bodyRegistry.Find(packet.bodyB);
+                if (!recordA || !recordB)
+                    continue;
+
+                auto [it, inserted] = _contactPairs.try_emplace(key);
+                ContactPairState& state = it->second;
+                if (inserted)
+                {
+                    state.key = key;
+                    state.gameObjectA = recordA->ownerId;
+                    state.gameObjectB = recordB->ownerId;
+                    state.kind = packet.isSensorPair ? PhysicsPairKind::Trigger : PhysicsPairKind::Collision;
+                    state.createdStep = packet.fixedStepIndex;
+                }
+                else if (packet.isSensorPair)
+                {
+                    state.kind = PhysicsPairKind::Trigger;
+                }
+
+                state.activeFeatures.insert(packet.feature);
+                MergeContactSample(state, packet);
+                QueuePairEvent(state, state.createdStep == packet.fixedStepIndex ? PhysicsPairPhase::Enter : PhysicsPairPhase::Stay, packet.fixedStepIndex);
+                continue;
+            }
+
+            const auto it = _contactPairs.find(key);
+            if (it == _contactPairs.end())
+                continue;
+
+            ContactPairState& state = it->second;
+            if (packet.removalState == RawContactRemovalState::Deactivated)
+            {
+                std::lock_guard lock(_statisticsMutex);
+                ++_suppressedDeactivationExits;
+                continue;
+            }
+
+            state.activeFeatures.erase(packet.feature);
+            if (packet.removalState == RawContactRemovalState::OtherContactActive)
+                continue;
+
+            if (packet.removalState == RawContactRemovalState::BodyMissing)
+            {
+                QueuePairEvent(state, PhysicsPairPhase::Exit, packet.fixedStepIndex, PhysicsPairTerminationReason::BodyDestroyed);
+                _contactPairs.erase(it);
+                continue;
+            }
+
+            if (state.activeFeatures.empty())
+            {
+                QueuePairEvent(state, PhysicsPairPhase::Exit, packet.fixedStepIndex, PhysicsPairTerminationReason::Separated);
+                _contactPairs.erase(it);
+            }
+        }
+    }
+
+    void PhysicsScene::MergeContactSample(ContactPairState& state, const RawContactPacket& packet)
+    {
+        if (state.lastSampleStep != packet.fixedStepIndex)
+        {
+            state.contact = packet.contact;
+            state.representativeFeature = packet.feature;
+            state.lastSampleStep = packet.fixedStepIndex;
+            return;
+        }
+
+        bool replace = false;
+        if (packet.contact.hasPenetration != state.contact.hasPenetration)
+            replace = packet.contact.hasPenetration;
+        else if (packet.contact.hasPenetration && packet.contact.penetration != state.contact.penetration)
+            replace = packet.contact.penetration > state.contact.penetration;
+        else
+            replace = packet.feature < state.representativeFeature;
+
+        if (replace)
+        {
+            state.contact = packet.contact;
+            state.representativeFeature = packet.feature;
+        }
+    }
+
+    void PhysicsScene::QueuePairEvent(const ContactPairState& state, PhysicsPairPhase phase, std::uint64_t fixedStepIndex, PhysicsPairTerminationReason terminationReason)
+    {
+        PhysicsPairEvent event{
+            .phase = phase,
+            .kind = state.kind,
+            .pair = state.key,
+            .gameObjectA = state.gameObjectA,
+            .gameObjectB = state.gameObjectB,
+            .contact = state.contact,
+            .terminationReason = terminationReason,
+            .hasContactData = state.contact.HasContactData(),
+            .fixedStepIndex = fixedStepIndex,
+        };
+        if (event.kind == PhysicsPairKind::Trigger)
+        {
+            event.contact.impulse = 0.0f;
+            event.contact.hasImpulse = false;
+        }
+
+        const auto duplicate = std::find_if(_stagedPairEvents.begin(), _stagedPairEvents.end(), [&event](const PhysicsPairEvent& candidate) { return candidate.fixedStepIndex == event.fixedStepIndex && candidate.phase == event.phase && candidate.pair == event.pair; });
+        if (duplicate != _stagedPairEvents.end())
+        {
+            *duplicate = event;
+            return;
+        }
+        _stagedPairEvents.push_back(event);
+    }
+
+    void PhysicsScene::StageBodyDestroyedExits(PhysicsBodyHandle handle, std::uint64_t fixedStepIndex)
+    {
+        for (const auto& [key, state] : _contactPairs)
+        {
+            if (key.bodyA == handle || key.bodyB == handle)
+                QueuePairEvent(state, PhysicsPairPhase::Exit, fixedStepIndex, PhysicsPairTerminationReason::BodyDestroyed);
+        }
+    }
+
+    void PhysicsScene::DiscardBodyDestroyedExits(PhysicsBodyHandle handle, std::uint64_t fixedStepIndex)
+    {
+        std::erase_if(_stagedPairEvents, [handle, fixedStepIndex](const PhysicsPairEvent& event) { return event.fixedStepIndex == fixedStepIndex && event.phase == PhysicsPairPhase::Exit && event.terminationReason == PhysicsPairTerminationReason::BodyDestroyed && (event.pair.bodyA == handle || event.pair.bodyB == handle); });
+    }
+
+    void PhysicsScene::EraseContactPairsForBody(PhysicsBodyHandle handle)
+    {
+        std::erase_if(_contactPairs, [handle](const auto& entry) { return entry.first.bodyA == handle || entry.first.bodyB == handle; });
+    }
+
+    void PhysicsScene::PublishStagedPairEvents()
+    {
+        if (_stagedPairEvents.empty())
+            return;
+
+        std::stable_sort(_stagedPairEvents.begin(), _stagedPairEvents.end(), PairEventLess);
+        {
+            std::lock_guard lock(_statisticsMutex);
+            _emittedPairEvents += _stagedPairEvents.size();
+        }
+        _readyPairEvents.insert(_readyPairEvents.end(), std::make_move_iterator(_stagedPairEvents.begin()), std::make_move_iterator(_stagedPairEvents.end()));
+        _stagedPairEvents.clear();
+        std::stable_sort(_readyPairEvents.begin(), _readyPairEvents.end(), PairEventLess);
     }
 
     bool PhysicsScene::SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3& velocity)
@@ -435,12 +679,16 @@ namespace ChikaEngine::Physics
 
         // The old record remains authoritative until create-new succeeds.
         // If retiring old fails, roll back the new backend Body and reservation.
+        const std::uint64_t removalStep = _fixedStepIndex + 1;
+        StageBodyDestroyedExits(oldRecord->handle, removalStep);
         if (!_backend->DestroyPhysicsBody(oldRecord->backendToken))
         {
+            DiscardBodyDestroyedExits(oldRecord->handle, removalStep);
             (void)_backend->DestroyPhysicsBody(backendResult.token);
             (void)_bodyRegistry.CancelReservation(newHandle);
             return PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Failed to retire the previous physics body during rebuild");
         }
+        EraseContactPairsForBody(oldRecord->handle);
 
         const PhysicsBodyRecord replacement{
             .handle = newHandle,
@@ -471,8 +719,14 @@ namespace ChikaEngine::Physics
             return PhysicsResult::Failure(PhysicsStatus::InvalidHandle, "Physics destroy command references a stale body");
         }
 
+        const std::uint64_t removalStep = _fixedStepIndex + 1;
+        StageBodyDestroyedExits(record->handle, removalStep);
         if (!_backend->DestroyPhysicsBody(record->backendToken))
+        {
+            DiscardBodyDestroyedExits(record->handle, removalStep);
             return PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Physics backend failed to destroy body");
+        }
+        EraseContactPairsForBody(record->handle);
         if (!_bodyRegistry.Remove(record->handle))
             return PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Physics registry failed to remove destroyed body");
         return PhysicsResult::Ok();
@@ -610,6 +864,8 @@ namespace ChikaEngine::Physics
         const PhysicsCommandBufferStatistics commandStats = _commandBuffer.GetStatistics();
         const std::size_t activeBodies = _bodyRegistry.ActiveCount();
         const std::size_t backendBodies = _backend ? _backend->GetBodyCount() : 0;
+        const std::size_t activeContactPairs = _contactPairs.size();
+        const std::size_t pendingPairEvents = _stagedPairEvents.size() + _readyPairEvents.size();
         std::lock_guard lock(_statisticsMutex);
         return PhysicsSceneStatistics{
             .commandCapacity = commandStats.capacity,
@@ -623,6 +879,11 @@ namespace ChikaEngine::Physics
             .staleCommands = _staleCommands,
             .coalescedCommands = _coalescedCommands,
             .clearedCommands = commandStats.clearedCommands,
+            .activeContactPairs = activeContactPairs,
+            .pendingPairEvents = pendingPairEvents,
+            .rawContactPackets = _rawContactPackets,
+            .emittedPairEvents = _emittedPairEvents,
+            .suppressedDeactivationExits = _suppressedDeactivationExits,
         };
     }
 

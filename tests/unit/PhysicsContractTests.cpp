@@ -1,5 +1,6 @@
 #include "ChikaEngine/IPhysicsBackend.h"
 #include "ChikaEngine/PhysicsDescs.h"
+#include "ChikaEngine/PhysicsEvents.hpp"
 #include "ChikaEngine/PhysicsHandles.hpp"
 #include "ChikaEngine/PhysicsCommandBuffer.hpp"
 #include "ChikaEngine/PhysicsRuntime.hpp"
@@ -50,6 +51,8 @@ namespace
     {
         static_assert(!std::is_same_v<Physics::PhysicsBodyHandle, Physics::PhysicsColliderHandle>);
         static_assert(std::is_trivially_copyable_v<Physics::PhysicsBodyHandle>);
+        static_assert(std::is_trivially_copyable_v<Physics::RawContactPacket>);
+        static_assert(std::is_trivially_copyable_v<Physics::PhysicsPairEvent>);
         static_assert(!std::is_constructible_v<Physics::PhysicsBodyHandle, std::uint64_t>);
         static_assert(!std::is_convertible_v<std::uint64_t, Physics::PhysicsBodyHandle>);
         static_assert(!std::is_same_v<Physics::PhysicsBodyHandle, Physics::PhysicsBackendBodyToken>);
@@ -85,11 +88,13 @@ namespace
         Check(bodyDesc.motionType == Physics::MotionType::Dynamic, "default body motion is Dynamic");
         Check(bodyDesc.layer == 0 && bodyDesc.collisionMask == Physics::PHYSICS_LAYER_MASK_ALL, "default body participates in the full collision mask");
 
-        const Physics::CollisionEvent event;
+        const Physics::RawContactPacket rawContact;
+        const Physics::PhysicsPairEvent pairEvent;
         const Physics::RaycastHit hit;
         const Physics::PhysicsVelocityCommand velocity;
         const Physics::PhysicsImpulseCommand impulse;
-        Check(!event.selfRigidbodyHandle && !event.otherRigidbodyHandle, "collision events default to invalid strong handles");
+        Check(!rawContact.bodyA && !rawContact.bodyB && rawContact.removalState == Physics::RawContactRemovalState::NotApplicable, "raw contact packets default to invalid strong handles and no removal classification");
+        Check(!pairEvent.pair.bodyA && !pairEvent.pair.bodyB && !pairEvent.hasContactData && pairEvent.terminationReason == Physics::PhysicsPairTerminationReason::None, "pair events default to an empty canonical contract");
         Check(!hit.bodyHandle && !hit.hasHit, "raycast results default to a miss with an invalid handle");
         Check(!velocity.target.handle && !impulse.target.handle, "deferred body commands default to invalid handles");
     }

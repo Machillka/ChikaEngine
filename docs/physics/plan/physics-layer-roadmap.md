@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: In Progress（M0 Stabilize Complete）
+- Status: In Progress（M0 Complete，M1 Step 1.1 Complete）
 - Planning date: 2026-07-16
 - Scope: Runtime Physics / Framework / Editor / Test / Docs
 - Backend baseline: Jolt Physics
@@ -38,21 +38,23 @@ authoring components
 - Jolt 后端支持 Static、Kinematic、Dynamic Body。
 - Scene 已使用可配置 `fixedDeltaTime` 和 `maxPhysicsStepsPerFrame` 驱动物理固定步长。
 - 已有 Box、Sphere 创建路径，以及速度、冲量、Transform 回写和 closest Raycast。
-- 后端已接入 Jolt `ContactListener`，并使用互斥队列收集 `OnContactAdded`。
+- 后端已将 Jolt Added/Persisted/Removed 转换为线程安全 `RawContactPacket`，Removed 使用 callback 前缓存 identity，并在 Update 后补充 removal state。
+- `PhysicsScene` 已维护 canonical pair cache，按 fixed-step/sub-shape 去重，输出稳定排序的 Collision/Trigger Enter、Stay、Exit。
+- Body destroy/rebuild、真实分离和 sleep/deactivation 已形成不同 cleanup 语义；销毁不会重复 Exit，sleep 不产生伪 Exit。
 - 已存在 32-bit layer mask 基础设施与 Scene `EventBus`。
 
 ### Gaps to close
 
-1. `PollCollisionEvents()` 没有被 `PhysicsScene` 或 `PhysicsSubsystem` 消费，碰撞不会到达 GameObject、Component 或 Script。
-2. `OnContactPersisted`、`OnContactRemoved` 为空，无法表达 Enter/Stay/Exit；Trigger 也没有独立语义。
-3. Jolt 回调发生在物理工作线程且 Body 被锁定，当前还缺少“只采集、模拟后主线程归一化”的正式边界。
-4. 原始事件只保存 Body Handle，缺少稳定 Collider ID、GameObject ID、事件阶段、Trigger 类型和销毁时语义。
+1. `PhysicsSubsystem` 尚未 drain `PhysicsPairEvent`，Collision/Trigger 还不会到达 Scene EventBus、GameObject、Component 或 Script；由 Step 1.2 完成。
+2. canonical pair 到 A/B self-oriented callback view、disabled receiver、callback mutation 和 script exception 规则尚未实现；由 Step 1.2 完成。
+3. GameObject ID 已稳定缓存，但 Collider Handle 在独立 Collider authoring 落地前仍是 invalid 占位；由 Step 2.1 完成。
+4. Added/Persisted 可提供 pre-solver relative velocity；真实 solver impulse 尚无 post-solve provider，因此契约明确标记 unavailable。
 5. `Rigidbody` 同时保存碰撞形状和动力学属性；没有独立 Collider，也无法自然表达静态碰撞体。
 6. Capsule 枚举存在但后端未创建 Capsule；center、scale、`_colliderOffset` 和每 Body `collisionMask` 没有形成完整行为。
-7. Runtime RAII、generation-safe Handle、Body registry 与 fixed-step command buffer 已由 Step 0.1/0.2 完成；下一阶段需要把 Body 销毁与 contact pair cleanup/Exit 语义接通。
+7. Runtime RAII、generation-safe Handle、Body registry、fixed-step command buffer 与 Scene contact state 已由 Step 0.1/0.2/1.1 完成；下一阶段需要把 canonical event 接到 gameplay 广播。
 8. Dynamic、Kinematic、Static 的 Transform 权威方向不完整；没有插值、Kinematic target 和正式 Teleport 语义。
 9. 查询只有 closest Raycast，没有 query filter、multi-hit、overlap、shape cast、ignore self 或 Trigger 策略。
-10. 缺少物理集成测试、事件顺序测试、层矩阵测试、资源泄漏门禁和可视化调试。
+10. 已有 lifecycle/contact 集成测试；层矩阵、广播 mutation、长期资源泄漏门禁和可视化调试仍缺少。
 
 ## Architecture Decisions
 
@@ -73,7 +75,7 @@ authoring components
 2. `PhysicsSubsystem::PreStep()` 刷新生命周期与 Transform 命令。
 3. `PhysicsScene::Simulate()` 调用后端。
 4. `PhysicsSubsystem::SyncTransforms()` 只回写 Dynamic Body，并准备渲染插值状态。
-5. `PhysicsScene::DrainContactEvents()` 将后端 raw contact 归一化为 Enter/Stay/Exit。
+5. `PhysicsScene::Simulate()` 在 backend Update 返回后归一化 raw contact；`PhysicsScene::DrainPairEvents()` 取出已经稳定排序的 Enter/Stay/Exit。
 6. `PhysicsSubsystem::DispatchEvents()` 在主线程广播 Collision/Trigger 消息。
 7. 普通 `Update` 和 `LateUpdate` 才开始运行。
 
@@ -123,7 +125,7 @@ authoring components
 
 1. Step 0.1：冻结公共契约和 Runtime ownership。**已完成（2026-07-16）**
 2. Step 0.2：修复 Body lifecycle、Handle 和 command buffer。**已完成（2026-07-16）**
-3. Step 1.1：建立 raw contact 到稳定 pair state 的转换。
+3. Step 1.1：建立 raw contact 到稳定 pair state 的转换。**已完成（2026-07-16）**
 4. Step 1.2：接入 Scene EventBus、Component 和 Script 回调。
 5. Step 2.1：拆分 Collider/Rigidbody，并迁移序列化与 Editor。
 6. Step 2.2：完成 Transform authority、插值和常用运动方法。
