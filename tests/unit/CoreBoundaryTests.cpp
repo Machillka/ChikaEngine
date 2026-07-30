@@ -1,6 +1,7 @@
 #include "ChikaEngine/base/FixedStepAccumulator.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/Collider.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
 #include "ChikaEngine/event/EventBus.hpp"
@@ -137,11 +138,14 @@ namespace
 
     void TestRigidbodyDefaults()
     {
+        ChikaEngine::Framework::Collider collider;
         ChikaEngine::Framework::Rigidbody rigidbody;
-        Check(NearlyEqual(rigidbody.GetColliderRadius(), 0.5f), "rigidbody radius default");
-        Check(NearlyEqual(rigidbody.GetColliderHeight(), 1.0f), "rigidbody height default");
+        Check(collider.GetShapeType() == ChikaEngine::Physics::ColliderShapeType::Box, "collider shape default");
+        Check(NearlyEqual(collider.GetRadius(), 0.5f), "collider radius default");
+        Check(NearlyEqual(collider.GetHeight(), 1.0f), "collider height default");
+        Check(NearlyEqual(collider.GetFriction(), 0.5f), "collider friction default");
         Check(NearlyEqual(rigidbody.GetMass(), 1.0f), "rigidbody mass default");
-        Check(NearlyEqual(rigidbody.GetFriction(), 0.5f), "rigidbody friction default");
+        Check(rigidbody.GetMotionType() == ChikaEngine::Physics::MotionType::Dynamic, "rigidbody motion default");
     }
 
     void TestCompleteComponentLifecycle()

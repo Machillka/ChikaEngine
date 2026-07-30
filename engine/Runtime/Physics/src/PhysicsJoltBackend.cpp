@@ -10,8 +10,11 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/Body.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
+#include <Jolt/Physics/Body/BodyFilter.h>
+#include <Jolt/Physics/Body/AllowedDOFs.h>
 #include <Jolt/Physics/Collision/Shape/Shape.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include "Jolt/Math/Quat.h"
@@ -79,6 +82,22 @@ namespace ChikaEngine::Physics
             }
             return JPH::EActivation::Activate;
         }
+
+        class QueryEnabledBodyFilter final : public JPH::BodyFilter
+        {
+          public:
+            QueryEnabledBodyFilter(const std::unordered_set<std::uint32_t>& disabledBodyIds, std::mutex& mutex) : _disabledBodyIds(disabledBodyIds), _mutex(mutex) {}
+
+            bool ShouldCollide(const JPH::BodyID& bodyId) const override
+            {
+                std::lock_guard lock(_mutex);
+                return !_disabledBodyIds.contains(bodyId.GetIndexAndSequenceNumber());
+            }
+
+          private:
+            const std::unordered_set<std::uint32_t>& _disabledBodyIds;
+            std::mutex& _mutex;
+        };
     } // namespace
 
     class PhysicsJoltBackend::JoltBackendContactListener final : public JPH::ContactListener
@@ -267,6 +286,21 @@ namespace ChikaEngine::Physics
 
     JPH::Ref<JPH::Shape> PhysicsJoltBackend::CreateShape(const ColliderShapeDesc& desc)
     {
+        auto applyCenter = [&desc](JPH::Ref<JPH::Shape> shape) -> JPH::Ref<JPH::Shape>
+        {
+            if (!shape || (desc.center.x == 0.0f && desc.center.y == 0.0f && desc.center.z == 0.0f))
+                return shape;
+
+            JPH::RotatedTranslatedShapeSettings settings(JPH::Vec3(desc.center.x, desc.center.y, desc.center.z), JPH::Quat::sIdentity(), shape.GetPtr());
+            auto result = settings.Create();
+            if (result.HasError())
+            {
+                LOG_ERROR("Physics", "Unable to apply Collider center offset: {}", result.GetError());
+                return nullptr;
+            }
+            return result.Get();
+        };
+
         switch (desc.type)
         {
         case ColliderShapeType::Box:
@@ -280,7 +314,7 @@ namespace ChikaEngine::Physics
                 return nullptr;
             }
             JPH::Ref<JPH::Shape> shape = res.Get();
-            return shape;
+            return applyCenter(shape);
         }
 
         case ColliderShapeType::Sphere:
@@ -293,7 +327,7 @@ namespace ChikaEngine::Physics
                 return nullptr;
             }
             JPH::Ref<JPH::Shape> shape = res.Get();
-            return shape;
+            return applyCenter(shape);
         }
         case ColliderShapeType::Capsule:
             return nullptr;
@@ -389,7 +423,7 @@ namespace ChikaEngine::Physics
             .capsuleShape = false,
             .closestRaycast = true,
             .constraints = false,
-            .continuousCollisionDetection = false,
+            .continuousCollisionDetection = true,
         };
     }
 
@@ -438,6 +472,7 @@ namespace ChikaEngine::Physics
         {
             std::lock_guard lock(_bodySetMutex);
             _bodyIds.clear();
+            _queryDisabledBodyIds.clear();
             _bodyIdByEngineHandle.clear();
         }
     }
@@ -547,7 +582,8 @@ namespace ChikaEngine::Physics
             return { .result = PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics body layer must be in [0, 31]") };
         if (!GetCapabilities().SupportsShape(desc.shapeDesc.type))
             return { .result = PhysicsResult::Failure(PhysicsStatus::UnsupportedFeature, "Requested collider shape is not implemented by the Jolt adapter") };
-        if (!IsFinite(desc.position) || !IsFinite(desc.rotation) || !IsNormalized(desc.rotation) || !IsValidShape(desc.shapeDesc) || !std::isfinite(desc.mass) || !std::isfinite(desc.friction) || !std::isfinite(desc.restitution) || desc.mass <= 0.0f || desc.friction < 0.0f || desc.restitution < 0.0f || desc.restitution > 1.0f)
+        if (!IsFinite(desc.position) || !IsFinite(desc.rotation) || !IsNormalized(desc.rotation) || !IsValidShape(desc.shapeDesc) || !std::isfinite(desc.mass) || !std::isfinite(desc.friction) || !std::isfinite(desc.restitution) || !std::isfinite(desc.linearDamping) || !std::isfinite(desc.angularDamping) || !std::isfinite(desc.gravityFactor) || desc.mass <= 0.0f || desc.friction < 0.0f || desc.restitution < 0.0f || desc.restitution > 1.0f || desc.linearDamping < 0.0f ||
+            desc.angularDamping < 0.0f || desc.axisLockMask > PhysicsAxisLockAll || (desc.motionType != MotionType::Static && desc.axisLockMask == PhysicsAxisLockAll))
             return { .result = PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics body descriptor contains invalid numeric values") };
 
         using namespace JPH;
@@ -576,12 +612,15 @@ namespace ChikaEngine::Physics
 
         if (desc.motionType != MotionType::Static)
         {
+            settings.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
             settings.mMassPropertiesOverride.mMass = desc.mass;
             settings.mAllowDynamicOrKinematic = true;
-
-            // NOTE: 此处加上一点线形阻尼 防止乱飘
-            settings.mLinearDamping = 0.05f;
-            settings.mAngularDamping = 0.05f;
+            settings.mLinearDamping = desc.linearDamping;
+            settings.mAngularDamping = desc.angularDamping;
+            settings.mGravityFactor = desc.gravityFactor;
+            settings.mAllowSleeping = desc.allowSleeping;
+            settings.mMotionQuality = desc.continuousCollisionDetection ? EMotionQuality::LinearCast : EMotionQuality::Discrete;
+            settings.mAllowedDOFs = static_cast<EAllowedDOFs>(static_cast<std::uint8_t>(PhysicsAxisLockAll) & static_cast<std::uint8_t>(~desc.axisLockMask));
         }
 
         settings.mIsSensor = desc.isTrigger;
@@ -595,6 +634,8 @@ namespace ChikaEngine::Physics
             std::lock_guard lock(_bodySetMutex);
             const std::uint32_t backendBodyId = id.GetIndexAndSequenceNumber();
             _bodyIds.insert(backendBodyId);
+            if (!desc.queryEnabled)
+                _queryDisabledBodyIds.insert(backendBodyId);
             _bodyIdByEngineHandle[engineHandle] = backendBodyId;
         }
 
@@ -614,6 +655,7 @@ namespace ChikaEngine::Physics
         _bodyInterface->DestroyBody(id);
         std::lock_guard lock(_bodySetMutex);
         const bool erased = _bodyIds.erase(backendBodyId) == 1;
+        _queryDisabledBodyIds.erase(backendBodyId);
         for (auto it = _bodyIdByEngineHandle.begin(); it != _bodyIdByEngineHandle.end();)
         {
             if (it->second == backendBodyId)
@@ -668,7 +710,8 @@ namespace ChikaEngine::Physics
         const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), castDirection);
         JPH::RayCastResult hit;
         const JPH::NarrowPhaseQuery& query = _physicsSystem->GetNarrowPhaseQuery();
-        if (query.CastRay(ray, hit))
+        QueryEnabledBodyFilter bodyFilter(_queryDisabledBodyIds, _bodySetMutex);
+        if (query.CastRay(ray, hit, {}, {}, bodyFilter))
         {
             JPH::BodyLockRead lock(_physicsSystem->GetBodyLockInterface(), hit.mBodyID);
             if (lock.Succeeded())

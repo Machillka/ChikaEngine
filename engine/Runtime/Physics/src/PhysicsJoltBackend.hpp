@@ -70,6 +70,7 @@ namespace ChikaEngine::Physics
 
         mutable std::mutex _bodySetMutex;
         std::unordered_set<std::uint32_t> _bodyIds;
+        std::unordered_set<std::uint32_t> _queryDisabledBodyIds;
         std::unordered_map<PhysicsBodyHandle, std::uint32_t, PhysicsHandleHash> _bodyIdByEngineHandle;
 
         std::mutex _eventMutex;

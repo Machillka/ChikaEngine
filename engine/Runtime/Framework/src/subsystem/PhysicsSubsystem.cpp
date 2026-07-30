@@ -1,12 +1,56 @@
 #include "ChikaEngine/subsystem/PhysicsSubsystem.h"
+#include "ChikaEngine/PhysicsCallbackEvents.hpp"
 #include "ChikaEngine/PhysicsScene.h"
-#include <memory>
+#include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/debug/log_macros.h"
-#include "ChikaEngine/scene/scene.hpp"
 #include "ChikaEngine/profiler/ProfilerMacros.hpp"
+#include "ChikaEngine/scene/scene.hpp"
+
+#include <memory>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 namespace ChikaEngine::Framework
 {
+    namespace
+    {
+        void Negate(Math::Vector3& value) noexcept
+        {
+            value.x = -value.x;
+            value.y = -value.y;
+            value.z = -value.z;
+        }
+
+        PhysicsContactEvent ProjectOwnerView(const Physics::PhysicsPairEvent& event, bool selfIsA, bool selfAlive, bool otherAlive)
+        {
+            PhysicsContactEvent view{
+                .phase = event.phase,
+                .kind = event.kind,
+                .selfBody = selfIsA ? event.pair.bodyA : event.pair.bodyB,
+                .otherBody = selfIsA ? event.pair.bodyB : event.pair.bodyA,
+                .selfCollider = selfIsA ? event.pair.colliderA : event.pair.colliderB,
+                .otherCollider = selfIsA ? event.pair.colliderB : event.pair.colliderA,
+                .selfGameObject = selfIsA ? event.gameObjectA : event.gameObjectB,
+                .otherGameObject = selfIsA ? event.gameObjectB : event.gameObjectA,
+                .contact = event.contact,
+                .terminationReason = event.terminationReason,
+                .hasContactData = event.hasContactData,
+                .selfAlive = selfAlive,
+                .otherAlive = otherAlive,
+                .fixedStepIndex = event.fixedStepIndex,
+            };
+            if (!selfIsA)
+            {
+                if (view.contact.hasNormal)
+                    Negate(view.contact.normal);
+                if (view.contact.hasRelativeVelocity)
+                    Negate(view.contact.relativeVelocity);
+            }
+            return view;
+        }
+    } // namespace
+
     PhysicsSubsystem::PhysicsSubsystem(Scene* scene) : _ownerScene(scene)
     {
 
@@ -107,6 +151,40 @@ namespace ChikaEngine::Framework
 
             // LOG_INFO("Sync Transform", "ID = {}, originY: {}, phyY: {}", goId, go->transform->position.y, physicsTransform.pos.y);
             go->transform->SetWorldPositionAndRotation(physicsTransform.pos, physicsTransform.rot);
+        }
+    }
+
+    void PhysicsSubsystem::DispatchEvents()
+    {
+        CHIKA_PROFILE_SCOPE("Physics.DispatchEvents");
+        if (!_physics || !_ownerScene)
+            return;
+
+        const std::vector<Physics::PhysicsPairEvent> events = _physics->DrainPairEvents();
+        for (const Physics::PhysicsPairEvent& event : events)
+        {
+            auto resolveParticipant = [this](Core::GameObjectID gameObjectId, Physics::PhysicsBodyHandle bodyHandle)
+            {
+                GameObject* gameObject = _ownerScene->GetGameObject(gameObjectId);
+                const bool alive = gameObject && !gameObject->IsPendingDestroy() && _physics->HasBody(bodyHandle);
+                return std::pair<GameObject*, bool>{ gameObject, alive };
+            };
+
+            auto [gameObjectA, aliveA] = resolveParticipant(event.gameObjectA, event.pair.bodyA);
+            auto [gameObjectB, aliveB] = resolveParticipant(event.gameObjectB, event.pair.bodyB);
+            const PhysicsContactEvent viewA = ProjectOwnerView(event, true, aliveA, aliveB);
+            if (aliveA)
+                gameObjectA->DispatchPhysicsEvent(viewA);
+
+            // A-side callbacks may destroy/disable B. Re-resolve before B-side
+            // dispatch so a pending-destroy participant never receives a callback.
+            std::tie(gameObjectA, aliveA) = resolveParticipant(event.gameObjectA, event.pair.bodyA);
+            std::tie(gameObjectB, aliveB) = resolveParticipant(event.gameObjectB, event.pair.bodyB);
+            const PhysicsContactEvent viewB = ProjectOwnerView(event, false, aliveB, aliveA);
+            if (aliveB)
+                gameObjectB->DispatchPhysicsEvent(viewB);
+
+            _ownerScene->GetEventBus().Publish(event);
         }
     }
 } // namespace ChikaEngine::Framework

@@ -192,6 +192,7 @@ namespace ChikaEngine::Framework
                                         {
                                             _physicsSubsystem->Tick(fixedDeltaTime);
                                             _physicsSubsystem->SyncTransform();
+                                            _physicsSubsystem->DispatchEvents();
                                         }
                                     });
 

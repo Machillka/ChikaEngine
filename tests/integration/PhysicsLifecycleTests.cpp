@@ -1,6 +1,7 @@
 #include "ChikaEngine/PhysicsCommandBuffer.hpp"
 #include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/base/UIDGenerator.h"
+#include "ChikaEngine/component/Collider.hpp"
 #include "ChikaEngine/component/Rigidbody.hpp"
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/reflection/TypeRegister.h"
@@ -80,7 +81,7 @@ namespace
 
         const Physics::PhysicsBodyHandle firstHandle = scene.GetBodyHandle(bodyA.ownerId);
         const auto firstRecord = scene.GetBodyRecord(firstHandle);
-        Check(firstHandle && firstRecord && firstRecord->backendToken && !firstRecord->colliderHandle && firstRecord->ownerId == bodyA.ownerId && firstRecord->motionType == Physics::MotionType::Dynamic && firstRecord->active, "registry stores engine handle, backend token, owner, Collider placeholder, motion type and active state");
+        Check(firstHandle && firstRecord && firstRecord->backendToken && firstRecord->colliderHandle && firstRecord->ownerId == bodyA.ownerId && firstRecord->motionType == Physics::MotionType::Dynamic && firstRecord->active, "registry stores engine handle, backend token, owner, Collider identity, motion type and active state");
         Check(scene.GetStatistics().activeBodies == 1 && scene.GetStatistics().backendBodies == 1 && scene.GetStatistics().pendingCommands == 0, "Scene and backend body counts match after deferred create");
         CheckTrace(scene.GetLastCommandExecutionTrace(), { Physics::PhysicsCommandType::Create, Physics::PhysicsCommandType::Velocity }, "create executes before velocity regardless of enqueue dependency");
 
@@ -109,6 +110,8 @@ namespace
         scene.Tick(1.0f / 60.0f);
         const Physics::PhysicsBodyHandle rebuiltHandle = scene.GetBodyHandle(bodyA.ownerId);
         Check(rebuiltHandle && rebuiltHandle != firstHandle && !scene.HasBody(firstHandle) && scene.HasBody(rebuiltHandle), "successful rebuild retires old Handle and commits a new generation");
+        const auto rebuiltRecord = scene.GetBodyRecord(rebuiltHandle);
+        Check(rebuiltRecord && rebuiltRecord->colliderHandle == firstRecord->colliderHandle, "rebuild preserves Collider identity while replacing Body identity");
         Check(scene.GetStatistics().activeBodies == 1 && scene.GetStatistics().backendBodies == 1, "rebuild transaction never leaves duplicate active bodies");
 
         const auto bodyB = MakeBody(102);
@@ -186,12 +189,13 @@ namespace
         scene.Initialize({});
         const ChikaEngine::Core::GameObjectID ownerId = scene.CreateGameobject("PhysicsLifecycleOwner");
         Framework::GameObject* owner = scene.GetGameObject(ownerId);
+        auto* collider = owner ? owner->AddComponent<Framework::Collider>() : nullptr;
         auto* rigidbody = owner ? owner->AddComponent<Framework::Rigidbody>() : nullptr;
-        Check(rigidbody != nullptr, "Framework fixture creates Rigidbody");
+        Check(collider && rigidbody, "Framework fixture creates Collider and Rigidbody");
         Check(scene.GetPhysicsSubsystem()->GetStatistics().activeBodies == 0 && scene.GetPhysicsSubsystem()->GetStatistics().pendingCommands == 0, "Rigidbody authoring in Edit mode does not create runtime physics state");
 
         Check(scene.StartPlayMode(), "Framework fixture enters Play mode");
-        Check(scene.GetPhysicsSubsystem()->GetStatistics().pendingCommands == 1, "Rigidbody Start queues deferred create");
+        Check(scene.GetPhysicsSubsystem()->GetStatistics().pendingCommands >= 1, "Collider/Rigidbody Start queues deferred create intent");
         owner->SetActive(false);
         scene.Tick(1.0f / 60.0f);
         Check(scene.GetPhysicsSubsystem()->GetStatistics().activeBodies == 0 && scene.GetPhysicsSubsystem()->GetStatistics().backendBodies == 0, "create followed by disable before PreStep preserves the final disabled intent");

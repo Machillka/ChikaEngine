@@ -28,6 +28,12 @@ namespace ChikaEngine::Debug
         /** @brief 绘制具有任意旋转的线框 Box。 */
         static void DrawWireBox(const Math::Vector3& center, const Math::Vector3& halfExtents, const Math::Quaternion& rotation, const Math::Vector4& color = { 0.0f, 1.0f, 0.0f, 1.0f });
 
+        /** @brief 绘制世界空间线框 Sphere。 */
+        static void DrawWireSphere(const Math::Vector3& center, float radius, const Math::Quaternion& rotation = Math::Quaternion::Identity(), const Math::Vector4& color = { 0.0f, 1.0f, 0.0f, 1.0f });
+
+        /** @brief 绘制以本地 Y 轴为主轴、height 表示圆柱段高度的线框 Capsule。 */
+        static void DrawWireCapsule(const Math::Vector3& center, float radius, float height, const Math::Quaternion& rotation = Math::Quaternion::Identity(), const Math::Vector4& color = { 0.0f, 1.0f, 0.0f, 1.0f });
+
         /** @brief 绘制世界空间轴对齐包围盒。 */
         static void DrawWireAABB(const Math::Vector3& center, const Math::Vector3& halfExtents, const Math::Vector4& color = { 0.0f, 1.0f, 0.0f, 1.0f });
 

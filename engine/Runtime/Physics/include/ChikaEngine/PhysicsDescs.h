@@ -86,6 +86,18 @@ namespace ChikaEngine::Physics
         Capsule,
     };
 
+    enum PhysicsAxisLock : std::uint8_t
+    {
+        PhysicsAxisLockNone = 0,
+        PhysicsAxisLockTranslationX = 1u << 0u,
+        PhysicsAxisLockTranslationY = 1u << 1u,
+        PhysicsAxisLockTranslationZ = 1u << 2u,
+        PhysicsAxisLockRotationX = 1u << 3u,
+        PhysicsAxisLockRotationY = 1u << 4u,
+        PhysicsAxisLockRotationZ = 1u << 5u,
+        PhysicsAxisLockAll = (1u << 6u) - 1u,
+    };
+
     struct PhysicsBackendCapabilities
     {
         bool boxShape = false;
@@ -152,6 +164,13 @@ namespace ChikaEngine::Physics
         float restitution = 0.0f;
         PhysicsLayerID layer = 0;
         PhysicsLayerMask collisionMask = PHYSICS_LAYER_MASK_ALL;
+        float linearDamping = 0.05f;
+        float angularDamping = 0.05f;
+        float gravityFactor = 1.0f;
+        std::uint8_t axisLockMask = PhysicsAxisLockNone;
+        bool continuousCollisionDetection = false;
+        bool allowSleeping = true;
+        bool queryEnabled = true;
     };
 
     struct PhysicsBodyCreateResult
@@ -179,6 +198,7 @@ namespace ChikaEngine::Physics
     struct RaycastHit
     {
         PhysicsBodyHandle bodyHandle = PhysicsBodyHandle::Invalid();
+        PhysicsColliderHandle colliderHandle = PhysicsColliderHandle::Invalid();
         Core::GameObjectID gameObjectId = Core::InvalidGameObjectID;
         float distance = 0.0f;
         Math::Vector3 point;

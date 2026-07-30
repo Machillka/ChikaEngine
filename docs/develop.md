@@ -14,6 +14,101 @@
 
 ---
 
+## 2026-07-30 - 完成 Physics Step 2.1 Collider / Rigidbody Authoring
+
+### Metadata
+
+- Area: Physics / Framework / Editor / Serialization / Test / Docs
+- Status: Complete
+
+### Goal
+
+把碰撞几何与刚体动力学从旧 `Rigidbody` 单组件中拆开，形成 Collider-owned Body lifecycle 与 Rigidbody dynamics overlay，并让旧 Scene、Inspector、Gizmo、contact/query identity 和自动化测试形成完整闭环。
+
+### Changes
+
+- 新增 `Collider.hpp/.cpp`：承载 Box/Sphere/Capsule authoring、center、尺寸、Trigger、layer、friction/restitution、profile/material 名称与 query participation；没有 Rigidbody 时创建 Static Body。
+- 重写 `Rigidbody.hpp/.cpp`：移除默认 Box 与碰撞字段，仅保留 motion type、mass、damping、gravity factor、CCD、allow sleep、axis lock、runtime Body handle 和 velocity/force/impulse 命令；缺少 active Collider 时输出明确诊断。
+- Collider 统一处理 Start、Add、Remove、Enable、Disable、Dirty 的 deferred create/rebuild/destroy；Rigidbody 禁用后 Collider 自动重建为 Static，重新启用后恢复配置 motion type。
+- `PhysicsBodyCreateDesc` 扩展 backend-neutral dynamics/query 字段；Jolt adapter 接入 mass inertia override、damping、gravity factor、LinearCast CCD、sleep、allowed DOF 和 query BodyFilter，并使用 decorated shape 实现真实 center offset。
+- `PhysicsScene` 为每个 Collider 建立 generation-safe identity；atomic Body rebuild 保留 Collider handle，contact packet 和 Raycast hit 均返回有效 Collider handle。
+- `Gizmo` 新增 Sphere/Capsule wire drawing；Collider backend desc 与 Gizmo 共用 signed center scale、absolute shape scale 规则，Box 逐轴缩放、Sphere 取最大轴、Capsule 高度取 Y 且半径取 X/Z 最大值。
+- `JsonLoadArchive` 增加只读字段存在性检查；`GameObject` 检测旧 Rigidbody collider 字段并在缺少新 Collider 时迁移，迁移后的 Scene 保存只输出新 schema。
+- Inspector 新增 Collider/Rigidbody 专用 authoring panel，根据 shape 条件显示尺寸，支持 motion、CCD、sleep、axis lock、数值范围和可读诊断；Inspector 与 Hierarchy Add Component 阻止重复 Collider/Rigidbody。
+- 新增 `ChikaColliderAuthoringTests`，并更新 Core/Physics contract 与 lifecycle 旧断言；测试覆盖三种 motion 组合、非法/缺失/unsupported 诊断、稳定 Collider identity、命令化启停、shape/Gizmo/query、旧 scene migration 与新 schema round-trip。
+
+### Reason / Architecture
+
+碰撞形状决定 Body 是否存在，Rigidbody 只决定已有碰撞体如何运动，因此 Body 的结构生命周期必须由 Collider 拥有。这样 Collider-only 可自然表达静态场景，禁用或删除 Rigidbody 不会错误删除碰撞体；同时所有 backend mutation 仍停留在 fixed-step command buffer，组件不直接持有或调用 Jolt Body。
+
+Collider handle 与 Body handle 的生命周期不同：修改 authoring 会 atomic rebuild Body，因此 Body identity 必须更新；Collider component 本身没有被替换，所以 Collider identity 必须保留。当前在首次 Body slot 上建立独立类型 handle，并在 registry replacement 中沿用，使 contact/query payload 可稳定指向 authoring Collider。
+
+旧 schema 迁移发生在 GameObject 组件反序列化阶段：先读取新 Rigidbody 字段，再只读检测遗留碰撞字段；如果组件列表中已经存在 Collider 则不重复创建。该策略保持旧场景可加载，同时保证下一次保存完成一次性 schema 升级。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake --build build --target ChikaEditor ChikaCoreBoundaryTests ChikaPhysicsContractTests ChikaPhysicsLifecycleTests ChikaPhysicsContactTests ChikaPhysicsBroadcastTests ChikaColliderAuthoringTests ChikaSceneIntegrationTests -j 4`：通过。
+- `ctest --test-dir build --output-on-failure -L physics`：5/5 通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.(CoreBoundary|SceneIntegration)"`：2/2 通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `git diff --check`：通过。
+
+### Remaining / Next
+
+- Step 2.2 仍需完成 Static/Kinematic/Dynamic Transform authority、Kinematic target、Dynamic teleport、active-body snapshot 与渲染插值。
+- Capsule backend shape、Convex/Mesh cooking、stable Physics Material asset/combine mode 和 CCD tunneling/performance gate 仍由 Step 4.1 完成。
+- `collisionProfile` 已进入 authoring schema，但项目级响应矩阵与完整 query filter 仍由 Step 3.1/3.2 完成。
+- 反射生成器仍会输出既有的 MSVC 标准库 Clang diagnostic；设置 `PYTHONUTF8=1` 后生成、编译和链接成功。
+
+---
+
+## 2026-07-17 - 完成 Physics Step 1.2 Collision / Trigger Broadcast
+
+### Metadata
+
+- Area: Physics / Framework / Script / Test / Docs
+- Status: Complete
+
+### Goal
+
+把 Step 1.1 生成的 canonical `PhysicsPairEvent` 安全接入 Framework 主线程，使 C++ Component、Python Script 与 Scene observer 都能收到完整且无重复的 Collision/Trigger Enter、Stay、Exit。
+
+### Changes
+
+- 新增 `PhysicsCallbackEvents.hpp`：定义 Framework owner-local `PhysicsContactEvent`，仅包含 stable GameObject ID、generation-safe Body/Collider handle、contact value、有效位、termination reason、alive 标记与 fixed step index。
+- `Component` 新增 `OnCollisionEnter/Stay/Exit` 与 `OnTriggerEnter/Stay/Exit` 六个虚函数；`GameObject` 按 active/enabled/started 状态创建 receiver snapshot，并隔离单个 C++ callback 异常。
+- `PhysicsSubsystem::DispatchEvents()` 在每个 fixed step 的 Simulate 与 Transform sync 后 drain 事件，固定执行 A owner、B owner、Scene observer；B view 交换 self/other 并反转 normal、relative velocity。
+- A callback 后重新解析参与对象：pending-destroy 或 Body 已移除的参与方不再接收 callback，存活对端仍获得 stable ID/handle 和 `otherAlive=false` 的一次 Exit。
+- `ScriptComponent` 接入六个 snake_case Python callback，并使用独立只读 `mappingproxy` payload；脚本异常只终止当前脚本 callback，不阻断后续组件或 observer。
+- 新增 `PhysicsBroadcastTests.cpp` 与 `physics_broadcast_probe.py`，覆盖 Collision/Trigger 全阶段、A/B/observer 顺序、normal 方向、pause/resume、inactive/disabled、EventBus unsubscribe mutation、component remove、销毁 self/other、BodyDestroyed Exit、脚本只读 payload 与异常隔离。
+- CTest 新增 `Chika.PhysicsBroadcast`，设置 physics label、仓库根目录 working directory 与 `PYTHONDONTWRITEBYTECODE=1`，避免测试污染源码目录。
+- Step 1.2 卡片、步骤索引和物理路线图已同步为 Implemented / M1 Complete，并记录 dispatch、mutation 与 subscription 生命周期契约。
+
+### Reason / Architecture
+
+Jolt ContactListener 可能在后端 worker 上执行，不能直接访问 Framework 对象或运行 gameplay。Step 1.1 因此只负责复制和归一化 POD contact stream；本步骤把 Scene/GameObject 查找与 callback 严格放在 `PhysicsSubsystem` 主线程 post-step 阶段，保持 Physics 层不依赖 Framework。
+
+canonical Scene event 和 owner-local view 用途不同：前者每个 pair/phase 只发布一次，供工具与跨对象系统观察；后者分别从 A、B 的 self 视角投影，供 gameplay 使用。固定 A -> B -> observer 顺序、receiver snapshot 和参与者重新解析共同保证 callback mutation 可预测且不会悬空访问。
+
+`StopPlay`/Physics cleanup 继续通过 `ResetSceneState()` 清空 pair cache 与待发事件；EventBus subscription 仍由订阅者和 Scene 生命周期拥有，不能因一次 Play session 结束而被 PhysicsSubsystem 擅自清空。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake -S . -B build`：通过。
+- `$env:PYTHONUTF8='1'; cmake --build build -- -j1`：全量构建通过，包含 Game、Editor、Benchmark 和全部测试目标。
+- `ctest --test-dir build --output-on-failure -R "Chika\.(PhysicsContract|PhysicsLifecycle|PhysicsContact|PhysicsBroadcast|SceneIntegration|CoreBoundary)"`：6/6 通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `clang-format` 已仅作用于本次修改的 C++ 文件；`git diff --check` 通过。
+
+### Remaining / Next
+
+- Step 2.1 拆分 Collider/Rigidbody authoring 后，当前 invalid Collider handle 占位才能映射为独立 Collider identity。
+- contact impulse 仍没有 post-solve provider；不可用时继续由 `hasImpulse=false` 明确表达。
+- Scene observer 与 owner-local callback 是两个入口，gameplay 不应同时订阅两者执行同一业务逻辑。
+- 反射生成器仍会打印既有的非致命 MSVC 标准库 Clang diagnostic，但代码生成、编译和链接成功；本步骤未修改反射器。
+
+---
+
 ## 2026-07-16 - 完成 Physics Step 1.1 Contact State Stream
 
 ### Metadata

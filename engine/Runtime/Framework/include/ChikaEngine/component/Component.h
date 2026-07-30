@@ -1,4 +1,5 @@
 #pragma once
+#include "ChikaEngine/PhysicsCallbackEvents.hpp"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include <string>
 
@@ -48,6 +49,12 @@ namespace ChikaEngine::Framework
         virtual void OnEnable() {}
         virtual void OnDisable() {}
         virtual void OnDestroy() {}
+        virtual void OnCollisionEnter(const PhysicsContactEvent&) {}
+        virtual void OnCollisionStay(const PhysicsContactEvent&) {}
+        virtual void OnCollisionExit(const PhysicsContactEvent&) {}
+        virtual void OnTriggerEnter(const PhysicsContactEvent&) {}
+        virtual void OnTriggerStay(const PhysicsContactEvent&) {}
+        virtual void OnTriggerExit(const PhysicsContactEvent&) {}
 
         bool IsEnabled() const
         {

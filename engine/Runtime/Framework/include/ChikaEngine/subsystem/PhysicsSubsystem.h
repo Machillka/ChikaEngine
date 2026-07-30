@@ -28,6 +28,8 @@ namespace ChikaEngine::Framework
         bool ApplyImpulse(Physics::PhysicsBodyHandle handle, const Math::Vector3& impulse);
 
         void SyncTransform();
+        /** @brief Projects and dispatches post-step contact events on the Scene main thread. */
+        void DispatchEvents();
 
       private:
         Scene* _ownerScene = nullptr;

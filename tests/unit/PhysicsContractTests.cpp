@@ -168,7 +168,7 @@ namespace
 
             const Physics::PhysicsBackendCapabilities capabilities = sceneA.GetCapabilities();
             Check(capabilities.boxShape && capabilities.sphereShape && capabilities.closestRaycast, "Jolt capabilities advertise the implemented Step 0.1 features");
-            Check(!capabilities.capsuleShape && !capabilities.constraints && !capabilities.continuousCollisionDetection, "unimplemented Jolt features are explicit capabilities");
+            Check(capabilities.continuousCollisionDetection && !capabilities.capsuleShape && !capabilities.constraints, "implemented CCD and unimplemented Capsule/constraints are explicit capabilities");
             Check(capabilities.SupportsShape(Physics::ColliderShapeType::Box) && capabilities.SupportsShape(Physics::ColliderShapeType::Sphere) && !capabilities.SupportsShape(Physics::ColliderShapeType::Capsule), "shape capability lookup matches individual flags");
 
             Physics::PhysicsBodyCreateDesc capsuleDesc = MakeStaticBox(100);

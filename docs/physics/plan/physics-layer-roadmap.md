@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: In Progress（M0 Complete，M1 Step 1.1 Complete）
+- Status: In Progress（M0-M1 + Step 2.1 Complete）
 - Planning date: 2026-07-16
 - Scope: Runtime Physics / Framework / Editor / Test / Docs
 - Backend baseline: Jolt Physics
@@ -30,7 +30,7 @@ authoring components
 
 - `PhysicsCommandBuffer` 已统一 Body 结构与运动命令，并在 `PreStep` 按固定 phase 提交；同 owner 结构命令使用 last-intent coalescing。
 - `PhysicsBodyRegistry` 已统一 engine handle、opaque backend token、owner 和 active state；同 owner 单 Body、atomic rebuild、stale handle 和清理统计已有测试锁定。
-- Rigidbody runtime 生命周期已迁移为 deferred command；StartPlay/StopPlay、disable、destroy 和 Cleanup 不再遗留 pending command 或 Jolt Body。
+- Collider runtime 生命周期已迁移为 deferred command；StartPlay/StopPlay、disable、destroy、rebuild 和 Cleanup 不再遗留 pending command 或 Jolt Body。
 - `PhysicsRuntime` 已通过引用计数 Lease 管理进程级 Jolt 注册，支持两个 PhysicsScene 同时存在并按最后一个 lease 释放。
 - 公共 Body/Collider Handle 已使用 index + generation；Jolt BodyID 仅存在于 backend registry，stale 与 wrong-scene handle 会被拒绝。
 - Physics 初始化、Body 创建和 capability 已形成可诊断契约；默认单位为米、秒、千克，Y-up、右手系，默认重力 `{0, -9.81, 0}`。
@@ -38,23 +38,25 @@ authoring components
 - Jolt 后端支持 Static、Kinematic、Dynamic Body。
 - Scene 已使用可配置 `fixedDeltaTime` 和 `maxPhysicsStepsPerFrame` 驱动物理固定步长。
 - 已有 Box、Sphere 创建路径，以及速度、冲量、Transform 回写和 closest Raycast。
+- 独立 `Collider` 已承载 shape/center/尺寸/Trigger/layer/profile/query authoring；无 Rigidbody 时形成 Static Body，Rigidbody 只承载 motion/dynamics 与运动命令。
+- Collider handle 已成为有效 runtime identity，跨 Body rebuild 保持稳定，并进入 contact callback 与 Raycast hit。
+- Rigidbody mass、damping、gravity factor、per-body CCD、allow sleep 和 axis lock 已接入 Jolt BodyCreationSettings；query participation 已接入 closest Raycast filter。
+- Collider shape build 与 Gizmo 共用 center/world scale 规则；旧 Rigidbody shape 字段可迁移并以新 Collider schema 保存。
 - 后端已将 Jolt Added/Persisted/Removed 转换为线程安全 `RawContactPacket`，Removed 使用 callback 前缓存 identity，并在 Update 后补充 removal state。
 - `PhysicsScene` 已维护 canonical pair cache，按 fixed-step/sub-shape 去重，输出稳定排序的 Collision/Trigger Enter、Stay、Exit。
 - Body destroy/rebuild、真实分离和 sleep/deactivation 已形成不同 cleanup 语义；销毁不会重复 Exit，sleep 不产生伪 Exit。
+- `PhysicsSubsystem` 已在 transform sync 后 drain canonical contact stream，并按 A owner、B owner、Scene observer 的固定主线程顺序广播。
+- C++ Component 与 Python Script 已具备 Collision/Trigger Enter、Stay、Exit 回调；owner-local payload 是 value snapshot，支持 disabled/inactive 过滤、mutation-safe receiver snapshot、销毁存活标记与脚本异常隔离。
 - 已存在 32-bit layer mask 基础设施与 Scene `EventBus`。
 
 ### Gaps to close
 
-1. `PhysicsSubsystem` 尚未 drain `PhysicsPairEvent`，Collision/Trigger 还不会到达 Scene EventBus、GameObject、Component 或 Script；由 Step 1.2 完成。
-2. canonical pair 到 A/B self-oriented callback view、disabled receiver、callback mutation 和 script exception 规则尚未实现；由 Step 1.2 完成。
-3. GameObject ID 已稳定缓存，但 Collider Handle 在独立 Collider authoring 落地前仍是 invalid 占位；由 Step 2.1 完成。
-4. Added/Persisted 可提供 pre-solver relative velocity；真实 solver impulse 尚无 post-solve provider，因此契约明确标记 unavailable。
-5. `Rigidbody` 同时保存碰撞形状和动力学属性；没有独立 Collider，也无法自然表达静态碰撞体。
-6. Capsule 枚举存在但后端未创建 Capsule；center、scale、`_colliderOffset` 和每 Body `collisionMask` 没有形成完整行为。
-7. Runtime RAII、generation-safe Handle、Body registry、fixed-step command buffer 与 Scene contact state 已由 Step 0.1/0.2/1.1 完成；下一阶段需要把 canonical event 接到 gameplay 广播。
-8. Dynamic、Kinematic、Static 的 Transform 权威方向不完整；没有插值、Kinematic target 和正式 Teleport 语义。
-9. 查询只有 closest Raycast，没有 query filter、multi-hit、overlap、shape cast、ignore self 或 Trigger 策略。
-10. 已有 lifecycle/contact 集成测试；层矩阵、广播 mutation、长期资源泄漏门禁和可视化调试仍缺少。
+1. Added/Persisted 可提供 pre-solver relative velocity；真实 solver impulse 尚无 post-solve provider，因此契约明确标记 unavailable。
+2. Capsule authoring 与 Gizmo 已存在，但 Jolt adapter 尚未创建真实 Capsule；Convex/Mesh cooking 与 stable Physics Material asset 也仍缺少。
+3. Dynamic、Kinematic、Static 的 Transform 权威方向不完整；没有插值、Kinematic target 和正式 Teleport 语义。
+4. `collisionProfile` 已可序列化但尚未解析为项目级 Ignore/Overlap/Block 响应矩阵；现阶段 layer 仍使用全局 bitmask。
+5. 查询只有支持 `queryEnabled` 的 closest Raycast，没有完整 layer/profile filter、multi-hit、overlap、shape cast、ignore self 或 Trigger 策略。
+6. 已有 contract、lifecycle、contact、broadcast、collider authoring 集成测试；层矩阵、长期资源泄漏门禁和可视化调试仍缺少。
 
 ## Architecture Decisions
 
@@ -112,8 +114,8 @@ authoring components
 | Milestone | Steps | Outcome |
 | --- | --- | --- |
 | M0 Stabilize | 0.1, 0.2 | 后端契约、Runtime RAII、Handle 与 Body 生命周期可靠（Complete） |
-| M1 Events | 1.1, 1.2 | Collision/Trigger Enter/Stay/Exit 完整到达游戏层 |
-| M2 Authoring | 2.1, 2.2 | Collider/Rigidbody 分离，Transform 与常用运动 API 明确 |
+| M1 Events | 1.1, 1.2 | Collision/Trigger Enter/Stay/Exit 完整到达游戏层（Complete） |
+| M2 Authoring | 2.1, 2.2 | Collider/Rigidbody 已分离（2.1 Complete）；Transform 与常用运动 API 待 2.2 |
 | M3 Filtering & Queries | 3.1, 3.2 | 命名层、响应矩阵和常用 Scene Query 可用 |
 | M4 Simulation Features | 4.1, 4.2 | 形状、材质、CCD 和基础约束完善 |
 | M5 Gameplay Physics | 5.1 | CharacterController 与 Rigidbody 解耦 |
@@ -126,8 +128,8 @@ authoring components
 1. Step 0.1：冻结公共契约和 Runtime ownership。**已完成（2026-07-16）**
 2. Step 0.2：修复 Body lifecycle、Handle 和 command buffer。**已完成（2026-07-16）**
 3. Step 1.1：建立 raw contact 到稳定 pair state 的转换。**已完成（2026-07-16）**
-4. Step 1.2：接入 Scene EventBus、Component 和 Script 回调。
-5. Step 2.1：拆分 Collider/Rigidbody，并迁移序列化与 Editor。
+4. Step 1.2：接入 Scene EventBus、Component 和 Script 回调。**已完成（2026-07-17）**
+5. Step 2.1：拆分 Collider/Rigidbody，并迁移序列化与 Editor。**已完成（2026-07-30）**
 6. Step 2.2：完成 Transform authority、插值和常用运动方法。
 7. Step 3.1：完成 layer/profile/response 配置。
 8. Step 3.2：补齐 Raycast、Sweep、Overlap 查询族。

@@ -1,75 +1,114 @@
 #pragma once
 
+#include "ChikaEngine/PhysicsDescs.h"
 #include "ChikaEngine/PhysicsHandles.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
+
+#include <string>
+
 namespace ChikaEngine::Framework
 {
+    class Collider;
     class Scene;
-    class GameObject;
 
+    /** @brief Motion and dynamics authoring layered on top of a Collider-owned body. */
     MCLASS(Rigidbody) : public Component
     {
         REFLECTION_BODY(Rigidbody);
 
       public:
         Rigidbody() = default;
-        ~Rigidbody() override;
-        void SetLinearVelocity(Math::Vector3 v);
+        ~Rigidbody() override = default;
+
+        void SetLinearVelocity(Math::Vector3 velocity);
         void AddForce(Math::Vector3 force);
         void Impulse(Math::Vector3 impulse);
+
         [[nodiscard]] Physics::PhysicsBodyHandle GetPhysicsHandle() const noexcept
         {
             return _physicsHandle;
         }
-
-        float GetColliderRadius() const
-        {
-            return _colliderRadius;
-        }
-        float GetColliderHeight() const
-        {
-            return _colliderHeight;
-        }
-        float GetMass() const
+        [[nodiscard]] Physics::MotionType GetMotionType() const noexcept;
+        [[nodiscard]] float GetMass() const noexcept
         {
             return _mass;
         }
-        float GetFriction() const
+        [[nodiscard]] float GetLinearDamping() const noexcept
         {
-            return _friction;
+            return _linearDamping;
         }
+        [[nodiscard]] float GetAngularDamping() const noexcept
+        {
+            return _angularDamping;
+        }
+        [[nodiscard]] float GetGravityFactor() const noexcept
+        {
+            return _gravityFactor;
+        }
+        [[nodiscard]] bool IsContinuousCollisionDetectionEnabled() const noexcept
+        {
+            return _continuousCollisionDetection;
+        }
+        [[nodiscard]] bool IsSleepingAllowed() const noexcept
+        {
+            return _allowSleeping;
+        }
+        [[nodiscard]] int GetAxisLockMask() const noexcept
+        {
+            return _axisLockMask;
+        }
+        [[nodiscard]] const std::string& GetAuthoringDiagnostic() const noexcept
+        {
+            return _authoringDiagnostic;
+        }
+
+        void SetMotionType(Physics::MotionType type);
+        void SetMass(float mass);
+        void SetLinearDamping(float damping);
+        void SetAngularDamping(float damping);
+        void SetGravityFactor(float factor);
+        void SetContinuousCollisionDetectionEnabled(bool enabled);
+        void SetSleepingAllowed(bool allowed);
+        void SetAxisLockMask(int mask);
 
         void Awake() override;
         void Start() override;
         void FixedTick(float fixedDeltaTime) override;
-        void OnGizmo() const override;
         void OnDirty() override;
+        void OnValidate() override;
         void OnEnable() override;
         void OnDisable() override;
         void OnDestroy() override;
 
       private:
-        bool QueueRigidbodyCreateOrRebuild();
-        void RefreshPhysicsHandle();
-        Scene* GetSceneSave();
+        friend class Collider;
 
-      private:
+        [[nodiscard]] bool ApplyAuthoringTo(Physics::PhysicsBodyCreateDesc & desc, std::string & diagnostic) const;
+        void RequestColliderRebuild();
+        void RefreshPhysicsHandle();
+        [[nodiscard]] Scene* GetSceneSafe() const;
+
         Physics::PhysicsBodyHandle _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
+
         MFIELD()
-        Math::Vector3 _colliderCenter = Math::Vector3::zero;
-        MFIELD()
-        Math::Vector3 _colliderOffset = Math::Vector3::zero;
-        MFIELD()
-        float _colliderRadius = 0.5f;
-        MFIELD()
-        float _colliderHeight = 1.0f;
+        int _motionType = static_cast<int>(Physics::MotionType::Dynamic);
         MFIELD()
         float _mass = 1.0f;
         MFIELD()
-        float _friction = 0.5f;
+        float _linearDamping = 0.05f;
+        MFIELD()
+        float _angularDamping = 0.05f;
+        MFIELD()
+        float _gravityFactor = 1.0f;
+        MFIELD()
+        bool _continuousCollisionDetection = false;
+        MFIELD()
+        bool _allowSleeping = true;
+        MFIELD()
+        int _axisLockMask = Physics::PhysicsAxisLockNone;
 
-        bool _need2RecreateRigidbody = true;
+        std::string _authoringDiagnostic;
     };
 } // namespace ChikaEngine::Framework

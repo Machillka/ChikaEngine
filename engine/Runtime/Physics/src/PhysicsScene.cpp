@@ -168,6 +168,7 @@ namespace ChikaEngine::Physics
             if (record)
             {
                 outHit.gameObjectId = record->ownerId;
+                outHit.colliderHandle = record->colliderHandle;
                 return true;
             }
         }
@@ -406,7 +407,13 @@ namespace ChikaEngine::Physics
         }
 
         for (RawContactPacket& packet : packets)
+        {
+            if (const auto record = _bodyRegistry.Find(packet.bodyA))
+                packet.colliderA = record->colliderHandle;
+            if (const auto record = _bodyRegistry.Find(packet.bodyB))
+                packet.colliderB = record->colliderHandle;
             (void)CanonicalizePacket(packet);
+        }
 
         std::stable_sort(packets.begin(),
                          packets.end(),
@@ -646,7 +653,9 @@ namespace ChikaEngine::Physics
             .handle = handle,
             .backendToken = backendResult.token,
             .ownerId = desc.ownerId,
-            .colliderHandle = PhysicsColliderHandle::Invalid(),
+            // The first body slot establishes a distinct Collider identity.
+            // Rebuilds keep this handle even though the Body handle changes.
+            .colliderHandle = PhysicsColliderHandle::FromParts(handle.Index(), handle.Generation()),
             .motionType = desc.motionType,
             .active = true,
         };

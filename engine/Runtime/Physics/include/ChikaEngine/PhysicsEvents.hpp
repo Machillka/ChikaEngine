@@ -127,8 +127,8 @@ namespace ChikaEngine::Physics
     };
 
     /**
-     * @brief One canonical Scene event. Step 1.2 will project this into A/B
-     * self-oriented gameplay views without duplicating backend callbacks.
+     * @brief One canonical Scene event. Framework projects this into A/B
+     * self-oriented gameplay views, then publishes this value once to observers.
      */
     struct PhysicsPairEvent
     {
