@@ -29,6 +29,11 @@ add_executable(ChikaColliderAuthoringTests
 )
 target_link_libraries(ChikaColliderAuthoringTests PRIVATE ChikaEngine)
 
+add_executable(ChikaPhysicsMotionTests
+    integration/PhysicsMotionTests.cpp
+)
+target_link_libraries(ChikaPhysicsMotionTests PRIVATE ChikaEngine)
+
 add_executable(ChikaSceneIntegrationTests
     integration/SceneIntegrationTests.cpp
 )
@@ -137,6 +142,7 @@ add_test(NAME Chika.PhysicsLifecycle COMMAND ChikaPhysicsLifecycleTests)
 add_test(NAME Chika.PhysicsContact COMMAND ChikaPhysicsContactTests)
 add_test(NAME Chika.PhysicsBroadcast COMMAND ChikaPhysicsBroadcastTests)
 add_test(NAME Chika.ColliderAuthoring COMMAND ChikaColliderAuthoringTests)
+add_test(NAME Chika.PhysicsMotion COMMAND ChikaPhysicsMotionTests)
 add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.TextureLoader COMMAND ChikaTextureLoaderTests)
@@ -166,10 +172,10 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
-set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsContact Chika.PhysicsBroadcast Chika.ColliderAuthoring PROPERTIES LABELS "physics")
+set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsContact Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion PROPERTIES LABELS "physics")
 set_tests_properties(Chika.PhysicsBroadcast PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 if(CHIKA_BUILD_BENCHMARKS)
     set_tests_properties(Chika.Benchmark PROPERTIES WORKING_DIRECTORY "${PROJECT_ROOT_DIR}")

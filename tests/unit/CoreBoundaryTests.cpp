@@ -117,6 +117,8 @@ namespace
         const uint32_t clampedSteps = accumulator.Consume(1.0f, [&](float) { ++callbackCount; });
         Check(clampedSteps == 3, "fixed step limits work per frame");
         Check(callbackCount == 5, "fixed step callback count");
+        Check(NearlyEqual(accumulator.GetLastDroppedTime(), 0.7f) && NearlyEqual(accumulator.GetTotalDroppedTime(), 0.7f), "fixed step reports dropped catch-up time");
+        Check(accumulator.GetLastStepCount() == 3 && accumulator.GetInterpolationAlpha() >= 0.0f && accumulator.GetInterpolationAlpha() <= 1.0f, "fixed step exposes render interpolation and catch-up metrics");
     }
 
     void TestAnimatorTime()

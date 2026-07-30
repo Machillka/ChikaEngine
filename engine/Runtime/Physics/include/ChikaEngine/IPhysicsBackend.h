@@ -38,10 +38,16 @@ namespace ChikaEngine::Physics
         [[nodiscard]] virtual PhysicsBackendBodyCreateResult CreateBodyFromDesc(PhysicsBodyHandle engineHandle, const PhysicsBodyCreateDesc& desc) = 0;
         [[nodiscard]] virtual bool DestroyPhysicsBody(PhysicsBackendBodyToken token) = 0;
         [[nodiscard]] virtual bool TrySyncTransform(PhysicsBackendBodyToken token, PhysicsTransform& transform) = 0;
+        /** @brief Returns value snapshots for active Dynamic bodies only. Called after Simulate on the owner thread. */
+        [[nodiscard]] virtual std::vector<PhysicsBodySnapshot> CollectActiveDynamicBodySnapshots() = 0;
 
         [[nodiscard]] virtual bool SetLinearVelocity(PhysicsBackendBodyToken token, const Math::Vector3& velocity) = 0;
+        [[nodiscard]] virtual bool SetAngularVelocity(PhysicsBackendBodyToken token, const Math::Vector3& velocity) = 0;
         [[nodiscard]] virtual bool AddForce(PhysicsBackendBodyToken token, const Math::Vector3& force, PhysicsWakePolicy wakePolicy) = 0;
+        [[nodiscard]] virtual bool AddTorque(PhysicsBackendBodyToken token, const Math::Vector3& torque, PhysicsWakePolicy wakePolicy) = 0;
         [[nodiscard]] virtual bool ApplyImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse) = 0;
+        [[nodiscard]] virtual bool ApplyAngularImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse) = 0;
+        [[nodiscard]] virtual bool SetBodyActive(PhysicsBackendBodyToken token, bool active) = 0;
         [[nodiscard]] virtual bool TeleportBody(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity, PhysicsWakePolicy wakePolicy) = 0;
         [[nodiscard]] virtual bool SetKinematicTarget(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, float deltaTime) = 0;
 

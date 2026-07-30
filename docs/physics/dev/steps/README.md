@@ -18,7 +18,7 @@
 | 3 | [Step 1.1 - Contact State Stream](1.1-contact-state-stream.future.md) | Core | Implemented |
 | 4 | [Step 1.2 - Collision and Trigger Broadcast](1.2-collision-trigger-broadcast.future.md) | Core | Implemented |
 | 5 | [Step 2.1 - Collider and Rigidbody Authoring](2.1-collider-rigidbody-authoring.future.md) | Core | Implemented |
-| 6 | [Step 2.2 - Transform and Motion Contract](2.2-transform-motion-contract.future.md) | Core | Planned |
+| 6 | [Step 2.2 - Transform and Motion Contract](2.2-transform-motion-contract.future.md) | Core | Implemented |
 | 7 | [Step 3.1 - Collision Layers and Profiles](3.1-collision-layers-profiles.future.md) | Core | Planned |
 | 8 | [Step 3.2 - Scene Query Suite](3.2-scene-query-suite.future.md) | Core | Planned |
 | 9 | [Step 4.1 - Shapes, Materials, CCD and Sleep](4.1-shapes-materials-ccd.future.md) | Extension | Planned |

@@ -23,6 +23,13 @@ namespace ChikaEngine::Framework
         {
             return { std::abs(value.x), std::abs(value.y), std::abs(value.z) };
         }
+
+        bool IsUniformScale(const Math::Vector3& value)
+        {
+            const Math::Vector3 scale = Abs(value);
+            constexpr float epsilon = 1.0e-5f;
+            return std::abs(scale.x - scale.y) <= epsilon && std::abs(scale.y - scale.z) <= epsilon;
+        }
     } // namespace
 
     Physics::ColliderShapeType Collider::GetShapeType() const noexcept
@@ -133,6 +140,11 @@ namespace ChikaEngine::Framework
         if (!IsPrimaryCollider())
         {
             diagnostic = "Only one Collider per GameObject is supported in Step 2.1";
+            return false;
+        }
+        if (owner->transform->GetParent() && !IsUniformScale(owner->transform->GetParent()->GetWorldScale()))
+        {
+            diagnostic = "Parented physics bodies require uniform parent world scale";
             return false;
         }
         if (_shapeType < static_cast<int>(Physics::ColliderShapeType::Box) || _shapeType > static_cast<int>(Physics::ColliderShapeType::Capsule))

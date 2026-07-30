@@ -63,6 +63,12 @@ namespace ChikaEngine::Physics
         Math::Vector3 velocity;
     };
 
+    struct PhysicsAngularVelocityCommand
+    {
+        PhysicsBodyTarget target;
+        Math::Vector3 velocity;
+    };
+
     struct PhysicsForceCommand
     {
         PhysicsBodyTarget target;
@@ -76,7 +82,26 @@ namespace ChikaEngine::Physics
         Math::Vector3 impulse;
     };
 
-    using PhysicsCommandPayload = std::variant<PhysicsCreateCommand, PhysicsDestroyCommand, PhysicsRebuildCommand, PhysicsTeleportCommand, PhysicsKinematicTargetCommand, PhysicsVelocityCommand, PhysicsForceCommand, PhysicsImpulseCommand>;
+    struct PhysicsTorqueCommand
+    {
+        PhysicsBodyTarget target;
+        Math::Vector3 torque;
+        PhysicsWakePolicy wakePolicy = PhysicsWakePolicy::Wake;
+    };
+
+    struct PhysicsAngularImpulseCommand
+    {
+        PhysicsBodyTarget target;
+        Math::Vector3 impulse;
+    };
+
+    struct PhysicsActivationCommand
+    {
+        PhysicsBodyTarget target;
+        bool activate = true;
+    };
+
+    using PhysicsCommandPayload = std::variant<PhysicsCreateCommand, PhysicsDestroyCommand, PhysicsRebuildCommand, PhysicsTeleportCommand, PhysicsKinematicTargetCommand, PhysicsVelocityCommand, PhysicsAngularVelocityCommand, PhysicsForceCommand, PhysicsTorqueCommand, PhysicsImpulseCommand, PhysicsAngularImpulseCommand, PhysicsActivationCommand>;
 
     enum class PhysicsCommandType
     {
@@ -86,8 +111,12 @@ namespace ChikaEngine::Physics
         Teleport,
         KinematicTarget,
         Velocity,
+        AngularVelocity,
         Force,
+        Torque,
         Impulse,
+        AngularImpulse,
+        Activation,
     };
 
     struct PhysicsCommand

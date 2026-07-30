@@ -189,6 +189,30 @@ namespace ChikaEngine::Framework
             (void)scene->GetPhysicsSubsystem()->QueueSetLinearVelocity(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), velocity);
     }
 
+    void Rigidbody::SetAngularVelocity(Math::Vector3 velocity)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueSetAngularVelocity(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), velocity);
+    }
+
+    Math::Vector3 Rigidbody::GetLinearVelocity() const
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        const auto snapshot = scene && owner && scene->GetPhysicsSubsystem() ? scene->GetPhysicsSubsystem()->GetBodySnapshot(owner->GetID()) : std::nullopt;
+        return snapshot ? snapshot->linearVelocity : Math::Vector3::zero;
+    }
+
+    Math::Vector3 Rigidbody::GetAngularVelocity() const
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        const auto snapshot = scene && owner && scene->GetPhysicsSubsystem() ? scene->GetPhysicsSubsystem()->GetBodySnapshot(owner->GetID()) : std::nullopt;
+        return snapshot ? snapshot->angularVelocity : Math::Vector3::zero;
+    }
+
     void Rigidbody::AddForce(Math::Vector3 force)
     {
         Scene* scene = GetSceneSafe();
@@ -197,11 +221,77 @@ namespace ChikaEngine::Framework
             (void)scene->GetPhysicsSubsystem()->QueueAddForce(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), force);
     }
 
-    void Rigidbody::Impulse(Math::Vector3 impulse)
+    void Rigidbody::AddTorque(Math::Vector3 torque)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueAddTorque(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), torque);
+    }
+
+    void Rigidbody::AddImpulse(Math::Vector3 impulse)
     {
         Scene* scene = GetSceneSafe();
         GameObject* owner = GetOwner();
         if (scene && owner && scene->GetPhysicsSubsystem())
             (void)scene->GetPhysicsSubsystem()->QueueApplyImpulse(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), impulse);
+    }
+
+    void Rigidbody::AddAngularImpulse(Math::Vector3 impulse)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueApplyAngularImpulse(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), impulse);
+    }
+
+    void Rigidbody::Impulse(Math::Vector3 impulse)
+    {
+        AddImpulse(impulse);
+    }
+
+    bool Rigidbody::MoveKinematic(const Math::Vector3& position, const Math::Quaternion& rotation)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (GetMotionType() != Physics::MotionType::Kinematic || !scene || !owner || !owner->transform || !scene->GetPhysicsSubsystem())
+            return false;
+        const Physics::PhysicsResult result = scene->GetPhysicsSubsystem()->QueueKinematicTarget(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), position, rotation);
+        if (result)
+            owner->transform->SetWorldPositionAndRotation(position, rotation);
+        return static_cast<bool>(result);
+    }
+
+    bool Rigidbody::Teleport(const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity, Physics::PhysicsWakePolicy wakePolicy)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (GetMotionType() != Physics::MotionType::Dynamic || !scene || !owner || !scene->GetPhysicsSubsystem())
+            return false;
+        return static_cast<bool>(scene->GetPhysicsSubsystem()->QueueTeleport(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), position, rotation, resetVelocity, wakePolicy));
+    }
+
+    void Rigidbody::WakeUp()
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueSetBodyActive(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), true);
+    }
+
+    void Rigidbody::Sleep()
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueSetBodyActive(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), false);
+    }
+
+    bool Rigidbody::IsSleeping() const
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        const auto snapshot = scene && owner && scene->GetPhysicsSubsystem() ? scene->GetPhysicsSubsystem()->GetBodySnapshot(owner->GetID()) : std::nullopt;
+        return snapshot && snapshot->sleeping;
     }
 } // namespace ChikaEngine::Framework

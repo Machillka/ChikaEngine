@@ -91,10 +91,18 @@ namespace ChikaEngine::Physics
                     return PhysicsCommandType::KinematicTarget;
                 else if constexpr (std::is_same_v<Command, PhysicsVelocityCommand>)
                     return PhysicsCommandType::Velocity;
+                else if constexpr (std::is_same_v<Command, PhysicsAngularVelocityCommand>)
+                    return PhysicsCommandType::AngularVelocity;
                 else if constexpr (std::is_same_v<Command, PhysicsForceCommand>)
                     return PhysicsCommandType::Force;
-                else
+                else if constexpr (std::is_same_v<Command, PhysicsTorqueCommand>)
+                    return PhysicsCommandType::Torque;
+                else if constexpr (std::is_same_v<Command, PhysicsImpulseCommand>)
                     return PhysicsCommandType::Impulse;
+                else if constexpr (std::is_same_v<Command, PhysicsAngularImpulseCommand>)
+                    return PhysicsCommandType::AngularImpulse;
+                else
+                    return PhysicsCommandType::Activation;
             },
             payload);
     }

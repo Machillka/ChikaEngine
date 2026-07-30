@@ -13,6 +13,8 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -73,8 +75,12 @@ namespace ChikaEngine::Physics
         [[nodiscard]] PhysicsResult QueueTeleport(PhysicsBodyTarget target, const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity = true, PhysicsWakePolicy wakePolicy = PhysicsWakePolicy::Wake);
         [[nodiscard]] PhysicsResult QueueKinematicTarget(PhysicsBodyTarget target, const Math::Vector3& position, const Math::Quaternion& rotation);
         [[nodiscard]] PhysicsResult QueueSetLinearVelocity(PhysicsBodyTarget target, const Math::Vector3& velocity);
+        [[nodiscard]] PhysicsResult QueueSetAngularVelocity(PhysicsBodyTarget target, const Math::Vector3& velocity);
         [[nodiscard]] PhysicsResult QueueAddForce(PhysicsBodyTarget target, const Math::Vector3& force, PhysicsWakePolicy wakePolicy = PhysicsWakePolicy::Wake);
+        [[nodiscard]] PhysicsResult QueueAddTorque(PhysicsBodyTarget target, const Math::Vector3& torque, PhysicsWakePolicy wakePolicy = PhysicsWakePolicy::Wake);
         [[nodiscard]] PhysicsResult QueueApplyImpulse(PhysicsBodyTarget target, const Math::Vector3& impulse);
+        [[nodiscard]] PhysicsResult QueueApplyAngularImpulse(PhysicsBodyTarget target, const Math::Vector3& impulse);
+        [[nodiscard]] PhysicsResult QueueSetBodyActive(PhysicsBodyTarget target, bool active);
 
         [[nodiscard]] bool EnqueueRigidbodyDestroy(PhysicsBodyHandle handle);
         [[nodiscard]] bool SetLinearVelocity(PhysicsBodyHandle handle, const Math::Vector3& velocity);
@@ -91,6 +97,10 @@ namespace ChikaEngine::Physics
         [[nodiscard]] bool HasBody(PhysicsBodyHandle handle) const;
         [[nodiscard]] PhysicsBodyHandle GetBodyHandle(Core::GameObjectID ownerId) const;
         [[nodiscard]] std::optional<PhysicsBodyRecord> GetBodyRecord(PhysicsBodyHandle handle) const;
+        [[nodiscard]] std::optional<PhysicsBodySnapshot> GetBodySnapshot(PhysicsBodyHandle handle) const;
+        [[nodiscard]] std::optional<PhysicsBodySnapshot> GetBodySnapshot(Core::GameObjectID ownerId) const;
+        /** @brief Active Dynamic snapshots plus one-shot explicit teleport updates. */
+        [[nodiscard]] const std::vector<std::pair<Core::GameObjectID, PhysicsBodySnapshot>>& PollActiveDynamicSnapshots();
         [[nodiscard]] const std::vector<std::pair<Core::GameObjectID, PhysicsTransform>>& PollTransform();
         /** @brief Drains canonical events published after the latest completed backend Update. Main-thread only. */
         [[nodiscard]] std::vector<PhysicsPairEvent> DrainPairEvents();
@@ -137,6 +147,10 @@ namespace ChikaEngine::Physics
         PhysicsBodyRegistry _bodyRegistry;
 
         std::vector<std::pair<Core::GameObjectID, PhysicsTransform>> _updatedTransforms;
+        std::vector<std::pair<Core::GameObjectID, PhysicsBodySnapshot>> _activeDynamicSnapshots;
+        std::unordered_map<PhysicsBodyHandle, PhysicsBodySnapshot, PhysicsHandleHash> _bodySnapshots;
+        std::unordered_set<PhysicsBodyHandle, PhysicsHandleHash> _activeDynamicHandles;
+        std::unordered_set<PhysicsBodyHandle, PhysicsHandleHash> _dirtySnapshotHandles;
         std::map<PhysicsPairKey, ContactPairState> _contactPairs;
         std::vector<PhysicsPairEvent> _stagedPairEvents;
         std::vector<PhysicsPairEvent> _readyPairEvents;

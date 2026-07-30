@@ -133,6 +133,10 @@ namespace ChikaEngine::Physics
         }
         _bodyRegistry.Clear();
         _updatedTransforms.clear();
+        _activeDynamicSnapshots.clear();
+        _bodySnapshots.clear();
+        _activeDynamicHandles.clear();
+        _dirtySnapshotHandles.clear();
         _contactPairs.clear();
         _stagedPairEvents.clear();
         _readyPairEvents.clear();
@@ -266,6 +270,17 @@ namespace ChikaEngine::Physics
         return _commandBuffer.Enqueue(PhysicsVelocityCommand{ .target = target, .velocity = velocity });
     }
 
+    PhysicsResult PhysicsScene::QueueSetAngularVelocity(PhysicsBodyTarget target, const Math::Vector3& velocity)
+    {
+        if (!IsInitialized())
+            return PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Physics scene is not initialized");
+        if (target.handle && !_bodyRegistry.Find(target.handle))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidHandle, "Physics body handle is stale or belongs to another Scene");
+        if (!target.handle && !Core::IsValidGameObjectID(target.ownerId))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics command target is invalid");
+        return _commandBuffer.Enqueue(PhysicsAngularVelocityCommand{ .target = target, .velocity = velocity });
+    }
+
     PhysicsResult PhysicsScene::QueueAddForce(PhysicsBodyTarget target, const Math::Vector3& force, PhysicsWakePolicy wakePolicy)
     {
         if (!IsInitialized())
@@ -281,6 +296,17 @@ namespace ChikaEngine::Physics
         return _commandBuffer.Enqueue(PhysicsForceCommand{ .target = target, .force = force, .wakePolicy = wakePolicy });
     }
 
+    PhysicsResult PhysicsScene::QueueAddTorque(PhysicsBodyTarget target, const Math::Vector3& torque, PhysicsWakePolicy wakePolicy)
+    {
+        if (!IsInitialized())
+            return PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Physics scene is not initialized");
+        if (target.handle && !_bodyRegistry.Find(target.handle))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidHandle, "Physics body handle is stale or belongs to another Scene");
+        if (!target.handle && !Core::IsValidGameObjectID(target.ownerId))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics command target is invalid");
+        return _commandBuffer.Enqueue(PhysicsTorqueCommand{ .target = target, .torque = torque, .wakePolicy = wakePolicy });
+    }
+
     PhysicsResult PhysicsScene::QueueApplyImpulse(PhysicsBodyTarget target, const Math::Vector3& impulse)
     {
         if (!IsInitialized())
@@ -294,6 +320,28 @@ namespace ChikaEngine::Physics
         if (!target.handle && !Core::IsValidGameObjectID(target.ownerId))
             return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics command target is invalid");
         return _commandBuffer.Enqueue(PhysicsImpulseCommand{ .target = target, .impulse = impulse });
+    }
+
+    PhysicsResult PhysicsScene::QueueApplyAngularImpulse(PhysicsBodyTarget target, const Math::Vector3& impulse)
+    {
+        if (!IsInitialized())
+            return PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Physics scene is not initialized");
+        if (target.handle && !_bodyRegistry.Find(target.handle))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidHandle, "Physics body handle is stale or belongs to another Scene");
+        if (!target.handle && !Core::IsValidGameObjectID(target.ownerId))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics command target is invalid");
+        return _commandBuffer.Enqueue(PhysicsAngularImpulseCommand{ .target = target, .impulse = impulse });
+    }
+
+    PhysicsResult PhysicsScene::QueueSetBodyActive(PhysicsBodyTarget target, bool active)
+    {
+        if (!IsInitialized())
+            return PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Physics scene is not initialized");
+        if (target.handle && !_bodyRegistry.Find(target.handle))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidHandle, "Physics body handle is stale or belongs to another Scene");
+        if (!target.handle && !Core::IsValidGameObjectID(target.ownerId))
+            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Physics command target is invalid");
+        return _commandBuffer.Enqueue(PhysicsActivationCommand{ .target = target, .activate = active });
     }
 
     void PhysicsScene::Tick(float fixedDeltaTime)
@@ -371,6 +419,25 @@ namespace ChikaEngine::Physics
             return false;
 
         _fixedStepIndex = nextFixedStepIndex;
+        std::vector<PhysicsBodySnapshot> activeSnapshots = _backend->CollectActiveDynamicBodySnapshots();
+        std::unordered_set<PhysicsBodyHandle, PhysicsHandleHash> currentActive;
+        currentActive.reserve(activeSnapshots.size());
+        for (PhysicsBodySnapshot& snapshot : activeSnapshots)
+        {
+            if (!_bodyRegistry.Find(snapshot.handle))
+                continue;
+            snapshot.sleeping = false;
+            currentActive.insert(snapshot.handle);
+            _bodySnapshots[snapshot.handle] = snapshot;
+        }
+        for (const PhysicsBodyHandle handle : _activeDynamicHandles)
+        {
+            if (currentActive.contains(handle))
+                continue;
+            if (auto it = _bodySnapshots.find(handle); it != _bodySnapshots.end())
+                it->second.sleeping = true;
+        }
+        _activeDynamicHandles = std::move(currentActive);
         ProcessRawContactPackets(_backend->DrainRawContactPackets());
         PublishStagedPairEvents();
         return true;
@@ -379,17 +446,35 @@ namespace ChikaEngine::Physics
     const std::vector<std::pair<Core::GameObjectID, PhysicsTransform>>& PhysicsScene::PollTransform()
     {
         _updatedTransforms.clear();
-        if (!IsInitialized())
-            return _updatedTransforms;
-
-        for (const PhysicsBodyRecord& record : _bodyRegistry.SnapshotActive())
-        {
-            PhysicsTransform ts;
-            if (_backend->TrySyncTransform(record.backendToken, ts))
-                _updatedTransforms.emplace_back(record.ownerId, ts);
-        }
+        for (const auto& [ownerId, snapshot] : PollActiveDynamicSnapshots())
+            _updatedTransforms.emplace_back(ownerId, snapshot.transform);
 
         return _updatedTransforms;
+    }
+
+    const std::vector<std::pair<Core::GameObjectID, PhysicsBodySnapshot>>& PhysicsScene::PollActiveDynamicSnapshots()
+    {
+        _activeDynamicSnapshots.clear();
+        if (!IsInitialized())
+            return _activeDynamicSnapshots;
+
+        std::unordered_set<PhysicsBodyHandle, PhysicsHandleHash> emitted;
+        emitted.reserve(_activeDynamicHandles.size() + _dirtySnapshotHandles.size());
+        auto append = [this, &emitted](PhysicsBodyHandle handle)
+        {
+            if (!emitted.insert(handle).second)
+                return;
+            const auto record = _bodyRegistry.Find(handle);
+            const auto snapshot = _bodySnapshots.find(handle);
+            if (record && record->motionType == MotionType::Dynamic && snapshot != _bodySnapshots.end())
+                _activeDynamicSnapshots.emplace_back(record->ownerId, snapshot->second);
+        };
+        for (const PhysicsBodyHandle handle : _activeDynamicHandles)
+            append(handle);
+        for (const PhysicsBodyHandle handle : _dirtySnapshotHandles)
+            append(handle);
+        _dirtySnapshotHandles.clear();
+        return _activeDynamicSnapshots;
     }
 
     std::vector<PhysicsPairEvent> PhysicsScene::DrainPairEvents()
@@ -666,6 +751,11 @@ namespace ChikaEngine::Physics
             return { .result = PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Failed to commit physics body registry record") };
         }
 
+        _bodySnapshots[handle] = PhysicsBodySnapshot{
+            .handle = handle,
+            .transform = { .pos = desc.position, .rot = desc.rotation },
+            .sleeping = false,
+        };
         return { .result = PhysicsResult::Ok(), .handle = handle };
     }
 
@@ -715,6 +805,14 @@ namespace ChikaEngine::Physics
             return PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Failed to replace the physics body registry record");
         }
 
+        _bodySnapshots.erase(oldRecord->handle);
+        _activeDynamicHandles.erase(oldRecord->handle);
+        _dirtySnapshotHandles.erase(oldRecord->handle);
+        _bodySnapshots[newHandle] = PhysicsBodySnapshot{
+            .handle = newHandle,
+            .transform = { .pos = desc.position, .rot = desc.rotation },
+            .sleeping = false,
+        };
         return PhysicsResult::Ok();
     }
 
@@ -738,6 +836,9 @@ namespace ChikaEngine::Physics
         EraseContactPairsForBody(record->handle);
         if (!_bodyRegistry.Remove(record->handle))
             return PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Physics registry failed to remove destroyed body");
+        _bodySnapshots.erase(record->handle);
+        _activeDynamicHandles.erase(record->handle);
+        _dirtySnapshotHandles.erase(record->handle);
         return PhysicsResult::Ok();
     }
 
@@ -802,6 +903,20 @@ namespace ChikaEngine::Physics
                     if constexpr (std::is_same_v<Command, PhysicsTeleportCommand>)
                     {
                         succeeded = _backend->TeleportBody(record->backendToken, payload.position, payload.rotation, payload.resetVelocity, payload.wakePolicy);
+                        if (succeeded)
+                        {
+                            auto& snapshot = _bodySnapshots[record->handle];
+                            snapshot.handle = record->handle;
+                            snapshot.transform = { .pos = payload.position, .rot = payload.rotation };
+                            if (payload.resetVelocity)
+                            {
+                                snapshot.linearVelocity = Math::Vector3::zero;
+                                snapshot.angularVelocity = Math::Vector3::zero;
+                            }
+                            snapshot.sleeping = payload.wakePolicy == PhysicsWakePolicy::DoNotWake;
+                            if (record->motionType == MotionType::Dynamic)
+                                _dirtySnapshotHandles.insert(record->handle);
+                        }
                     }
                     else if constexpr (std::is_same_v<Command, PhysicsKinematicTargetCommand>)
                     {
@@ -814,6 +929,16 @@ namespace ChikaEngine::Physics
                         if (record->motionType == MotionType::Static)
                             return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Static body cannot receive velocity commands");
                         succeeded = _backend->SetLinearVelocity(record->backendToken, payload.velocity);
+                        if (succeeded)
+                            _bodySnapshots[record->handle].linearVelocity = payload.velocity;
+                    }
+                    else if constexpr (std::is_same_v<Command, PhysicsAngularVelocityCommand>)
+                    {
+                        if (record->motionType == MotionType::Static)
+                            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Static body cannot receive angular velocity commands");
+                        succeeded = _backend->SetAngularVelocity(record->backendToken, payload.velocity);
+                        if (succeeded)
+                            _bodySnapshots[record->handle].angularVelocity = payload.velocity;
                     }
                     else if constexpr (std::is_same_v<Command, PhysicsForceCommand>)
                     {
@@ -821,11 +946,37 @@ namespace ChikaEngine::Physics
                             return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Force requires a dynamic body");
                         succeeded = _backend->AddForce(record->backendToken, payload.force, payload.wakePolicy);
                     }
+                    else if constexpr (std::is_same_v<Command, PhysicsTorqueCommand>)
+                    {
+                        if (record->motionType != MotionType::Dynamic)
+                            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Torque requires a dynamic body");
+                        succeeded = _backend->AddTorque(record->backendToken, payload.torque, payload.wakePolicy);
+                    }
                     else if constexpr (std::is_same_v<Command, PhysicsImpulseCommand>)
                     {
                         if (record->motionType != MotionType::Dynamic)
                             return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Impulse requires a dynamic body");
                         succeeded = _backend->ApplyImpulse(record->backendToken, payload.impulse);
+                    }
+                    else if constexpr (std::is_same_v<Command, PhysicsAngularImpulseCommand>)
+                    {
+                        if (record->motionType != MotionType::Dynamic)
+                            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Angular impulse requires a dynamic body");
+                        succeeded = _backend->ApplyAngularImpulse(record->backendToken, payload.impulse);
+                    }
+                    else if constexpr (std::is_same_v<Command, PhysicsActivationCommand>)
+                    {
+                        if (record->motionType != MotionType::Dynamic)
+                            return PhysicsResult::Failure(PhysicsStatus::InvalidArgument, "Sleep/wake requires a dynamic body");
+                        succeeded = _backend->SetBodyActive(record->backendToken, payload.activate);
+                        if (succeeded)
+                        {
+                            _bodySnapshots[record->handle].sleeping = !payload.activate;
+                            if (payload.activate)
+                                _activeDynamicHandles.insert(record->handle);
+                            else
+                                _activeDynamicHandles.erase(record->handle);
+                        }
                     }
 
                     return succeeded ? PhysicsResult::Ok() : PhysicsResult::Failure(PhysicsStatus::BackendFailure, "Physics backend command failed");
@@ -866,6 +1017,18 @@ namespace ChikaEngine::Physics
     std::optional<PhysicsBodyRecord> PhysicsScene::GetBodyRecord(PhysicsBodyHandle handle) const
     {
         return _bodyRegistry.Find(handle);
+    }
+
+    std::optional<PhysicsBodySnapshot> PhysicsScene::GetBodySnapshot(PhysicsBodyHandle handle) const
+    {
+        const auto snapshot = _bodySnapshots.find(handle);
+        return snapshot == _bodySnapshots.end() ? std::nullopt : std::optional<PhysicsBodySnapshot>{ snapshot->second };
+    }
+
+    std::optional<PhysicsBodySnapshot> PhysicsScene::GetBodySnapshot(Core::GameObjectID ownerId) const
+    {
+        const PhysicsBodyHandle handle = GetBodyHandle(ownerId);
+        return handle ? GetBodySnapshot(handle) : std::nullopt;
     }
 
     PhysicsSceneStatistics PhysicsScene::GetStatistics() const

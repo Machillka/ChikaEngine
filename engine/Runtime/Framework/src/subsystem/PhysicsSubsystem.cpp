@@ -2,11 +2,16 @@
 #include "ChikaEngine/PhysicsCallbackEvents.hpp"
 #include "ChikaEngine/PhysicsScene.h"
 #include "ChikaEngine/gameobject/GameObject.h"
+#include "ChikaEngine/component/Collider.hpp"
+#include "ChikaEngine/component/Rigidbody.hpp"
+#include "ChikaEngine/component/Transform.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/profiler/ProfilerMacros.hpp"
 #include "ChikaEngine/scene/scene.hpp"
 
 #include <memory>
+#include <algorithm>
+#include <cmath>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -15,6 +20,23 @@ namespace ChikaEngine::Framework
 {
     namespace
     {
+        constexpr float TransformEpsilon = 1.0e-5f;
+
+        bool NearlyEqual(float lhs, float rhs) noexcept
+        {
+            return std::abs(lhs - rhs) <= TransformEpsilon;
+        }
+
+        bool NearlyEqual(const Math::Vector3& lhs, const Math::Vector3& rhs) noexcept
+        {
+            return NearlyEqual(lhs.x, rhs.x) && NearlyEqual(lhs.y, rhs.y) && NearlyEqual(lhs.z, rhs.z);
+        }
+
+        bool NearlyEqualRotation(const Math::Quaternion& lhs, const Math::Quaternion& rhs) noexcept
+        {
+            return std::abs(std::abs(lhs.Normalized().Dot(rhs.Normalized())) - 1.0f) <= TransformEpsilon;
+        }
+
         void Negate(Math::Vector3& value) noexcept
         {
             value.x = -value.x;
@@ -78,6 +100,8 @@ namespace ChikaEngine::Framework
 
     void PhysicsSubsystem::Cleanup()
     {
+        _authorityStates.clear();
+        _interpolationStates.clear();
         if (_physics)
         {
             _physics->Shutdown();
@@ -89,6 +113,122 @@ namespace ChikaEngine::Framework
     {
         if (_physics)
             _physics->ResetSceneState();
+        _authorityStates.clear();
+        _interpolationStates.clear();
+        _renderInterpolationAlpha = 1.0f;
+    }
+
+    void PhysicsSubsystem::PrepareTransforms(float)
+    {
+        if (!_physics || !_ownerScene)
+            return;
+
+        for (const auto& ownedObject : _ownerScene->GetAllGameobjects())
+        {
+            GameObject* object = ownedObject.get();
+            if (!object || object->IsPendingDestroy() || !object->transform)
+                continue;
+            Collider* collider = object->GetComponent<Collider>();
+            if (!collider || !collider->IsActiveAndEnabled())
+                continue;
+
+            Rigidbody* rigidbody = object->GetComponent<Rigidbody>();
+            const Physics::MotionType motionType = rigidbody && rigidbody->IsActiveAndEnabled() ? rigidbody->GetMotionType() : Physics::MotionType::Static;
+            if (motionType != Physics::MotionType::Dynamic)
+                _interpolationStates.erase(object->GetID());
+            const Math::Vector3 worldPosition = object->transform->GetWorldPosition();
+            const Math::Quaternion worldRotation = object->transform->GetWorldRotation();
+            const Math::Vector3 worldScale = object->transform->GetWorldScale();
+            const Physics::PhysicsBodyHandle handle = _physics->GetBodyHandle(object->GetID());
+            auto& state = _authorityStates[object->GetID()];
+
+            if (!state.initialized || state.motionType != motionType)
+            {
+                state = {
+                    .handle = handle,
+                    .motionType = motionType,
+                    .transform = { .pos = worldPosition, .rot = worldRotation },
+                    .worldScale = worldScale,
+                    .initialized = true,
+                };
+                if (motionType == Physics::MotionType::Dynamic)
+                {
+                    if (const auto snapshot = _physics->GetBodySnapshot(handle))
+                    {
+                        state.transform = snapshot->transform;
+                        object->transform->SetWorldPositionAndRotation(snapshot->transform.pos, snapshot->transform.rot);
+                    }
+                }
+                continue;
+            }
+
+            if (state.handle != handle)
+            {
+                state.handle = handle;
+                if (motionType == Physics::MotionType::Dynamic)
+                {
+                    if (const auto snapshot = _physics->GetBodySnapshot(handle))
+                    {
+                        state.transform = snapshot->transform;
+                        state.worldScale = worldScale;
+                        object->transform->SetWorldPositionAndRotation(snapshot->transform.pos, snapshot->transform.rot);
+                    }
+                    continue;
+                }
+            }
+
+            const bool poseChanged = !NearlyEqual(worldPosition, state.transform.pos) || !NearlyEqualRotation(worldRotation, state.transform.rot);
+            const bool scaleChanged = !NearlyEqual(worldScale, state.worldScale);
+            if (motionType == Physics::MotionType::Static)
+            {
+                if (poseChanged || scaleChanged)
+                    collider->RequestBodyRebuild();
+                state.transform = { .pos = worldPosition, .rot = worldRotation };
+                state.worldScale = worldScale;
+            }
+            else if (motionType == Physics::MotionType::Kinematic)
+            {
+                if (scaleChanged)
+                    collider->RequestBodyRebuild();
+                if (poseChanged && handle)
+                    (void)_physics->QueueKinematicTarget(Physics::PhysicsBodyTarget::FromHandle(handle), worldPosition, worldRotation);
+                state.transform = { .pos = worldPosition, .rot = worldRotation };
+                state.worldScale = worldScale;
+            }
+            else
+            {
+                // Dynamic pose is physics-owned. Direct Transform writes are
+                // rejected by restoring the latest main-thread snapshot.
+                if (poseChanged)
+                    object->transform->SetWorldPositionAndRotation(state.transform.pos, state.transform.rot);
+                if (scaleChanged)
+                {
+                    collider->RequestBodyRebuild();
+                    state.worldScale = worldScale;
+                }
+            }
+        }
+    }
+
+    void PhysicsSubsystem::SetRenderInterpolationAlpha(float alpha)
+    {
+        _renderInterpolationAlpha = std::clamp(alpha, 0.0f, 1.0f);
+    }
+
+    Math::Mat4 PhysicsSubsystem::GetRenderWorldMatrix(const Transform& transform) const
+    {
+        const GameObject* owner = transform.GetOwner();
+        if (owner)
+        {
+            const auto interpolation = _interpolationStates.find(owner->GetID());
+            if (interpolation != _interpolationStates.end())
+            {
+                const Physics::PhysicsTransform& previous = interpolation->second.previous;
+                const Physics::PhysicsTransform& current = interpolation->second.current;
+                return Math::Mat4::TRSMatrix(Math::Vector3::Lerp(previous.pos, current.pos, _renderInterpolationAlpha), Math::Quaternion::Slerp(previous.rot, current.rot, _renderInterpolationAlpha), transform.GetWorldScale());
+            }
+        }
+        return transform.GetParent() ? GetRenderWorldMatrix(*transform.GetParent()) * transform.GetLocalMatrix() : transform.GetLocalMatrix();
     }
 
     bool PhysicsSubsystem::Raycast(const Math::Vector3& origin, const Math::Vector3& direction, float maxDistance, Physics::RaycastHit& outHit)
@@ -138,19 +278,36 @@ namespace ChikaEngine::Framework
         if (!_physics)
             return;
 
-        // FIXME: 非常的不现代, 效率极低
-        auto physicsTransforms = _physics->PollTransform();
-        // LOG_INFO("Physics Subsystem", "size of padding: {}, id = {}", physicsTransforms.size(), physicsTransforms[0].first);
+        const auto& physicsTransforms = _physics->PollActiveDynamicSnapshots();
 
-        for (auto const& [goId, physicsTransform] : physicsTransforms)
+        for (auto const& [goId, snapshot] : physicsTransforms)
         {
             auto go = _ownerScene->GetGameObject(goId);
 
             if (!go)
                 continue;
 
-            // LOG_INFO("Sync Transform", "ID = {}, originY: {}, phyY: {}", goId, go->transform->position.y, physicsTransform.pos.y);
-            go->transform->SetWorldPositionAndRotation(physicsTransform.pos, physicsTransform.rot);
+            auto& interpolation = _interpolationStates[goId];
+            if (interpolation.handle != snapshot.handle)
+            {
+                interpolation = {
+                    .handle = snapshot.handle,
+                    .previous = snapshot.transform,
+                    .current = snapshot.transform,
+                };
+            }
+            else
+            {
+                interpolation.previous = interpolation.current;
+                interpolation.current = snapshot.transform;
+            }
+            go->transform->SetWorldPositionAndRotation(snapshot.transform.pos, snapshot.transform.rot);
+            auto& authority = _authorityStates[goId];
+            authority.handle = snapshot.handle;
+            authority.motionType = Physics::MotionType::Dynamic;
+            authority.transform = snapshot.transform;
+            authority.worldScale = go->transform->GetWorldScale();
+            authority.initialized = true;
         }
     }
 

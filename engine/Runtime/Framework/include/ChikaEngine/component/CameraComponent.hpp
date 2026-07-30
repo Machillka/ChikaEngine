@@ -18,6 +18,8 @@ namespace ChikaEngine::Framework
       public:
         /** @brief 根据当前 Transform 和视口宽高比构建无 Gameplay 指针的 RenderView。 */
         Render::RenderView BuildRenderView(float aspectRatio) const;
+        /** @brief 使用 render-facing world matrix 构建视图，供物理插值路径调用。 */
+        Render::RenderView BuildRenderView(float aspectRatio, const Math::Mat4& worldTransform) const;
 
         MFIELD()
         bool primary = true;

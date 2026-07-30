@@ -32,8 +32,15 @@ namespace ChikaEngine::Framework
     Render::RenderLightProxy LightComponent::BuildRenderLightProxy() const
     {
         const Transform* transform = GetOwner() ? GetOwner()->transform : nullptr;
-        const Math::Vector3 position = transform ? transform->GetWorldPosition() : Math::Vector3(5.0f, 8.0f, 5.0f);
-        const Math::Vector3 direction = transform ? transform->Forward() : Math::Vector3(0.5f, -1.0f, 0.3f).Normalized();
+        return BuildRenderLightProxy(transform ? transform->GetWorldMat() : Math::Mat4::TRSMatrix({ 5.0f, 8.0f, 5.0f }, Math::Quaternion::LookAtRotation({ 0.5f, -1.0f, 0.3f }, Math::Vector3::up), { 1.0f, 1.0f, 1.0f }));
+    }
+
+    Render::RenderLightProxy LightComponent::BuildRenderLightProxy(const Math::Mat4& worldTransform) const
+    {
+        const Math::Vector4 worldPosition = worldTransform * Math::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+        const Math::Vector4 worldForward = worldTransform * Math::Vector4(0.0f, 0.0f, -1.0f, 0.0f);
+        const Math::Vector3 position{ worldPosition.x, worldPosition.y, worldPosition.z };
+        const Math::Vector3 direction = Math::Vector3(worldForward.x, worldForward.y, worldForward.z).Normalized();
         const Math::Vector3 up = std::abs(direction.Dot(Math::Vector3::up)) > 0.99f ? Math::Vector3::right : Math::Vector3::up;
         const Render::RenderLightType type = ToRenderLightType(lightType);
 

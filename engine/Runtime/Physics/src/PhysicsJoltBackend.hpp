@@ -42,10 +42,15 @@ namespace ChikaEngine::Physics
         [[nodiscard]] PhysicsBackendBodyCreateResult CreateBodyFromDesc(PhysicsBodyHandle engineHandle, const PhysicsBodyCreateDesc& desc) override;
         [[nodiscard]] bool DestroyPhysicsBody(PhysicsBackendBodyToken token) override;
         [[nodiscard]] bool TrySyncTransform(PhysicsBackendBodyToken token, PhysicsTransform& transform) override;
+        [[nodiscard]] std::vector<PhysicsBodySnapshot> CollectActiveDynamicBodySnapshots() override;
         [[nodiscard]] std::vector<RawContactPacket> DrainRawContactPackets() override;
         [[nodiscard]] bool SetLinearVelocity(PhysicsBackendBodyToken token, const Math::Vector3& velocity) override;
+        [[nodiscard]] bool SetAngularVelocity(PhysicsBackendBodyToken token, const Math::Vector3& velocity) override;
         [[nodiscard]] bool AddForce(PhysicsBackendBodyToken token, const Math::Vector3& force, PhysicsWakePolicy wakePolicy) override;
+        [[nodiscard]] bool AddTorque(PhysicsBackendBodyToken token, const Math::Vector3& torque, PhysicsWakePolicy wakePolicy) override;
         [[nodiscard]] bool ApplyImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse) override;
+        [[nodiscard]] bool ApplyAngularImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse) override;
+        [[nodiscard]] bool SetBodyActive(PhysicsBackendBodyToken token, bool active) override;
         [[nodiscard]] bool TeleportBody(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity, PhysicsWakePolicy wakePolicy) override;
         [[nodiscard]] bool SetKinematicTarget(PhysicsBackendBodyToken token, const Math::Vector3& position, const Math::Quaternion& rotation, float deltaTime) override;
         [[nodiscard]] bool SetLayerCollisionMask(PhysicsLayerID layerId, PhysicsLayerMask mask) override;

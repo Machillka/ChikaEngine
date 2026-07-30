@@ -14,6 +14,75 @@
 
 ---
 
+## 2026-07-30 - 完成 Physics Step 2.2 Transform Authority 与运动插值
+
+### Metadata
+
+- Area: Core / Physics / Framework / Render Bridge / Test / Docs
+- Related step: `docs/physics/dev/steps/2.2-transform-motion-contract.future.md`
+- Status: Complete
+
+### Goal
+
+冻结 Static、Kinematic、Dynamic 三种 Body 的 Transform 权威方向，补齐 Kinematic target、Dynamic teleport、常用刚体运动 API、active Dynamic snapshot 和 render-only interpolation，并移除每个固定步回读所有 Body 的同步方式。
+
+### Changes
+
+- `FixedStepAccumulator.hpp`
+  - 增加 0..1 interpolation alpha、last/total dropped physics time 与 last catch-up step count。
+  - 固定步比较加入与 step 成比例的小 epsilon，避免 144 FPS 浮点累积在一秒窗口少执行一步。
+- `Scene::GetPhysicsTimingStatistics()` 与 Profiler counters
+  - 对外提供 fixed step、interpolation alpha、last/total dropped time、last/max step count，并记录 `Physics.FixedSteps` / `Physics.DroppedTimeUs`。
+- `PhysicsDescs.h` / `PhysicsCommandBuffer.hpp/.cpp`
+  - 新增包含 pose、linear/angular velocity、sleep state 的 `PhysicsBodySnapshot`。
+  - 命令缓冲补齐 angular velocity、torque、angular impulse 与 activation，继续遵守 destroy -> create/rebuild -> pose -> motion 的 phase 顺序。
+- `IPhysicsBackend` / `PhysicsJoltBackend`
+  - 增加 angular/torque/sleep-wake adapter。
+  - `CollectActiveDynamicBodySnapshots()` 使用 Jolt active rigid-body list，只为 active Dynamic Body 复制 backend-neutral 值快照；不再按 registry 遍历并锁定 Static、Kinematic 和 sleeping Body。
+- `PhysicsScene`
+  - 保存 main-thread snapshot cache、active handle set 和 explicit teleport dirty set。
+  - Rigidbody getter 与 Framework 同步读取缓存；sleeping body 不进入常规 transform upload，Wake 后重新出现。
+  - Teleport 明确支持 `resetVelocity` 与 `Wake / KeepState / DoNotWake`，无论 body 是否继续 active 都能产生一次权威 pose 更新。
+- `PhysicsSubsystem` / `Scene`
+  - 在全部 gameplay `FixedTick` 后增加统一 `PrepareTransforms()`：Static 改动 rebuild；Kinematic 改动 target；Dynamic 直接 pose 写入恢复为上一步 physics snapshot，scale 改动仍走 shape rebuild。
+  - post-step 只回写 active Dynamic snapshot，并保存 previous/current；Scene 把 accumulator alpha 交给 render bridge。
+  - render-facing world matrix 支持物理父节点层级，插值值不写回 gameplay Transform，也不进入序列化。
+- `RenderSubsystem` / `CameraComponent` / `LightComponent`
+  - Mesh proxy、runtime camera 和 light 统一消费 render-facing matrix；Editor/gameplay Transform 仍保持当前固定步物理姿态。
+- `Rigidbody`
+  - 增加 cached linear/angular velocity getter、angular velocity、force/torque、linear/angular impulse、`MoveKinematic`、`Teleport`、`WakeUp`、`Sleep`、`IsSleeping`。
+  - API 注释明确 Force、Torque、Impulse 与 Angular Impulse 的单位；旧 `Impulse()` 保留为 `AddImpulse()` 兼容入口。
+- `Collider`
+  - parented physics body 遇到 non-uniform parent world scale 时输出 authoring diagnostic，避免层级矩阵静默扭曲 backend shape。
+- `PhysicsMotionTests.cpp` / `CoreBoundaryTests.cpp` / `tests/CMakeLists.txt`
+  - 新增独立 `ChikaPhysicsMotionTests` 并加入 `physics` label。
+  - 覆盖 30/60/144 FPS oracle、三类 authority、Kinematic push、Dynamic direct-write/teleport、render interpolation、sleep/wake、force/impulse/torque、axis lock、parent scale 与 accumulator metrics。
+
+### Reason / Architecture
+
+Transform 不能同时被 gameplay、physics 和 renderer 反向修改，否则 Dynamic 会出现“一帧瞬移再被覆盖”，Kinematic 接触速度也无法由固定步 target 正确计算。现在 authority 判断只发生在 `PhysicsSubsystem` 的固定 PreStep 边界：组件只表达 authoring 或命令，`PhysicsScene` 维护 backend-neutral 状态，Jolt 只负责模拟。
+
+渲染插值不能修改权威 Transform。`PhysicsSubsystem` 因此保存 transient previous/current snapshot，按 Scene accumulator alpha 生成 render-facing world matrix；RenderWorld 只接收矩阵值。普通 Update、碰撞查询和下一次 physics step 继续读取 current fixed-step Transform，插值不会反馈到物理。
+
+Kinematic API 不让调用方传任意 deltaTime。调用方只提交 world target，`PhysicsScene::PreStep(fixedDeltaTime)` 在执行命令时把 Scene 的真实固定步传给 Jolt `MoveKinematic`，从而保持接触速度与模拟步长一致。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake --build build --target ChikaPhysicsMotionTests ChikaCoreBoundaryTests`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.PhysicsMotion|Chika.CoreBoundary"`：2/2 通过。
+- `cmake --build build`：完整 Debug 构建通过，包含 `ChikaEditor`、`ChikaGame` 与全部测试目标。
+- `ctest --test-dir build --output-on-failure -L physics`：6/6 通过。
+- `ctest --test-dir build --output-on-failure`：27/27 通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+
+### Remaining / Next
+
+- Step 3.1 继续实现命名 collision layer/profile 与 Ignore/Overlap/Block 响应矩阵。
+- 当前 snapshot 同步仍在 Scene 主线程完成；异步跨帧 physics、network prediction/rollback 明确不属于本步骤。
+- Capsule backend shape、Physics Material asset、CCD tunneling/performance gate 仍由 Step 4.1 完成。
+
+---
+
 ## 2026-07-30 - 完成 Physics Step 2.1 Collider / Rigidbody Authoring
 
 ### Metadata
@@ -55,7 +124,7 @@ Collider handle 与 Body handle 的生命周期不同：修改 authoring 会 ato
 
 ### Remaining / Next
 
-- Step 2.2 仍需完成 Static/Kinematic/Dynamic Transform authority、Kinematic target、Dynamic teleport、active-body snapshot 与渲染插值。
+- Static/Kinematic/Dynamic Transform authority、Kinematic target、Dynamic teleport、active-body snapshot 与渲染插值已由本日后续 Step 2.2 记录完成。
 - Capsule backend shape、Convex/Mesh cooking、stable Physics Material asset/combine mode 和 CCD tunneling/performance gate 仍由 Step 4.1 完成。
 - `collisionProfile` 已进入 authoring schema，但项目级响应矩阵与完整 query filter 仍由 Step 3.1/3.2 完成。
 - 反射生成器仍会输出既有的 MSVC 标准库 Clang diagnostic；设置 `PYTHONUTF8=1` 后生成、编译和链接成功。

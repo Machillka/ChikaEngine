@@ -23,8 +23,26 @@ namespace ChikaEngine::Framework
         ~Rigidbody() override = default;
 
         void SetLinearVelocity(Math::Vector3 velocity);
+        void SetAngularVelocity(Math::Vector3 velocity);
+        [[nodiscard]] Math::Vector3 GetLinearVelocity() const;
+        [[nodiscard]] Math::Vector3 GetAngularVelocity() const;
+        /** @brief Adds force in newtons (kg*m/s^2) for the next fixed step. */
         void AddForce(Math::Vector3 force);
+        /** @brief Adds torque in newton-metres for the next fixed step. */
+        void AddTorque(Math::Vector3 torque);
+        /** @brief Adds an instantaneous linear impulse in newton-seconds. */
+        void AddImpulse(Math::Vector3 impulse);
+        /** @brief Adds an instantaneous angular impulse in kg*m^2/s. */
+        void AddAngularImpulse(Math::Vector3 impulse);
+        /** @deprecated Use AddImpulse. */
         void Impulse(Math::Vector3 impulse);
+        /** @brief Moves a Kinematic body to a world-space target during the next fixed step. */
+        [[nodiscard]] bool MoveKinematic(const Math::Vector3& position, const Math::Quaternion& rotation);
+        /** @brief Teleports a Dynamic body; resetVelocity and wake policy are explicit. */
+        [[nodiscard]] bool Teleport(const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity = true, Physics::PhysicsWakePolicy wakePolicy = Physics::PhysicsWakePolicy::Wake);
+        void WakeUp();
+        void Sleep();
+        [[nodiscard]] bool IsSleeping() const;
 
         [[nodiscard]] Physics::PhysicsBodyHandle GetPhysicsHandle() const noexcept
         {

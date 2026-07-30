@@ -142,6 +142,22 @@ namespace ChikaEngine::Physics
         Math::Quaternion rot;
     };
 
+    /**
+     * @brief Main-thread value snapshot produced after a fixed simulation step.
+     *
+     * Gameplay getters consume this cache instead of reading backend bodies from
+     * arbitrary threads. Regular transform uploads contain active Dynamic bodies
+     * only; explicit teleports may emit one additional dirty snapshot.
+     */
+    struct PhysicsBodySnapshot
+    {
+        PhysicsBodyHandle handle = PhysicsBodyHandle::Invalid();
+        PhysicsTransform transform;
+        Math::Vector3 linearVelocity = Math::Vector3::zero;
+        Math::Vector3 angularVelocity = Math::Vector3::zero;
+        bool sleeping = false;
+    };
+
     struct ColliderShapeDesc
     {
         ColliderShapeType type = ColliderShapeType::Box;

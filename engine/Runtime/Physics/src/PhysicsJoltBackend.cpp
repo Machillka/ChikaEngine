@@ -489,6 +489,18 @@ namespace ChikaEngine::Physics
         return true;
     }
 
+    bool PhysicsJoltBackend::SetAngularVelocity(PhysicsBackendBodyToken token, const Math::Vector3& velocity)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !ResolveBodyId(token, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        _bodyInterface->SetAngularVelocity(id, JPH::Vec3(velocity.x, velocity.y, velocity.z));
+        return true;
+    }
+
     bool PhysicsJoltBackend::AddForce(PhysicsBackendBodyToken token, const Math::Vector3& force, PhysicsWakePolicy wakePolicy)
     {
         std::uint32_t backendBodyId = 0;
@@ -501,6 +513,18 @@ namespace ChikaEngine::Physics
         return true;
     }
 
+    bool PhysicsJoltBackend::AddTorque(PhysicsBackendBodyToken token, const Math::Vector3& torque, PhysicsWakePolicy wakePolicy)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !ResolveBodyId(token, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        _bodyInterface->AddTorque(id, JPH::Vec3(torque.x, torque.y, torque.z), ToJoltActivation(wakePolicy, _bodyInterface->IsActive(id)));
+        return true;
+    }
+
     bool PhysicsJoltBackend::ApplyImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse)
     {
         std::uint32_t backendBodyId = 0;
@@ -510,6 +534,33 @@ namespace ChikaEngine::Physics
         if (!_bodyInterface->IsAdded(id))
             return false;
         _bodyInterface->AddImpulse(id, JPH::Vec3(impulse.x, impulse.y, impulse.z));
+        return true;
+    }
+
+    bool PhysicsJoltBackend::ApplyAngularImpulse(PhysicsBackendBodyToken token, const Math::Vector3& impulse)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !ResolveBodyId(token, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        _bodyInterface->AddAngularImpulse(id, JPH::Vec3(impulse.x, impulse.y, impulse.z));
+        return true;
+    }
+
+    bool PhysicsJoltBackend::SetBodyActive(PhysicsBackendBodyToken token, bool active)
+    {
+        std::uint32_t backendBodyId = 0;
+        if (!_bodyInterface || !ResolveBodyId(token, backendBodyId))
+            return false;
+        const JPH::BodyID id(backendBodyId);
+        if (!_bodyInterface->IsAdded(id))
+            return false;
+        if (active)
+            _bodyInterface->ActivateBody(id);
+        else
+            _bodyInterface->DeactivateBody(id);
         return true;
     }
 
@@ -680,6 +731,41 @@ namespace ChikaEngine::Physics
         transform.pos = Math::Vector3(static_cast<float>(position.GetX()), static_cast<float>(position.GetY()), static_cast<float>(position.GetZ()));
         transform.rot = Math::Quaternion(rotation.GetX(), rotation.GetY(), rotation.GetZ(), rotation.GetW());
         return true;
+    }
+
+    std::vector<PhysicsBodySnapshot> PhysicsJoltBackend::CollectActiveDynamicBodySnapshots()
+    {
+        std::vector<PhysicsBodySnapshot> snapshots;
+        if (!_physicsSystem || !_bodyInterface)
+            return snapshots;
+
+        JPH::BodyIDVector activeBodies;
+        _physicsSystem->GetActiveBodies(JPH::EBodyType::RigidBody, activeBodies);
+        snapshots.reserve(activeBodies.size());
+        for (const JPH::BodyID& id : activeBodies)
+        {
+            if (!_bodyInterface->IsAdded(id) || _bodyInterface->GetMotionType(id) != JPH::EMotionType::Dynamic)
+                continue;
+
+            const PhysicsBodyHandle handle = PhysicsBodyHandle::FromValue(_bodyInterface->GetUserData(id));
+            if (!handle)
+                continue;
+            const JPH::RVec3 position = _bodyInterface->GetPosition(id);
+            const JPH::Quat rotation = _bodyInterface->GetRotation(id);
+            const JPH::Vec3 linearVelocity = _bodyInterface->GetLinearVelocity(id);
+            const JPH::Vec3 angularVelocity = _bodyInterface->GetAngularVelocity(id);
+            snapshots.push_back(PhysicsBodySnapshot{
+                .handle = handle,
+                .transform = {
+                    .pos = { static_cast<float>(position.GetX()), static_cast<float>(position.GetY()), static_cast<float>(position.GetZ()) },
+                    .rot = { rotation.GetX(), rotation.GetY(), rotation.GetZ(), rotation.GetW() },
+                },
+                .linearVelocity = { linearVelocity.GetX(), linearVelocity.GetY(), linearVelocity.GetZ() },
+                .angularVelocity = { angularVelocity.GetX(), angularVelocity.GetY(), angularVelocity.GetZ() },
+                .sleeping = false,
+            });
+        }
+        return snapshots;
     }
 
     bool PhysicsJoltBackend::HasBody(PhysicsBackendBodyToken token) const

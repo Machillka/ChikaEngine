@@ -190,11 +190,16 @@ namespace ChikaEngine::Framework
                                             gameObject->FixedTick(fixedDeltaTime);
                                         if (_physicsSubsystem)
                                         {
+                                            _physicsSubsystem->PrepareTransforms(fixedDeltaTime);
                                             _physicsSubsystem->Tick(fixedDeltaTime);
                                             _physicsSubsystem->SyncTransform();
                                             _physicsSubsystem->DispatchEvents();
                                         }
                                     });
+            CHIKA_PROFILE_COUNTER("Physics.FixedSteps", static_cast<int64_t>(_physicsStepper.GetLastStepCount()));
+            CHIKA_PROFILE_COUNTER("Physics.DroppedTimeUs", static_cast<int64_t>(_physicsStepper.GetLastDroppedTime() * 1'000'000.0f));
+            if (_physicsSubsystem)
+                _physicsSubsystem->SetRenderInterpolationAlpha(_physicsStepper.GetInterpolationAlpha());
 
             {
                 CHIKA_PROFILE_SCOPE("Scene.GameObjectUpdate");
@@ -306,6 +311,23 @@ namespace ChikaEngine::Framework
     Physics::PhysicsScene* Scene::GetPhysicsSubsystem()
     {
         return _physicsSubsystem ? _physicsSubsystem->GetPhysicsInstace() : nullptr;
+    }
+
+    PhysicsTimingStatistics Scene::GetPhysicsTimingStatistics() const
+    {
+        return {
+            .fixedDeltaTime = _physicsStepper.GetFixedStep(),
+            .interpolationAlpha = _physicsStepper.GetInterpolationAlpha(),
+            .lastDroppedTime = _physicsStepper.GetLastDroppedTime(),
+            .totalDroppedTime = _physicsStepper.GetTotalDroppedTime(),
+            .lastStepCount = _physicsStepper.GetLastStepCount(),
+            .maxStepsPerFrame = _physicsStepper.GetMaxStepsPerFrame(),
+        };
+    }
+
+    Math::Mat4 Scene::GetRenderWorldMatrix(const Transform& transform) const
+    {
+        return _physicsSubsystem ? _physicsSubsystem->GetRenderWorldMatrix(transform) : transform.GetWorldMat();
     }
 
     void Scene::OnDeserialized()
