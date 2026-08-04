@@ -1,0 +1,10 @@
+{
+  "dependencies": [
+    "Textures/Skybox/NightSkyHDRI008_2K_HDR.exr"
+  ],
+  "guid": "4e5a4cb0d97f4e9d91f2d7bb0bd1ad12",
+  "imported": "Textures/Skybox/NightSkyHDRI008_2K_HDR.texture",
+  "importer": "passthrough",
+  "type": "texture",
+  "version": 1
+}

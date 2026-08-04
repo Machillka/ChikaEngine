@@ -35,12 +35,50 @@ add_subdirectory(${THIRD_PARTY_PATH}/objloader)
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE ${THIRD_PARTY_PATH}/stb)
 
+# TinyEXR v3
+# The upstream CMakeLists is only intended for compile tests and changes global
+# compiler settings, so ChikaEngine owns the minimal library target here.
+file(GLOB TINYEXR_V3_SOURCES CONFIGURE_DEPENDS
+    "${THIRD_PARTY_PATH}/tinyexr/src/*.c"
+)
+list(FILTER TINYEXR_V3_SOURCES EXCLUDE REGEX
+    "/(exr_freestanding|exr_spectral|exr_gpu_cuda|exr_vk_vulkan)\\.c$"
+)
+add_library(tinyexr STATIC
+    ${TINYEXR_V3_SOURCES}
+    "${THIRD_PARTY_PATH}/tinyexr/deps/zstd/tinyexr_zstd.c"
+)
+add_library(tinyexr::tinyexr ALIAS tinyexr)
+target_include_directories(tinyexr
+    PUBLIC
+        "${THIRD_PARTY_PATH}/tinyexr/include"
+    PRIVATE
+        "${THIRD_PARTY_PATH}/tinyexr/src"
+        "${THIRD_PARTY_PATH}/tinyexr/deps/zstd"
+)
+set_target_properties(tinyexr PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS OFF
+    FOLDER "ThirdParty"
+)
+if(WIN32)
+    target_compile_definitions(tinyexr PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    target_compile_options(tinyexr PRIVATE -Wno-macro-redefined)
+endif()
+
 # Jolt
 set(TARGET_UNIT_TESTS OFF CACHE BOOL "Build unit tests" FORCE)
 set(TARGET_SAMPLES OFF CACHE BOOL "Build samples" FORCE)
 set(TARGET_HELLO_WORLD OFF CACHE BOOL "Build hello world" FORCE)
 set(TARGET_VIEWER OFF CACHE BOOL "Build Jolt viewer" FORCE)
 set(GENERATE_DEBUG_SYMBOLS ON CACHE BOOL "Generate debug symbols" FORCE)
+set(JPH_USE_DX12 OFF CACHE BOOL "Disable unused Jolt DirectX 12 compute backend" FORCE)
+set(JPH_USE_VK OFF CACHE BOOL "Disable unused Jolt Vulkan compute backend" FORCE)
+set(JPH_USE_MTL OFF CACHE BOOL "Disable unused Jolt Metal compute backend" FORCE)
+set(JPH_USE_CPU_COMPUTE OFF CACHE BOOL "Disable unused Jolt CPU compute backend" FORCE)
 add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
 
 # pybind11
@@ -82,6 +120,7 @@ target_link_libraries(${TARGET_NAME} INTERFACE
     nlohmann_json
     tinyobjloader
     stb
+    tinyexr::tinyexr
     Jolt
     pybind11::module
     pybind11::embed

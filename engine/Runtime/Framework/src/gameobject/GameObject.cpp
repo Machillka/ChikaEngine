@@ -1,16 +1,55 @@
 #include "ChikaEngine/gameobject/GameObject.h"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/component/Component.h"
+#include "ChikaEngine/component/Collider.hpp"
 #include "ChikaEngine/component/Transform.h"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/scene/SceneEvents.hpp"
 #include "ChikaEngine/scene/scene.hpp"
 #include <algorithm>
+#include <exception>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace ChikaEngine::Framework
 {
+    namespace
+    {
+        void DispatchPhysicsCallback(Component& component, const PhysicsContactEvent& event)
+        {
+            if (event.kind == Physics::PhysicsPairKind::Collision)
+            {
+                switch (event.phase)
+                {
+                case Physics::PhysicsPairPhase::Enter:
+                    component.OnCollisionEnter(event);
+                    break;
+                case Physics::PhysicsPairPhase::Stay:
+                    component.OnCollisionStay(event);
+                    break;
+                case Physics::PhysicsPairPhase::Exit:
+                    component.OnCollisionExit(event);
+                    break;
+                }
+                return;
+            }
+
+            switch (event.phase)
+            {
+            case Physics::PhysicsPairPhase::Enter:
+                component.OnTriggerEnter(event);
+                break;
+            case Physics::PhysicsPairPhase::Stay:
+                component.OnTriggerStay(event);
+                break;
+            case Physics::PhysicsPairPhase::Exit:
+                component.OnTriggerExit(event);
+                break;
+            }
+        }
+    } // namespace
+
     GameObject::GameObject(Core::GameObjectID id, std::string name, Scene* ownerScene) : _id(id), _name(name), _scene(ownerScene)
     {
         transform = this->AddComponent<Transform>();
@@ -184,6 +223,41 @@ namespace ChikaEngine::Framework
         FlushPendingComponentRemovals();
     }
 
+    void GameObject::DispatchPhysicsEvent(const PhysicsContactEvent& event)
+    {
+        if (!_isPlaying || _pendingDestroy || !IsActiveInHierarchy())
+            return;
+
+        std::vector<Component*> receivers;
+        receivers.reserve(_components.size());
+        for (const auto& component : _components)
+        {
+            if (component->_isActiveAndEnabled && component->_isStarted && !component->_isDestroyed)
+                receivers.push_back(component.get());
+        }
+
+        const bool wasIterating = _isIteratingComponents;
+        _isIteratingComponents = true;
+        for (Component* component : receivers)
+        {
+            try
+            {
+                DispatchPhysicsCallback(*component, event);
+            }
+            catch (const std::exception& exception)
+            {
+                LOG_ERROR("Physics Broadcast", "Component {} callback failed: {}", component->GetReflectedClassName(), exception.what());
+            }
+            catch (...)
+            {
+                LOG_ERROR("Physics Broadcast", "Component {} callback failed with an unknown exception", component->GetReflectedClassName());
+            }
+        }
+        _isIteratingComponents = wasIterating;
+        if (!wasIterating)
+            FlushPendingComponentRemovals();
+    }
+
     void GameObject::SetActive(bool active)
     {
         if (_active == active)
@@ -255,6 +329,19 @@ namespace ChikaEngine::Framework
 
         for (auto& component : _components)
             InitializeComponent(*component);
+    }
+
+    void GameObject::ApplyLegacyRigidbodyColliderMigration(const LegacyRigidbodyColliderData& legacy)
+    {
+        if (GetComponent<Collider>())
+            return;
+
+        auto collider = std::make_unique<Collider>();
+        collider->SetOwner(this);
+        collider->SetReflectedClassName(Collider::GetClassName());
+        collider->ApplyLegacyRigidbodyAuthoring(legacy.center, legacy.radius, legacy.height, legacy.friction);
+        _components.push_back(std::move(collider));
+        LOG_INFO("Serialization", "Migrated legacy Rigidbody collider authoring for GameObject {}", _id);
     }
 
     void GameObject::PrepareDestroy()

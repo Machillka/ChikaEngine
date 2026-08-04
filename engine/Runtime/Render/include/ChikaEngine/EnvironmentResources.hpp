@@ -7,6 +7,7 @@
 #include "ChikaEngine/ResourceHandle.hpp"
 
 #include <cstdint>
+#include <future>
 #include <string_view>
 #include <unordered_map>
 
@@ -30,11 +31,19 @@ namespace ChikaEngine::Render
     enum class EnvironmentResourceStatus : uint8_t
     {
         Disabled,
+        Loading,
         MissingReference,
         AssetLoadFailed,
+        TextureDecodeFailed,
+        UnsupportedEXR,
+        InvalidTexturePayload,
+        ProjectionFailed,
+        FaceSizeLimitExceeded,
         ResourceUploadFailed,
         InvalidTextureContract,
+        FallbackUnavailable,
         Ready,
+        ReadyFallback,
     };
 
     std::string_view EnvironmentResourceStatusName(EnvironmentResourceStatus status);
@@ -74,16 +83,26 @@ namespace ChikaEngine::Render
             return m_skybox;
         }
 
+        bool IsUsingFallback() const
+        {
+            return m_usingFallback;
+        }
+
       private:
         bool HasSameReference(const Asset::AssetReference& reference) const;
+        EnvironmentResourceStatus ResolveReference(const Asset::AssetReference& reference, Asset::AssetManager& assets, Resource::ResourceManager& resources);
 
         Asset::AssetReference m_reference;
+        Asset::AssetReference m_activeReference;
         Asset::TextureHandle m_asset;
+        std::shared_future<Asset::TextureHandle> m_assetLoad;
         Resource::TextureHandle m_resource;
         EnvironmentTextureResource m_skybox;
         EnvironmentResourceStatus m_status = EnvironmentResourceStatus::Disabled;
         bool m_attemptedAssetLoad = false;
         bool m_wasEnabled = false;
+        bool m_useFallback = true;
+        bool m_usingFallback = false;
     };
 
     /**

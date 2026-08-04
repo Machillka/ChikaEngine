@@ -30,16 +30,20 @@ int main()
     std::filesystem::create_directories(root / "Assets", filesystemError);
     std::filesystem::create_directories(root / "Content", filesystemError);
     const auto descriptorPath = root / "Sample.chikaproject";
-    if (!WriteText(descriptorPath, R"({"version":1,"name":"Sample","contentRoot":"Assets","cookedContentRoot":"Content","startupScene":"70a1e96c29ca4c9ab61d65d9f127c143","alwaysCook":[],"window":{"title":"Sample","width":800,"height":600,"fullscreen":false,"vSync":false},"runtime":{"renderPipeline":"deferred","fixedDeltaTime":0.02,"maxPhysicsStepsPerFrame":3,"enableScripting":false}})"))
+    if (!WriteText(
+            descriptorPath,
+            R"({"version":1,"name":"Sample","contentRoot":"Assets","cookedContentRoot":"Content","startupScene":"70a1e96c29ca4c9ab61d65d9f127c143","alwaysCook":[],"window":{"title":"Sample","width":800,"height":600,"fullscreen":false,"vSync":false},"runtime":{"renderPipeline":"deferred","environment":{"enabled":true,"skybox":{"guid":"67d279940ad24613a5be745bec80fdb2","path":"Assets/Textures/Skybox/default-skybox.texture"},"intensity":1.5,"useFallback":false,"fallbackColor":[0.1,0.2,0.3,1.0]},"fixedDeltaTime":0.02,"maxPhysicsStepsPerFrame":3,"enableScripting":false}})"))
         return Fail("failed to write valid descriptor");
 
     Project::ProjectDescriptor descriptor;
     std::string error;
     if (!Project::ProjectDescriptor::Load(descriptorPath, descriptor, error))
         return Fail("valid descriptor was rejected");
+    if (!descriptor.runtime.environment.enabled || descriptor.runtime.environment.useFallback || descriptor.runtime.environment.intensity != 1.5f || !descriptor.runtime.environment.skybox.IsValid() || descriptor.runtime.environment.skybox.GetExpectedType() != ChikaEngine::Asset::AssetType::Texture)
+        return Fail("environment settings were not parsed");
 
     Project::RuntimeBootConfig development;
-    if (!Project::BuildRuntimeBootConfig(descriptor, Project::RuntimeMode::DevelopmentGame, development, error) || !development.scanAssets || development.createMissingMeta || !development.enableHotReload || development.window.vSync || development.contentRoot != (root / "Assets").lexically_normal())
+    if (!Project::BuildRuntimeBootConfig(descriptor, Project::RuntimeMode::DevelopmentGame, development, error) || !development.scanAssets || development.createMissingMeta || !development.enableHotReload || development.window.vSync || development.contentRoot != (root / "Assets").lexically_normal() || !development.runtime.environment.enabled || development.runtime.environment.skybox.guid != descriptor.runtime.environment.skybox.guid)
         return Fail("development boot config projection is incorrect");
 
     Project::RuntimeBootConfig packaged;
@@ -48,6 +52,16 @@ int main()
 
     if (!WriteText(descriptorPath, R"({"version":2,"name":"Invalid","contentRoot":"../Assets","cookedContentRoot":"Content","startupScene":""})") || Project::ProjectDescriptor::Load(descriptorPath, descriptor, error))
         return Fail("invalid descriptor was accepted");
+
+    if (!WriteText(descriptorPath, R"({"version":1,"name":"Invalid Environment","contentRoot":"Assets","cookedContentRoot":"Content","startupScene":"70a1e96c29ca4c9ab61d65d9f127c143","runtime":{"environment":{"enabled":true,"useFallback":false,"intensity":-1.0}}})") || Project::ProjectDescriptor::Load(descriptorPath, descriptor, error))
+        return Fail("invalid environment settings were accepted");
+
+    Project::ProjectDescriptor repositoryProject;
+    const bool loadedRepositoryProject = Project::ProjectDescriptor::Load("ChikaProject.json", repositoryProject, error);
+    if (!loadedRepositoryProject || repositoryProject.runtime.environment.skybox.guid != "4e5a4cb0d97f4e9d91f2d7bb0bd1ad12" || repositoryProject.runtime.environment.skybox.diagnosticPath != "Assets/Textures/Skybox/NightSkyHDRI008_2K_HDR.texture")
+    {
+        return Fail("repository NightSky EXR environment project configuration is invalid");
+    }
 
     std::filesystem::remove_all(root, filesystemError);
     return 0;

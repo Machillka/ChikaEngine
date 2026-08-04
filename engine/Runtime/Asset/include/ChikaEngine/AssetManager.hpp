@@ -30,6 +30,7 @@
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 namespace ChikaEngine::Jobs
 {
@@ -132,6 +133,9 @@ namespace ChikaEngine::Asset
       public:
         // 查询
         const TextureData* GetTexture(TextureHandle h) const;
+        /** @brief 返回指定纹理最近一次同步加载的详细结果。 */
+        TextureLoadStatus GetTextureLoadStatus(const std::string& path) const;
+        TextureLoadStatus GetTextureLoadStatus(const AssetReference& reference) const;
         const MeshData* GetMesh(MeshHandle h) const;
         const ShaderData* GetShader(ShaderHandle h) const;
         const MaterialData* GetMaterial(MaterialHandle h) const;
@@ -254,7 +258,7 @@ namespace ChikaEngine::Asset
                     m_loadedWriteTimes[cachePath] = writeTime;
                     continue;
                 }
-                if (tracked->second == writeTime)
+                if (tracked->second == writeTime && !m_forcedReloadPaths.contains(cachePath))
                     continue;
 
                 auto data = loader(loadPath);
@@ -300,6 +304,7 @@ namespace ChikaEngine::Asset
         bool m_enableHotReload = true;
         std::chrono::steady_clock::time_point m_nextHotReloadPoll{};
         std::unordered_map<std::string, std::filesystem::file_time_type> m_loadedWriteTimes;
+        std::unordered_set<std::string> m_forcedReloadPaths;
         std::unordered_map<size_t, std::function<void(const AssetReloadEvent&)>> m_reloadCallbacks;
         size_t m_nextReloadSubscriptionId = 1;
 
@@ -323,6 +328,7 @@ namespace ChikaEngine::Asset
 
         // 路径缓存（避免重复加载）
         std::unordered_map<std::string, TextureHandle> m_texturePathCache;
+        std::unordered_map<std::string, TextureLoadStatus> m_textureLoadStatuses;
         std::unordered_map<std::string, MeshHandle> m_meshPathCache;
         std::unordered_map<std::string, ShaderHandle> m_shaderPathCache;
         std::unordered_map<std::string, MaterialHandle> m_materialPathCache;

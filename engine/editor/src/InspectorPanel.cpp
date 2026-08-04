@@ -1,6 +1,7 @@
 #include "InspectorPanel.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/Collider.hpp"
 #include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
@@ -12,8 +13,10 @@
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include <imgui.h>
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -21,6 +24,14 @@
 namespace ChikaEngine::Editor
 {
     bool DrawReflectedObject(void* instance, const Reflection::ClassInfo* classInfo);
+
+    template <std::size_t Size> void CopyToFixedBuffer(char (&destination)[Size], std::string_view source)
+    {
+        static_assert(Size > 0);
+
+        const std::size_t copiedLength = source.copy(destination, Size - 1);
+        destination[copiedLength] = '\0';
+    }
 
     std::string ToLower(std::string_view value)
     {
@@ -31,13 +42,75 @@ namespace ChikaEngine::Editor
         return result;
     }
 
-    bool IsColorParameter(std::string_view name, Resource::MaterialParameterType type)
+    std::string InspectorLabel(std::string_view name)
     {
-        if (type != Resource::MaterialParameterType::Vec4)
-            return false;
+        std::string visible;
+        visible.reserve(name.size());
 
+        for (size_t index = 0; index < name.size(); ++index)
+        {
+            const char character = name[index];
+            if (character == '_')
+            {
+                if (!visible.empty() && visible.back() != ' ')
+                    visible.push_back(' ');
+                continue;
+            }
+
+            const bool startsWord = !visible.empty() && visible.back() != ' ' && std::isupper(static_cast<unsigned char>(character))
+                && index > 0 && std::islower(static_cast<unsigned char>(name[index - 1]));
+            if (startsWord)
+                visible.push_back(' ');
+            visible.push_back(character);
+        }
+
+        while (!visible.empty() && visible.front() == ' ')
+            visible.erase(visible.begin());
+        while (!visible.empty() && visible.back() == ' ')
+            visible.pop_back();
+
+        if (visible.empty())
+            visible = "Property";
+        else
+            visible.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(visible.front())));
+
+        // The original reflection/material name remains the stable ImGui identity but is hidden after ##.
+        visible += "##";
+        visible.append(name);
+        return visible;
+    }
+
+    bool IsColorName(std::string_view name)
+    {
         const std::string lower = ToLower(name);
         return lower.find("color") != std::string::npos || lower.find("emissive") != std::string::npos;
+    }
+
+    bool IsColorParameter(std::string_view name, Resource::MaterialParameterType type)
+    {
+        return type == Resource::MaterialParameterType::Vec4 && IsColorName(name);
+    }
+
+    ImGuiColorEditFlags ColorEditFlags(bool hdr, bool hasAlpha)
+    {
+        ImGuiColorEditFlags flags =
+            ImGuiColorEditFlags_Float | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_PickerHueBar;
+        if (hdr)
+            flags |= ImGuiColorEditFlags_HDR;
+        if (hasAlpha)
+            flags |= ImGuiColorEditFlags_AlphaBar;
+        return flags;
+    }
+
+    bool DrawColor3(const char* label, float* values, bool hdr = false)
+    {
+        // ColorEdit keeps RGB float fields visible and opens the picker when the preview swatch is clicked.
+        return ImGui::ColorEdit3(label, values, ColorEditFlags(hdr, false));
+    }
+
+    bool DrawColor4(const char* label, float* values, bool hdr = false)
+    {
+        return ImGui::ColorEdit4(label, values, ColorEditFlags(hdr, true));
     }
 
     bool IsEmissiveParameter(std::string_view name)
@@ -108,36 +181,32 @@ namespace ChikaEngine::Editor
     bool DrawMaterialParameterControl(const Resource::MaterialParameterInfo& parameter, std::vector<float>& values)
     {
         values.resize(parameter.componentCount, 0.0f);
+        const std::string label = InspectorLabel(parameter.name);
 
         switch (parameter.type)
         {
         case Resource::MaterialParameterType::Float:
         {
             if (IsUnitParameter(parameter.name))
-                return ImGui::SliderFloat(parameter.name.c_str(), values.data(), 0.0f, 1.0f);
+                return ImGui::DragFloat(label.c_str(), values.data(), 0.01f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             if (IsNormalScaleParameter(parameter.name))
-                return ImGui::SliderFloat(parameter.name.c_str(), values.data(), 0.0f, 4.0f);
-            return ImGui::DragFloat(parameter.name.c_str(), values.data(), 0.01f);
+                return ImGui::DragFloat(label.c_str(), values.data(), 0.01f, 0.0f, 4.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            return ImGui::DragFloat(label.c_str(), values.data(), 0.01f);
         }
         case Resource::MaterialParameterType::Vec2:
-            return ImGui::DragFloat2(parameter.name.c_str(), values.data(), 0.01f);
+            return ImGui::DragFloat2(label.c_str(), values.data(), 0.01f);
         case Resource::MaterialParameterType::Vec3:
-            return ImGui::DragFloat3(parameter.name.c_str(), values.data(), 0.01f);
+            return ImGui::DragFloat3(label.c_str(), values.data(), 0.01f);
         case Resource::MaterialParameterType::Vec4:
         {
             if (IsColorParameter(parameter.name, parameter.type))
-            {
-                ImGuiColorEditFlags flags = ImGuiColorEditFlags_Float;
-                if (IsEmissiveParameter(parameter.name))
-                    flags |= ImGuiColorEditFlags_HDR;
-                return ImGui::ColorEdit4(parameter.name.c_str(), values.data(), flags);
-            }
-            return ImGui::DragFloat4(parameter.name.c_str(), values.data(), 0.01f);
+                return DrawColor4(label.c_str(), values.data(), IsEmissiveParameter(parameter.name));
+            return ImGui::DragFloat4(label.c_str(), values.data(), 0.01f);
         }
         case Resource::MaterialParameterType::Bool:
         {
             bool enabled = !values.empty() && values[0] != 0.0f;
-            if (!ImGui::Checkbox(parameter.name.c_str(), &enabled))
+            if (!ImGui::Checkbox(label.c_str(), &enabled))
                 return false;
             values[0] = enabled ? 1.0f : 0.0f;
             return true;
@@ -153,6 +222,8 @@ namespace ChikaEngine::Editor
         if (!prop.Get || !prop.Set)
             return false;
 
+        const std::string label = InspectorLabel(prop.Name);
+
         if (prop.IsPointer)
         {
             void* ptrValue = nullptr;
@@ -166,7 +237,7 @@ namespace ChikaEngine::Editor
                 const auto* refClass = Reflection::TypeRegister::Instance().GetClassByName(typeName);
                 if (refClass)
                 {
-                    if (ImGui::TreeNodeEx(prop.Name.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         DrawReflectedObject(ptrValue, refClass);
                         ImGui::TreePop();
@@ -174,7 +245,7 @@ namespace ChikaEngine::Editor
                 }
                 else
                 {
-                    ImGui::TextDisabled("Unregistered Pointer: %s", prop.Name.c_str());
+                    ImGui::TextDisabled("Unregistered Pointer: %.*s", static_cast<int>(label.find("##")), label.c_str());
                 }
             }
             return false;
@@ -186,7 +257,7 @@ namespace ChikaEngine::Editor
         {
             int val;
             prop.Get(instance, &val);
-            if (ImGui::DragInt(prop.Name.c_str(), &val))
+            if (ImGui::DragInt(label.c_str(), &val))
             {
                 prop.Set(instance, &val);
                 return true;
@@ -197,7 +268,7 @@ namespace ChikaEngine::Editor
         {
             float val;
             prop.Get(instance, &val);
-            if (ImGui::DragFloat(prop.Name.c_str(), &val, 0.1f))
+            if (ImGui::DragFloat(label.c_str(), &val, 0.1f))
             {
                 prop.Set(instance, &val);
                 return true;
@@ -208,7 +279,7 @@ namespace ChikaEngine::Editor
         {
             bool val;
             prop.Get(instance, &val);
-            if (ImGui::Checkbox(prop.Name.c_str(), &val))
+            if (ImGui::Checkbox(label.c_str(), &val))
             {
                 prop.Set(instance, &val);
                 return true;
@@ -220,8 +291,8 @@ namespace ChikaEngine::Editor
             std::string val;
             prop.Get(instance, &val);
             char buffer[256];
-            strncpy_s(buffer, val.c_str(), sizeof(buffer) - 1);
-            if (ImGui::InputText(prop.Name.c_str(), buffer, sizeof(buffer)))
+            CopyToFixedBuffer(buffer, val);
+            if (ImGui::InputText(label.c_str(), buffer, sizeof(buffer)))
             {
                 val = buffer;
                 prop.Set(instance, &val);
@@ -235,7 +306,10 @@ namespace ChikaEngine::Editor
             {
                 Math::Vector3 val;
                 prop.Get(instance, &val);
-                if (ImGui::DragFloat3(prop.Name.c_str(), &val.x, 0.1f))
+                const bool changed = IsColorName(prop.Name)
+                    ? DrawColor3(label.c_str(), &val.x, IsEmissiveParameter(prop.Name))
+                    : ImGui::DragFloat3(label.c_str(), &val.x, 0.1f);
+                if (changed)
                 {
                     prop.Set(instance, &val);
                     return true;
@@ -245,7 +319,10 @@ namespace ChikaEngine::Editor
             {
                 Math::Vector4 val;
                 prop.Get(instance, &val);
-                if (ImGui::DragFloat4(prop.Name.c_str(), &val.x, 0.1f))
+                const bool changed = IsColorName(prop.Name)
+                    ? DrawColor4(label.c_str(), &val.x, IsEmissiveParameter(prop.Name))
+                    : ImGui::DragFloat4(label.c_str(), &val.x, 0.1f);
+                if (changed)
                 {
                     prop.Set(instance, &val);
                     return true;
@@ -256,7 +333,7 @@ namespace ChikaEngine::Editor
                 Math::Quaternion val;
                 prop.Get(instance, &val);
                 Math::Vector3 eulerDegrees = QuaternionToEulerDegrees(val);
-                if (ImGui::DragFloat3(prop.Name.c_str(), &eulerDegrees.x, 0.5f))
+                if (ImGui::DragFloat3(label.c_str(), &eulerDegrees.x, 0.5f))
                 {
                     val = EulerDegreesToQuaternion(eulerDegrees);
                     prop.Set(instance, &val);
@@ -285,6 +362,186 @@ namespace ChikaEngine::Editor
         {
             changed = DrawProperty(prop, instance) || changed;
         }
+        return changed;
+    }
+
+    bool DrawColliderAuthoring(Framework::Collider& collider)
+    {
+        bool changed = false;
+        int shape = static_cast<int>(collider.GetShapeType());
+        constexpr const char* ShapeNames[] = { "Box", "Sphere", "Capsule" };
+        if (ImGui::Combo("Shape", &shape, ShapeNames, static_cast<int>(std::size(ShapeNames))))
+        {
+            collider.SetShapeType(static_cast<Physics::ColliderShapeType>(shape));
+            changed = true;
+        }
+
+        Math::Vector3 center = collider.GetCenter();
+        if (ImGui::DragFloat3("Center", &center.x, 0.05f))
+        {
+            collider.SetCenter(center);
+            changed = true;
+        }
+
+        if (shape == static_cast<int>(Physics::ColliderShapeType::Box))
+        {
+            Math::Vector3 halfExtents = collider.GetHalfExtents();
+            if (ImGui::DragFloat3("Half Extents", &halfExtents.x, 0.05f, 0.001f, 100000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                collider.SetHalfExtents(halfExtents);
+                changed = true;
+            }
+        }
+        else
+        {
+            float radius = collider.GetRadius();
+            if (ImGui::DragFloat("Radius", &radius, 0.05f, 0.001f, 100000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                collider.SetRadius(radius);
+                changed = true;
+            }
+            if (shape == static_cast<int>(Physics::ColliderShapeType::Capsule))
+            {
+                float height = collider.GetHeight();
+                if (ImGui::DragFloat("Height", &height, 0.05f, 0.001f, 100000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+                {
+                    collider.SetHeight(height);
+                    changed = true;
+                }
+            }
+        }
+
+        bool trigger = collider.IsTrigger();
+        if (ImGui::Checkbox("Is Trigger", &trigger))
+        {
+            collider.SetTrigger(trigger);
+            changed = true;
+        }
+        bool queryEnabled = collider.IsQueryEnabled();
+        if (ImGui::Checkbox("Query Enabled", &queryEnabled))
+        {
+            collider.SetQueryEnabled(queryEnabled);
+            changed = true;
+        }
+
+        int layer = collider.GetLayer();
+        if (ImGui::DragInt("Layer", &layer, 0.2f, 0, Physics::PHYSICS_LAYER_COUNT - 1, "%d", ImGuiSliderFlags_AlwaysClamp))
+        {
+            collider.SetLayer(layer);
+            changed = true;
+        }
+        float friction = collider.GetFriction();
+        if (ImGui::DragFloat("Friction", &friction, 0.01f, 0.0f, 1000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            collider.SetFriction(friction);
+            changed = true;
+        }
+        float restitution = collider.GetRestitution();
+        if (ImGui::DragFloat("Restitution", &restitution, 0.01f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            collider.SetRestitution(restitution);
+            changed = true;
+        }
+
+        char profile[128];
+        CopyToFixedBuffer(profile, collider.GetCollisionProfile());
+        if (ImGui::InputText("Collision Profile", profile, sizeof(profile)))
+        {
+            collider.SetCollisionProfile(profile);
+            changed = true;
+        }
+        char material[128];
+        CopyToFixedBuffer(material, collider.GetMaterialName());
+        if (ImGui::InputText("Physics Material", material, sizeof(material)))
+        {
+            collider.SetMaterialName(material);
+            changed = true;
+        }
+
+        if (!collider.GetAuthoringDiagnostic().empty())
+            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.25f, 1.0f), "%s", collider.GetAuthoringDiagnostic().c_str());
+        return changed;
+    }
+
+    bool DrawRigidbodyAuthoring(Framework::Rigidbody& rigidbody)
+    {
+        bool changed = false;
+        int motion = static_cast<int>(rigidbody.GetMotionType());
+        constexpr const char* MotionNames[] = { "Static", "Kinematic", "Dynamic" };
+        if (ImGui::Combo("Motion Type", &motion, MotionNames, static_cast<int>(std::size(MotionNames))))
+        {
+            rigidbody.SetMotionType(static_cast<Physics::MotionType>(motion));
+            changed = true;
+        }
+
+        float mass = rigidbody.GetMass();
+        if (ImGui::DragFloat("Mass", &mass, 0.05f, 0.001f, 1000000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            rigidbody.SetMass(mass);
+            changed = true;
+        }
+        float linearDamping = rigidbody.GetLinearDamping();
+        if (ImGui::DragFloat("Linear Damping", &linearDamping, 0.01f, 0.0f, 1000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            rigidbody.SetLinearDamping(linearDamping);
+            changed = true;
+        }
+        float angularDamping = rigidbody.GetAngularDamping();
+        if (ImGui::DragFloat("Angular Damping", &angularDamping, 0.01f, 0.0f, 1000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            rigidbody.SetAngularDamping(angularDamping);
+            changed = true;
+        }
+        float gravityFactor = rigidbody.GetGravityFactor();
+        if (ImGui::DragFloat("Gravity Factor", &gravityFactor, 0.01f))
+        {
+            rigidbody.SetGravityFactor(gravityFactor);
+            changed = true;
+        }
+        bool ccd = rigidbody.IsContinuousCollisionDetectionEnabled();
+        if (ImGui::Checkbox("Continuous Collision Detection", &ccd))
+        {
+            rigidbody.SetContinuousCollisionDetectionEnabled(ccd);
+            changed = true;
+        }
+        bool allowSleeping = rigidbody.IsSleepingAllowed();
+        if (ImGui::Checkbox("Allow Sleeping", &allowSleeping))
+        {
+            rigidbody.SetSleepingAllowed(allowSleeping);
+            changed = true;
+        }
+
+        int axisLockMask = rigidbody.GetAxisLockMask();
+        if (ImGui::TreeNodeEx("Axis Locks", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            constexpr std::array<std::pair<const char*, int>, 6> AxisLocks{
+                std::pair{ "Position X", static_cast<int>(Physics::PhysicsAxisLockTranslationX) },
+                std::pair{ "Position Y", static_cast<int>(Physics::PhysicsAxisLockTranslationY) },
+                std::pair{ "Position Z", static_cast<int>(Physics::PhysicsAxisLockTranslationZ) },
+                std::pair{ "Rotation X", static_cast<int>(Physics::PhysicsAxisLockRotationX) },
+                std::pair{ "Rotation Y", static_cast<int>(Physics::PhysicsAxisLockRotationY) },
+                std::pair{ "Rotation Z", static_cast<int>(Physics::PhysicsAxisLockRotationZ) },
+            };
+            bool axisChanged = false;
+            for (const auto& [label, bit] : AxisLocks)
+            {
+                bool locked = (axisLockMask & bit) != 0;
+                if (ImGui::Checkbox(label, &locked))
+                {
+                    axisLockMask = locked ? axisLockMask | bit : axisLockMask & ~bit;
+                    axisChanged = true;
+                }
+            }
+            if (axisChanged)
+            {
+                rigidbody.SetAxisLockMask(axisLockMask);
+                changed = true;
+            }
+            ImGui::TreePop();
+        }
+
+        if (!rigidbody.GetAuthoringDiagnostic().empty())
+            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.25f, 1.0f), "%s", rigidbody.GetAuthoringDiagnostic().c_str());
         return changed;
     }
 
@@ -416,7 +673,7 @@ namespace ChikaEngine::Editor
             {
                 // 1. GameObject 基础属性
                 char nameBuf[256];
-                strncpy_s(nameBuf, go->GetName().c_str(), sizeof(nameBuf) - 1);
+                CopyToFixedBuffer(nameBuf, go->GetName());
                 if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf)))
                 {
                     go->SetName(nameBuf);
@@ -453,9 +710,24 @@ namespace ChikaEngine::Editor
                         if (ImGui::CollapsingHeader(shortName.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::PushID(comp.get());
-                            if (DrawReflectedObject(comp.get(), compClassInfo))
+                            bool authoringPanelHandledDirty = false;
+                            bool componentChanged = false;
+                            if (auto* collider = dynamic_cast<Framework::Collider*>(comp.get()))
                             {
-                                comp->MarkDirty();
+                                componentChanged = DrawColliderAuthoring(*collider);
+                                authoringPanelHandledDirty = true;
+                            }
+                            else if (auto* rigidbody = dynamic_cast<Framework::Rigidbody*>(comp.get()))
+                            {
+                                componentChanged = DrawRigidbodyAuthoring(*rigidbody);
+                                authoringPanelHandledDirty = true;
+                            }
+                            else
+                                componentChanged = DrawReflectedObject(comp.get(), compClassInfo);
+                            if (componentChanged)
+                            {
+                                if (!authoringPanelHandledDirty)
+                                    comp->MarkDirty();
                                 _context->isDirty = scene->IsEditing();
                             }
                             if (auto* meshRenderer = dynamic_cast<Framework::MeshRenderer*>(comp.get()))
@@ -492,7 +764,12 @@ namespace ChikaEngine::Editor
                         go->AddComponent<Framework::LightComponent>();
                         _context->isDirty = scene->IsEditing();
                     }
-                    if (ImGui::MenuItem("Rigidbody"))
+                    if (ImGui::MenuItem("Collider", nullptr, false, go->GetComponent<Framework::Collider>() == nullptr))
+                    {
+                        go->AddComponent<Framework::Collider>();
+                        _context->isDirty = scene->IsEditing();
+                    }
+                    if (ImGui::MenuItem("Rigidbody", nullptr, false, go->GetComponent<Framework::Rigidbody>() == nullptr))
                     {
                         go->AddComponent<Framework::Rigidbody>();
                         _context->isDirty = scene->IsEditing();

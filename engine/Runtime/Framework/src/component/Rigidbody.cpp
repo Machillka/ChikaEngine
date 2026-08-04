@@ -1,158 +1,297 @@
 #include "ChikaEngine/component/Rigidbody.hpp"
-#include "ChikaEngine/PhysicsDescs.h"
-#include "ChikaEngine/debug/Gizmo.hpp"
+
+#include "ChikaEngine/component/Collider.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/gameobject/GameObject.h"
-#include "ChikaEngine/math/vector3.h"
 #include "ChikaEngine/scene/scene.hpp"
+
+#include <cmath>
 
 namespace ChikaEngine::Framework
 {
-    Rigidbody::~Rigidbody()
+    Physics::MotionType Rigidbody::GetMotionType() const noexcept
     {
-        OnDestroy();
+        if (_motionType < static_cast<int>(Physics::MotionType::Static) || _motionType > static_cast<int>(Physics::MotionType::Dynamic))
+            return Physics::MotionType::Dynamic;
+        return static_cast<Physics::MotionType>(_motionType);
     }
 
-    Scene* Rigidbody::GetSceneSave()
+    void Rigidbody::SetMotionType(Physics::MotionType type)
     {
-        auto owner = GetOwner();
-        if (!owner)
-            return nullptr;
-        auto scene = owner->GetScene();
-        if (!scene)
-            return nullptr;
-        return scene;
+        _motionType = static_cast<int>(type);
+        MarkDirty();
+    }
+    void Rigidbody::SetMass(float mass)
+    {
+        _mass = mass;
+        MarkDirty();
+    }
+    void Rigidbody::SetLinearDamping(float damping)
+    {
+        _linearDamping = damping;
+        MarkDirty();
+    }
+    void Rigidbody::SetAngularDamping(float damping)
+    {
+        _angularDamping = damping;
+        MarkDirty();
+    }
+    void Rigidbody::SetGravityFactor(float factor)
+    {
+        _gravityFactor = factor;
+        MarkDirty();
+    }
+    void Rigidbody::SetContinuousCollisionDetectionEnabled(bool enabled)
+    {
+        _continuousCollisionDetection = enabled;
+        MarkDirty();
+    }
+    void Rigidbody::SetSleepingAllowed(bool allowed)
+    {
+        _allowSleeping = allowed;
+        MarkDirty();
+    }
+    void Rigidbody::SetAxisLockMask(int mask)
+    {
+        _axisLockMask = mask;
+        MarkDirty();
     }
 
-    void Rigidbody::CreateRigidbody()
+    Scene* Rigidbody::GetSceneSafe() const
     {
-        Physics::PhysicsBodyCreateDesc createInfo{};
+        GameObject* owner = GetOwner();
+        return owner ? owner->GetScene() : nullptr;
+    }
 
-        auto owner = GetOwner();
-
-        if (!owner)
+    bool Rigidbody::ApplyAuthoringTo(Physics::PhysicsBodyCreateDesc& desc, std::string& diagnostic) const
+    {
+        if (_motionType < static_cast<int>(Physics::MotionType::Static) || _motionType > static_cast<int>(Physics::MotionType::Dynamic))
         {
-            LOG_WARN("Rigidbody Component", "Did not have a owner gameobject");
+            diagnostic = "Rigidbody motion type is invalid";
+            return false;
+        }
+        if (!std::isfinite(_mass) || !std::isfinite(_linearDamping) || !std::isfinite(_angularDamping) || !std::isfinite(_gravityFactor) || _mass <= 0.0f || _linearDamping < 0.0f || _angularDamping < 0.0f)
+        {
+            diagnostic = "Rigidbody mass must be positive; damping and all dynamics values must be finite";
+            return false;
+        }
+        if (_axisLockMask < Physics::PhysicsAxisLockNone || _axisLockMask > Physics::PhysicsAxisLockAll)
+        {
+            diagnostic = "Rigidbody axis lock mask is invalid";
+            return false;
+        }
+        if (GetMotionType() != Physics::MotionType::Static && _axisLockMask == Physics::PhysicsAxisLockAll)
+        {
+            diagnostic = "Rigidbody cannot lock all degrees of freedom; use Static motion instead";
+            return false;
+        }
+
+        desc.motionType = GetMotionType();
+        desc.mass = _mass;
+        desc.linearDamping = _linearDamping;
+        desc.angularDamping = _angularDamping;
+        desc.gravityFactor = _gravityFactor;
+        desc.continuousCollisionDetection = _continuousCollisionDetection;
+        desc.allowSleeping = _allowSleeping;
+        desc.axisLockMask = static_cast<std::uint8_t>(_axisLockMask);
+        return true;
+    }
+
+    void Rigidbody::RequestColliderRebuild()
+    {
+        GameObject* owner = GetOwner();
+        Collider* collider = owner ? owner->GetComponent<Collider>() : nullptr;
+        if (!collider || !collider->IsActiveAndEnabled())
+        {
+            _authoringDiagnostic = "Rigidbody requires an active Collider on the same GameObject";
+            _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
             return;
         }
 
-        createInfo.ownerId = owner->GetID();
-        LOG_INFO("Rigidbody", "Gameobject ID = {}", owner->GetID());
-        createInfo.position = owner->transform->GetWorldPosition();
-        createInfo.rotation = owner->transform->GetWorldRotation();
-        createInfo.shapeDesc = Physics::ColliderShapeDesc{
-            .type = Physics::RigidbodyShapes::Box,
-            .center = _colliderCenter,
-            .halfExtents = Math::Vector3{ 0.5f, 0.5f, 0.5f },
-            .radius = _colliderRadius,
-            .height = _colliderHeight,
-        };
-        createInfo.friction = _friction;
-        createInfo.mass = _mass;
-        auto scene = owner->GetScene();
-
-        if (!scene)
+        Physics::PhysicsBodyCreateDesc ignored;
+        std::string diagnostic;
+        if (!ApplyAuthoringTo(ignored, diagnostic))
         {
-            LOG_WARN("Rigidbody Component", "Did not have a owner scene");
+            _authoringDiagnostic = std::move(diagnostic);
             return;
         }
+        _authoringDiagnostic.clear();
+        collider->RequestBodyRebuild();
+    }
 
-        auto* physics = scene->GetPhysicsSubsystem();
-        if (!physics)
-        {
-            LOG_WARN("Rigidbody Component", "Owner scene does not have an initialized physics subsystem");
-            return;
-        }
-
-        if (_physicsHandle != 0)
-            physics->EnqueueRigidbodyDestroy(_physicsHandle);
-
-        _physicsHandle = physics->CreateBodyImmediate(createInfo);
-        if (_physicsHandle)
-            LOG_INFO("Rigidbody", "Create Rigidbody handle {} successfully!", _physicsHandle);
+    void Rigidbody::RefreshPhysicsHandle()
+    {
+        GameObject* owner = GetOwner();
+        Scene* scene = GetSceneSafe();
+        Physics::PhysicsScene* physics = scene ? scene->GetPhysicsSubsystem() : nullptr;
+        _physicsHandle = owner && physics ? physics->GetBodyHandle(owner->GetID()) : Physics::PhysicsBodyHandle::Invalid();
     }
 
     void Rigidbody::Awake()
     {
-        if (_need2RecreateRigidbody)
-            CreateRigidbody();
-        _need2RecreateRigidbody = false;
+        OnValidate();
     }
-
+    void Rigidbody::Start()
+    {
+        RequestColliderRebuild();
+    }
+    void Rigidbody::FixedTick(float)
+    {
+        RefreshPhysicsHandle();
+    }
     void Rigidbody::OnDirty()
     {
-        _need2RecreateRigidbody = true;
-        if (IsActiveAndEnabled())
-        {
-            CreateRigidbody();
-            _need2RecreateRigidbody = false;
-        }
+        RequestColliderRebuild();
     }
-
-    // TODO: 跳过 Rigidbody 运算, 位移等移交给 transform
     void Rigidbody::OnEnable()
     {
-        if (_need2RecreateRigidbody)
-        {
-            CreateRigidbody();
-            _need2RecreateRigidbody = false;
-        }
+        RequestColliderRebuild();
     }
 
     void Rigidbody::OnDisable()
     {
-        OnDestroy();
-        _need2RecreateRigidbody = true;
+        _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
+        if (GameObject* owner = GetOwner())
+        {
+            if (Collider* collider = owner->GetComponent<Collider>(); collider && collider->IsActiveAndEnabled())
+                collider->RequestBodyRebuild();
+        }
     }
 
     void Rigidbody::OnDestroy()
     {
-        auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
-            return;
-
-        scene->GetPhysicsSubsystem()->EnqueueRigidbodyDestroy(_physicsHandle);
-        _physicsHandle = 0;
+        _physicsHandle = Physics::PhysicsBodyHandle::Invalid();
+        if (GameObject* owner = GetOwner())
+        {
+            if (Collider* collider = owner->GetComponent<Collider>(); collider && collider->IsActiveAndEnabled())
+                collider->RequestBodyRebuild();
+        }
     }
 
-    void Rigidbody::OnGizmo() const
+    void Rigidbody::OnValidate()
     {
-        auto owner = GetOwner();
-        if (!owner || !owner->transform)
+        GameObject* owner = GetOwner();
+        if (!owner || !owner->GetComponent<Collider>())
+        {
+            _authoringDiagnostic = "Rigidbody requires a Collider on the same GameObject";
             return;
-
-        // 1. 计算 Collider 的世界中心点 (Transform 位置 + 旋转后的 Offset)
-        Math::Vector3 worldCenter = owner->transform->GetWorldPosition() + owner->transform->GetWorldRotation().Rotate(_colliderCenter);
-
-        // 2. 获取当前的旋转
-        Math::Quaternion worldRot = owner->transform->GetWorldRotation();
-
-        // 3. 计算实际的 HalfExtents (基础大小 0.5 * Transform缩放)
-        // 假设当前默认是 Box，后续可以根据实际形状区分 DrawWireSphere 等
-        Math::Vector3 halfExtents(0.5f, 0.5f, 0.5f);
-        const auto worldScale = owner->transform->GetWorldScale();
-        halfExtents.x *= worldScale.x;
-        halfExtents.y *= worldScale.y;
-        halfExtents.z *= worldScale.z;
-
-        // 4. 调用全局 Gizmo 绘制亮绿色线框
-        Debug::Gizmo::DrawWireBox(worldCenter, halfExtents, worldRot, { 0.2f, 1.0f, 0.2f, 1.0f });
+        }
+        Physics::PhysicsBodyCreateDesc ignored;
+        std::string diagnostic;
+        _authoringDiagnostic = ApplyAuthoringTo(ignored, diagnostic) ? std::string{} : std::move(diagnostic);
     }
 
-    void Rigidbody::SetLinearVelocity(Math::Vector3 v)
+    void Rigidbody::SetLinearVelocity(Math::Vector3 velocity)
     {
-        auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
-            return;
-
-        scene->GetPhysicsSubsystem()->SetLinearVelocity(_physicsHandle, v);
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueSetLinearVelocity(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), velocity);
     }
+
+    void Rigidbody::SetAngularVelocity(Math::Vector3 velocity)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueSetAngularVelocity(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), velocity);
+    }
+
+    Math::Vector3 Rigidbody::GetLinearVelocity() const
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        const auto snapshot = scene && owner && scene->GetPhysicsSubsystem() ? scene->GetPhysicsSubsystem()->GetBodySnapshot(owner->GetID()) : std::nullopt;
+        return snapshot ? snapshot->linearVelocity : Math::Vector3::zero;
+    }
+
+    Math::Vector3 Rigidbody::GetAngularVelocity() const
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        const auto snapshot = scene && owner && scene->GetPhysicsSubsystem() ? scene->GetPhysicsSubsystem()->GetBodySnapshot(owner->GetID()) : std::nullopt;
+        return snapshot ? snapshot->angularVelocity : Math::Vector3::zero;
+    }
+
+    void Rigidbody::AddForce(Math::Vector3 force)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueAddForce(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), force);
+    }
+
+    void Rigidbody::AddTorque(Math::Vector3 torque)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueAddTorque(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), torque);
+    }
+
+    void Rigidbody::AddImpulse(Math::Vector3 impulse)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueApplyImpulse(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), impulse);
+    }
+
+    void Rigidbody::AddAngularImpulse(Math::Vector3 impulse)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueApplyAngularImpulse(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), impulse);
+    }
+
     void Rigidbody::Impulse(Math::Vector3 impulse)
     {
-        auto scene = GetSceneSave();
-        if (!scene || !scene->GetPhysicsSubsystem() || _physicsHandle == 0)
-            return;
-        scene->GetPhysicsSubsystem()->ApplyImpulse(_physicsHandle, impulse);
+        AddImpulse(impulse);
     }
 
+    bool Rigidbody::MoveKinematic(const Math::Vector3& position, const Math::Quaternion& rotation)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (GetMotionType() != Physics::MotionType::Kinematic || !scene || !owner || !owner->transform || !scene->GetPhysicsSubsystem())
+            return false;
+        const Physics::PhysicsResult result = scene->GetPhysicsSubsystem()->QueueKinematicTarget(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), position, rotation);
+        if (result)
+            owner->transform->SetWorldPositionAndRotation(position, rotation);
+        return static_cast<bool>(result);
+    }
+
+    bool Rigidbody::Teleport(const Math::Vector3& position, const Math::Quaternion& rotation, bool resetVelocity, Physics::PhysicsWakePolicy wakePolicy)
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (GetMotionType() != Physics::MotionType::Dynamic || !scene || !owner || !scene->GetPhysicsSubsystem())
+            return false;
+        return static_cast<bool>(scene->GetPhysicsSubsystem()->QueueTeleport(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), position, rotation, resetVelocity, wakePolicy));
+    }
+
+    void Rigidbody::WakeUp()
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueSetBodyActive(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), true);
+    }
+
+    void Rigidbody::Sleep()
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        if (scene && owner && scene->GetPhysicsSubsystem())
+            (void)scene->GetPhysicsSubsystem()->QueueSetBodyActive(Physics::PhysicsBodyTarget::FromOwner(owner->GetID()), false);
+    }
+
+    bool Rigidbody::IsSleeping() const
+    {
+        Scene* scene = GetSceneSafe();
+        GameObject* owner = GetOwner();
+        const auto snapshot = scene && owner && scene->GetPhysicsSubsystem() ? scene->GetPhysicsSubsystem()->GetBodySnapshot(owner->GetID()) : std::nullopt;
+        return snapshot && snapshot->sleeping;
+    }
 } // namespace ChikaEngine::Framework

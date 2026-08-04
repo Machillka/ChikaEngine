@@ -1,4 +1,12 @@
 {
+  "dependencies": [
+    "Textures/Skybox/px.png",
+    "Textures/Skybox/nx.png",
+    "Textures/Skybox/py.png",
+    "Textures/Skybox/ny.png",
+    "Textures/Skybox/pz.png",
+    "Textures/Skybox/nz.png"
+  ],
   "guid": "67d279940ad24613a5be745bec80fdb2",
   "imported": "Textures/Skybox/default-skybox.texture",
   "importer": "passthrough",

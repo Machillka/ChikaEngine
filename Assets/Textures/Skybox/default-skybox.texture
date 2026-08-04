@@ -1,7 +1,7 @@
 {
   "usage": "environment",
-  "srgb": false,
-  "generateMips": true,
+  "srgb": true,
+  "generateMips": false,
   "mipLevels": 1,
   "cubeFaces": {
     "px": "px.png",
