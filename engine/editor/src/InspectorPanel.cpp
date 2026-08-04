@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -21,6 +22,14 @@
 namespace ChikaEngine::Editor
 {
     bool DrawReflectedObject(void* instance, const Reflection::ClassInfo* classInfo);
+
+    template <std::size_t Size> void CopyToFixedBuffer(char (&destination)[Size], std::string_view source)
+    {
+        static_assert(Size > 0);
+
+        const std::size_t copiedLength = source.copy(destination, Size - 1);
+        destination[copiedLength] = '\0';
+    }
 
     std::string ToLower(std::string_view value)
     {
@@ -220,7 +229,7 @@ namespace ChikaEngine::Editor
             std::string val;
             prop.Get(instance, &val);
             char buffer[256];
-            strncpy_s(buffer, val.c_str(), sizeof(buffer) - 1);
+            CopyToFixedBuffer(buffer, val);
             if (ImGui::InputText(prop.Name.c_str(), buffer, sizeof(buffer)))
             {
                 val = buffer;
@@ -416,7 +425,7 @@ namespace ChikaEngine::Editor
             {
                 // 1. GameObject 基础属性
                 char nameBuf[256];
-                strncpy_s(nameBuf, go->GetName().c_str(), sizeof(nameBuf) - 1);
+                CopyToFixedBuffer(nameBuf, go->GetName());
                 if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf)))
                 {
                     go->SetName(nameBuf);

@@ -61,7 +61,15 @@ find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
 
 message(STATUS "[ChikaEngine] Found Python Include: ${Python3_INCLUDE_DIRS}")
 message(STATUS "[ChikaEngine] Found Python Libraries: ${Python3_LIBRARIES}")
-get_filename_component(CHIKA_PYTHON_HOME "${Python3_STDLIB}" DIRECTORY)
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -c "import sys; print(sys.base_prefix, end='')"
+    OUTPUT_VARIABLE CHIKA_PYTHON_HOME
+    RESULT_VARIABLE CHIKA_PYTHON_HOME_RESULT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT CHIKA_PYTHON_HOME_RESULT EQUAL 0 OR CHIKA_PYTHON_HOME STREQUAL "")
+    message(FATAL_ERROR "Failed to determine Python runtime home from ${Python3_EXECUTABLE}")
+endif()
 message(STATUS "[ChikaEngine] Python Runtime Home: ${CHIKA_PYTHON_HOME}")
 
 if(CMAKE_HOST_WIN32)
