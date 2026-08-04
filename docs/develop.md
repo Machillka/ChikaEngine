@@ -14,6 +14,39 @@
 
 ---
 
+## 2026-08-05 - Linux Python Registry 链接与 MSVC TinyEXR 兼容修复
+
+### Metadata
+
+- Area: CMake / Scripts / ThirdParty Integration / Portability
+- Status: Complete（本地验证完成，等待 GitHub 三平台 matrix 复验）
+
+### Changes
+
+- `engine/CMakeLists.txt` 不再把生成的 `PythonRegistry.cpp` 编入顶层 `ChikaEngine` 静态库，改为通过 `target_sources()` 编入实际消费 `InitAllPythonBindings()` 的 `ChikaScripts`。
+- `engine/ThirdParty/CMakeLists.txt` 在 MSVC 下将 TinyEXR v3 使用但 MSVC C11 模式不支持的 `_Atomic T` qualifier 编译为空，同时保留 `_CRT_SECURE_NO_WARNINGS`。
+- 未修改 `engine/ThirdParty/tinyexr/` 内的 vendored 源码。
+
+### Reason and Architecture
+
+- 原先 `ChikaScripts` 引用 `InitAllPythonBindings()`，实现却位于更早被扫描的 `ChikaEngine` 静态库。GNU ld 按顺序扫描 archive，因而在 Linux 最终链接 Game、Editor 和 Benchmark 时无法回头提取 `PythonRegistry.cpp.o`。让生成代码与调用者进入同一 archive 后，符号所有权与 Scripts 模块边界一致，也不再依赖平台链接器行为。
+- TinyEXR v3 的运行时 zlib backend 函数指针使用 C11 `_Atomic` qualifier；MSVC 的 C11 模式不支持该写法。ChikaEngine 遵守 TinyEXR 已声明的“解码前设置 backend”契约，因此 MSVC 构建无需并发切换这些指针，可以在项目集成层移除 qualifier，而无需维护第三方源码补丁。
+
+### Verification
+
+- `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DCHIKA_BUILD_GAME=ON -DCHIKA_BUILD_EDITOR=ON -DCHIKA_BUILD_TOOLS=ON -DCHIKA_BUILD_BENCHMARKS=ON`：通过。
+- 生成的 `build.ninja` 显示 `PythonRegistry.cpp.o` 只进入 `engine/Runtime/Scripts/libChikaScripts.a`。
+- `cmake --build build --parallel 4`：通过；`ChikaGame`、`ChikaEditor`、`ChikaBenchmark` 和全部测试目标成功重新链接。
+- `ctest --test-dir build -C Debug --output-on-failure --no-tests=error`：27/27 通过。
+- `git diff --check`：通过。
+
+### Remaining Work
+
+- 当前机器只能执行 macOS/AppleClang 验证；Linux/GCC 的 archive 链接结果和 Windows/MSVC 的 TinyEXR 编译结果仍须由 GitHub Actions matrix 最终确认。
+- 若未来允许在解码进行期间动态切换 TinyEXR zlib backend，需要为 MSVC 增加等价的原子指针适配，而不能继续依赖 set-before-decode 契约。
+
+---
+
 ## 2026-08-04 - Main 分支 GitHub Actions 跨平台 CI 与保护指南
 
 ### Metadata

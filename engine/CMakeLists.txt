@@ -45,7 +45,12 @@ add_custom_command(
 file(GLOB_RECURSE ENGINE_SRC CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp")
 file(GLOB_RECURSE ENGINE_HDR CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/include/*.h" "${CMAKE_CURRENT_LIST_DIR}/include/*.hpp")
 
-add_library(ChikaEngine STATIC ${ENGINE_SRC} ${ENGINE_HDR} ${REGISTRY_CPP} ${PYTHON_REGISTRY_CPP})
+add_library(ChikaEngine STATIC ${ENGINE_SRC} ${ENGINE_HDR} ${REGISTRY_CPP})
+
+# Python binding initialization is consumed by ScriptsSystem and therefore
+# belongs to the Scripts archive. Keeping it in ChikaEngine makes the final
+# result depend on static-library scan order on ELF linkers.
+target_sources(ChikaScripts PRIVATE "${PYTHON_REGISTRY_CPP}")
 
 target_include_directories(ChikaEngine
     PUBLIC

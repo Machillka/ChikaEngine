@@ -62,8 +62,15 @@ set_target_properties(tinyexr PROPERTIES
     C_EXTENSIONS OFF
     FOLDER "ThirdParty"
 )
-if(WIN32)
-    target_compile_definitions(tinyexr PRIVATE _CRT_SECURE_NO_WARNINGS)
+if(MSVC)
+    # MSVC's C11 mode does not support the qualifier form `_Atomic T` used by
+    # TinyEXR v3. The affected values are runtime backend function pointers;
+    # ChikaEngine keeps the upstream set-before-decode contract, so compiling
+    # that qualifier out is safe and avoids patching vendored sources.
+    target_compile_definitions(tinyexr PRIVATE
+        _CRT_SECURE_NO_WARNINGS
+        "_Atomic="
+    )
 endif()
 if(CMAKE_C_COMPILER_ID MATCHES "Clang")
     target_compile_options(tinyexr PRIVATE -Wno-macro-redefined)
