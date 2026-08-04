@@ -14,7 +14,7 @@
 
 ---
 
-## 2026-08-04 - Test 分支 GitHub Actions 跨平台 CI
+## 2026-08-04 - Main 分支 GitHub Actions 跨平台 CI 与保护指南
 
 ### Metadata
 
@@ -23,22 +23,26 @@
 
 ### Changes
 
-- 新增 `.github/workflows/ci.yml`，仅响应 `test` 分支 push、以 `test` 为目标的 Pull Request 和手动触发，没有 `schedule` 或 nightly。
+- `.github/workflows/ci.yml` 改为响应 `main` 分支 push、以 `main` 为目标的 Pull Request 和手动触发，没有 `schedule` 或 nightly。
+- 新增固定名称 `CI Required` 汇总 job；它通过 `needs` 聚合三平台 matrix，并使用 `always()` 保证 matrix 失败或取消时仍给出失败门禁结果。
+- 调整 concurrency：同一 PR 的旧运行会取消；每个 main commit 以 SHA 隔离，确保每次 merge/main push 都完整运行。
 - CI 使用 Ubuntu 24.04/GCC、Windows Server 2022/MSVC、macOS 15/AppleClang 三平台矩阵；递归 checkout submodule，安装固定版本 uv/Python 3.14 和平台 Vulkan 依赖，完整构建 Runtime、Engine、Game、Editor、Benchmark 与 tests，并运行全部 CTest。
 - action 固定到完整 commit SHA，workflow 权限限制为 `contents: read`；同一 ref 的新运行会取消旧运行，matrix 使用 `fail-fast: false` 保留全部平台诊断。
 - 将 Git 路径 `engine/editor` 统一为 `engine/Editor`，并将 Framework 的 `CmakeLists.txt` 统一为标准 `CMakeLists.txt`，消除 Linux 大小写敏感 checkout 的配置阻塞。
 - 根 `CMakeLists.txt` 将配置期依赖准备改为 `uv sync --locked`，防止 CI 静默改写锁文件。
 - 更新 `docs/test/github-actions-ci-plan.md`，记录当前精简实现和远端验收边界。
+- 新增 `docs/test/main-branch-protection-guide.md`，说明如何对 `main` 创建 Ruleset，要求 PR、`CI Required`、最新分支，并禁止 bypass、强推和删除。
 
 ### Reason and Architecture
 
-- 单一三平台 workflow 足以提供当前需要的自动构建和测试门禁，也保持配置精简；按要求不增加每日任务、发布任务或图形 smoke。
+- 单一三平台 workflow 足以提供当前需要的合并前门禁和 main 合入后审计，也保持配置精简；按要求不增加每日任务、发布任务或图形 smoke。
 - 三个平台都构建完整产品目标，避免条件编译、系统 SDK 和链接问题被单平台或最小目标构建漏掉。
 - CI 使用只读权限并固定 action SHA；PR 代码无需 secrets，也不会通过 `pull_request_target` 在高权限上下文执行。
 
 ### Verification
 
 - `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"`：YAML 语法解析通过。
+- 静态检查确认 workflow 只监听 `main` 的 `pull_request`/`push` 和手动触发，不包含 `schedule`；`CI Required` 使用 `always()` 并依赖完整 matrix。
 - macOS 等价配置命令：Debug、tests/Game/Editor/Tools/Benchmark 全部启用，locked uv sync 与 CMake 配置通过。
 - `cmake --build build --config Debug --parallel 4`：完整构建通过，包含 `ChikaGame`、`ChikaEditor`、`ChikaBenchmark` 和全部测试目标。
 - `ctest --test-dir build -C Debug --output-on-failure --no-tests=error`：27/27 通过，包含 6 个 Physics 测试与 JobStress。

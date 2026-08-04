@@ -1,18 +1,18 @@
-name: Test CI
+name: Main CI
 
 on:
   push:
-    branches: [test]
+    branches: [main]
   pull_request:
-    branches: [test]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: test-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: main-ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
@@ -94,3 +94,12 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build -C Debug --output-on-failure --no-tests=error
+
+  required:
+    name: CI Required
+    if: always()
+    needs: build-test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify all platforms
+        run: test "${{ needs.build-test.result }}" = "success"

@@ -4,15 +4,16 @@
 
 - 日期：2026-08-04
 - 状态：Core CI Implemented
-- 目标分支：`test`
+- 目标分支：`main`
 - 适用范围：C++20 引擎、Editor、Game、Benchmark、代码生成工具与 CTest
-- 本阶段产物：单一 `.github/workflows/ci.yml`，仅验证 `test` 分支；不配置定时或 nightly 任务
+- 本阶段产物：单一 `.github/workflows/ci.yml`，验证进入 `main` 前后的提交；不配置定时或 nightly 任务
 
 ## 当前精简实现
 
-- 触发：向 `test` push、以 `test` 为目标的 Pull Request、手动触发。
+- 触发：向 `main` push、以 `main` 为目标的 Pull Request、手动触发。
 - 平台：Ubuntu 24.04/GCC、Windows Server 2022/MSVC、macOS 15/AppleClang。
 - 范围：递归 submodule、锁定 Python 环境、全部默认模块及 Game/Editor/Benchmark/tests、全部现有 CTest。
+- 门禁：三平台 matrix 汇总为固定检查名 `CI Required`，供 `main` Ruleset 强制要求。
 - 约束：无 `schedule`，无 nightly，无发布权限，无图形 smoke；图形 smoke 和新增模块测试仍是后续可选增强。
 - 结论：本地 macOS 构建测试通过只能验证 workflow 的本地等价路径，跨平台完成状态以 GitHub Actions 三个 matrix job 的实际结果为准。
 
@@ -64,29 +65,23 @@ CI 的最终目标不是只验证某个可执行文件能够编译，而是同�
 
 ```text
 .github/workflows/
-  ci.yml                 # PR、test/main push、手动触发；必需门禁
-  nightly.yml            # Release、stress、Sanitizer、图形 smoke
+  ci.yml                 # main PR、main push、手动触发；必需门禁
 CMakePresets.json        # 本地与 CI 共用的配置/构建/测试入口
 docs/test/
   github-actions-ci-plan.md
+  main-branch-protection-guide.md
 ```
 
-第一阶段不急于拆 reusable workflow。只有当 `ci.yml` 和 `nightly.yml` 出现稳定重复步骤后，再提取 `.github/workflows/_build-test.yml`，避免一开始引入难排查的调用层。
+当前保持单一 workflow，不拆 reusable workflow。
 
 ### 3.1 触发器
 
 `ci.yml`：
 
-- `pull_request`：目标为 `test` 或 `main`。
-- `push`：分支为 `test` 或 `main`。
+- `pull_request`：目标为 `main`，用于合并前门禁。
+- `push`：分支为 `main`，覆盖 merge commit 和直接进入 main 的提交。
 - `workflow_dispatch`：用于人工复现。
-- 使用 `concurrency`，同一 PR 新提交到达时取消旧运行。
-
-`nightly.yml`：
-
-- 每日定时执行一次。
-- 支持 `workflow_dispatch`。
-- 默认从 `test` 验证；`test` 稳定后再将相同门禁用于 `main`。
+- 使用 `concurrency`，同一 PR 新提交到达时取消旧运行；每个 main commit 使用独立 SHA，确保不会互相取消。
 
 不要使用 `pull_request_target` 执行来自 PR 的构建脚本，避免让不可信代码获得高权限上下文。
 
@@ -95,9 +90,9 @@ docs/test/
 1. `policy`：检查格式、文档、submodule 状态、CMake 配置约束和测试标签完整性。
 2. `build-test`：三平台矩阵，配置、构建所有目标、运行 headless CTest。
 3. `required`：使用 `needs` 汇总必需 job，形成稳定的分支保护检查名。
-4. `graphics-smoke`：在环境准备完成后执行 Game/RHI smoke；初期可在 nightly 观察，稳定后升为必需检查。
-5. `sanitizers`：Linux Clang ASan/UBSan，nightly 或手动执行。
-6. `stress-release`：三平台 Release 与 `stress` 标签，nightly 执行。
+4. `graphics-smoke`：可选后续范围，当前 workflow 不执行。
+5. `sanitizers`：可选手动深度检查，当前 workflow 不执行。
+6. `release`：可选手动 Release 检查，当前 workflow 不执行。
 
 矩阵使用 `fail-fast: false`，确保一个平台失败时其他平台仍给出诊断；这不改变最终必须全部成功的门禁。
 
@@ -107,11 +102,9 @@ docs/test/
 
 | 层级 | Runner | 编译器/生成器 | 配置 | 必须构建 | 必须测试 |
 | --- | --- | --- | --- | --- | --- |
-| PR | `ubuntu-24.04` x64 | GCC + Ninja | Debug | Runtime 14 模块、Engine、Game、Editor、Benchmark、tests | 全部 headless，排除 `smoke`、`stress` |
-| PR | `windows-2022` x64 | MSVC 2022 + Ninja | Debug | 同上 | 同上 |
-| PR | `macos-15` arm64 | AppleClang + Ninja | Debug | 同上 | 同上 |
-| Nightly | 上述三个平台 | 平台默认编译器 + Ninja | Release | 同上 | 全部 headless + `stress` |
-| Nightly | `ubuntu-24.04` x64 | Clang + Ninja | Debug + ASan/UBSan | 无头可测试目标 | 排除已确认不支持 Sanitizer 的外部目标 |
+| PR/main push | `ubuntu-24.04` x64 | GCC + Ninja | Debug | Runtime 14 模块、Engine、Game、Editor、Benchmark、tests | 全部现有 CTest，runtime smoke 关闭 |
+| PR/main push | `windows-2022` x64 | MSVC 2022 | Debug | 同上 | 同上 |
+| PR/main push | `macos-15` arm64 | AppleClang + Ninja | Debug | 同上 | 同上 |
 | Smoke | 三个平台 | 与 PR 相同 | Debug | Game、Editor、RHI/Render 测试 | Game smoke；RHI 最小设备/提交；Editor 启停 |
 
 如果 GitHub-hosted runner 的标签或架构可用性变化，应以 GitHub 官方 runner 列表为准更新固定标签。macOS ARM 与 Windows/MSVC 是不可被 Linux job 替代的必需门禁。
@@ -126,7 +119,7 @@ docs/test/
 | --- | --- | --- |
 | Core | `Chika.CoreBoundary` | 增加 `module-core` 标签 |
 | Profiler | `Chika.Profiler`、Timeline model | 增加 disabled/enabled 两种配置覆盖 |
-| Jobs | `Chika.JobSystem`、`Chika.JobStress` | stress 留在 nightly；普通功能三平台必跑 |
+| Jobs | `Chika.JobSystem`、`Chika.JobStress` | 两者都在三平台 CI 运行 |
 | Asset | Asset pipeline、texture、environment、shader、asset/jobs | 补充损坏输入与路径大小写跨平台用例 |
 | Platform | 由完整链接间接覆盖 | 新增 window contract；真实窗口放 smoke |
 | RHI | Render tests 间接覆盖 | 新增 backend factory/capability test 和软件 Vulkan smoke |
@@ -140,7 +133,7 @@ docs/test/
 | Project | `Chika.ProjectDescriptor` | 增加 Windows 路径与 Unicode 路径用例 |
 | Editor | Hierarchy、Timeline model | 增加无 UI model test；Editor 启停放 smoke |
 | Game | 编译和可选 Game smoke | 三平台执行固定帧数 smoke |
-| Benchmark | Benchmark unit test | Release nightly 运行并保存 JSON，不把性能波动直接作为首版硬门禁 |
+| Benchmark | Benchmark unit test | Debug CI 必跑；性能阈值不属于当前门禁 |
 
 任何新增 Runtime 模块都必须同时更新此映射、CTest label 和 CI 目标清单，否则 `policy` job 失败。
 
@@ -187,14 +180,16 @@ ctest --test-dir build/ci-debug \
 - Editor：启动、创建主窗口、完成最小初始化后受控退出；保留日志与崩溃信息。
 - RHI：创建 instance/device、提交最小 command、等待完成并销毁；能力缺失必须报告为明确 skip 条件，不能静默成功。
 
-图形 smoke 在三平台连续稳定通过后，才从 nightly 观察项提升为 PR 必需门禁。
+图形 smoke 当前不实现；未来若加入，应先作为手动观察项，稳定后再决定是否升为 PR 必需门禁。
 
-### Tier 3：Nightly 深度验证
+### Tier 3：可选手动深度验证
 
 - 三平台 Release 完整构建与全部 headless/stress 测试。
 - Linux Clang ASan + UBSan；先处理一方代码问题，再评估第三方抑制清单。
 - Benchmark 产出结构化结果作为 artifact；建立稳定基线后再设计阈值。
 - 可选重复运行并发/Job/Physics 测试以寻找概率性问题，但不得用重试掩盖确定性失败。
+
+这些内容不在当前 workflow 中，也没有定时触发器。
 
 ## 7. 环境与依赖准备
 
@@ -231,7 +226,7 @@ Linux 需要显式安装 GLFW 构建所需的 X11/Wayland 开发包、Vulkan loa
 - 编译器、SDK、Vulkan、Python/uv 版本。
 - CTest JUnit 报告。
 - 失败时上传 `CMakeConfigureLog.yaml`、`CMakeCache.txt`、`Testing/Temporary/LastTest.log`、Game/Editor 日志和 crash dump（若存在）。
-- Nightly 上传 Benchmark JSON；普通 PR 不长期保存大型二进制。
+- 可选手动深度检查可上传 Benchmark JSON；普通 PR 不长期保存大型二进制。
 - artifact 名称必须包含 OS、架构、编译器和配置，保留期以诊断所需的最短时间为准。
 
 ## 9. 权限与供应链约束
@@ -253,17 +248,17 @@ Linux 需要显式安装 GLFW 构建所需的 X11/Wayland 开发包、Vulkan loa
 | P2 Linux CI | 落地 policy、Ubuntu Debug 全构建和 headless test | `.github/workflows/ci.yml` 初版 | 干净 runner 连续通过，失败 artifact 可用 |
 | P3 Windows/macOS | 扩展 MSVC 与 AppleClang，修复平台根因 | 三平台 required matrix | 三个平台无允许失败项，全部完整构建和 headless test 通过 |
 | P4 覆盖闭环 | 为 Platform/RHI/Resource/Input/Time/Scripts 补 contract tests；落地图形 smoke | 新测试、smoke fixture | 模块映射无“仅间接覆盖”，三平台 smoke 稳定 |
-| P5 深度与治理 | Release/stress/Sanitizer/nightly、branch protection、维护说明 | `nightly.yml`、门禁设置 | required check 固定、nightly 可诊断、维护责任清晰 |
+| P5 治理 | main branch protection、维护说明 | Ruleset、保护操作指南 | `CI Required` 固定、无 bypass、维护责任清晰 |
 
 建议顺序是 P1 → P2 → P3 → P4 → P5。不要在 P2 只验证最小子集后就开启“所有模块通过”的分支保护描述；名称必须反映真实覆盖。
 
 ## 11. 分支与合并安排
 
-1. 在 `test` 分支完成 P1-P4，所有 CI 修复也进入同一验收链。
-2. 为 `test` 设置 required check：`CI / required`，要求分支为最新、禁止跳过检查。
-3. 三平台至少连续通过若干次真实变更后，再向 `main` 提交 CI 基础设施 PR。
-4. 合入 `main` 前验证 workflow 在目标分支事件上会触发，避免只在 `test` 工作。
-5. `main` 稳定后保留 `test` 作为集成分支，或在团队确认不需要双分支流后删除；本计划不擅自决定长期分支模型。
+1. 所有变更从功能分支通过 Pull Request 进入 `main`。
+2. PR targeting `main` 必须运行三平台 matrix，并由 `CI Required` 汇总结果。
+3. 按 `docs/test/main-branch-protection-guide.md` 创建 main Ruleset，要求 PR、最新分支和 `CI Required`。
+4. 不设置 bypass，禁止直接 push、强推和删除 `main`。
+5. PR 合并后由 `push` 事件在新的 main commit 上再次运行完整 CI。
 
 ## 12. 最终验收清单
 
@@ -272,7 +267,7 @@ Linux 需要显式安装 GLFW 构建所需的 X11/Wayland 开发包、Vulkan loa
 - [ ] 三个平台 headless CTest 均为 100% 通过，且 `--no-tests=error` 生效。
 - [ ] 每个一方模块都有可审计的 test/smoke 归属，不存在只靠链接推断的覆盖。
 - [ ] Game、Editor、RHI smoke 在三个目标平台稳定运行。
-- [ ] Nightly Release、stress、ASan/UBSan 有可追踪结果。
+- [ ] Main Ruleset 要求 `CI Required`，且直接 push/强推/删除均被拒绝。
 - [ ] 失败日志和 JUnit/artifact 足以在本地复现。
 - [ ] workflow 最小权限、action SHA 固定、PR 不使用 secrets。
 - [ ] `docs/develop.md` 记录每个落地阶段的变更、原因、验证和剩余工作。
