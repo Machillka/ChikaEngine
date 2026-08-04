@@ -318,6 +318,7 @@ namespace
         Check(sizeof(SceneData) == 176, "scene data matches shader std140 layout");
         Check(sizeof(LightGPU) == 64, "light data matches shader std430 layout");
         Check(sizeof(PostProcessData) == 32, "post process data matches shader std140 layout");
+        Check(sizeof(SkyboxData) == 80, "Skybox data matches shader std140 layout");
         Check(settings.postProcess.toneMappingEnabled && settings.postProcess.fxaaEnabled, "HDR output defaults to tone mapping and FXAA");
         Check(settings.shadows.resolution == 2048 && settings.shadows.pcfRadius == 1, "shadow quality defaults are explicit");
         Check(RHI_Format::RGBA8_SRGB != RHI_Format::RGBA8_UNorm, "sRGB and linear texture formats are distinct");

@@ -1,0 +1,21 @@
+{
+  "entryPoint": "main",
+  "inputs": [],
+  "outputs": [
+    {
+      "location": 0,
+      "name": "outUV",
+      "type": 2
+    },
+    {
+      "location": 1,
+      "name": "outNDC",
+      "type": 2
+    }
+  ],
+  "pushConstants": [],
+  "resources": [],
+  "stableHash": 3302769286770541653,
+  "stage": 1,
+  "version": 1
+}

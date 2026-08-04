@@ -1,6 +1,8 @@
 #pragma once
 
+#include "ChikaEngine/base/UIDGenerator.h"
 #include "IEditorPanel.hpp"
+#include <optional>
 
 namespace ChikaEngine::Framework
 {
@@ -26,5 +28,9 @@ namespace ChikaEngine::Editor
 
       private:
         void DrawGameObjectNode(Framework::GameObject& gameObject);
+        void CommitPendingCreateChild();
+
+        std::optional<Core::GameObjectID> _pendingCreateChildParent;
+        Core::GameObjectID _expandOnNextDraw = Core::InvalidGameObjectID;
     };
 } // namespace ChikaEngine::Editor

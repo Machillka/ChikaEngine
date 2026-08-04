@@ -124,12 +124,15 @@ find_package(OpenGL REQUIRED)
 - `nlohmann/json`
 - `tinyobjloader`
 - `stb`
+- `TinyEXR` (`v3.2.0`, BSD-3-Clause)
 - `JoltPhysics`
 - `pybind11`
 - `VulkanMemoryAllocator`
 - `tinygltf`
 
 这些库不需要手动分别安装，正常情况下通过 Git submodule 拉到 `engine/ThirdParty` 后由 CMake 加入构建。
+
+TinyEXR 位于 `engine/ThirdParty/tinyexr`。上游 `CMakeLists.txt` 仅用于其自身编译测试，因此 ChikaEngine 在 `engine/ThirdParty/CMakeLists.txt` 中建立 `tinyexr` / `tinyexr::tinyexr` target，编译 v3 C11 源码和仓库内置的 zstd adapter；默认不构建 TinyEXR 示例、测试、CLI 或可选 GPU backend。
 
 系统级必须安装的是 Vulkan SDK、OpenGL 开发环境、CMake、C++ 编译器、uv/Python。
 

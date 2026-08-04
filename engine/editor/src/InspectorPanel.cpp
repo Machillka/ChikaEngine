@@ -40,13 +40,75 @@ namespace ChikaEngine::Editor
         return result;
     }
 
-    bool IsColorParameter(std::string_view name, Resource::MaterialParameterType type)
+    std::string InspectorLabel(std::string_view name)
     {
-        if (type != Resource::MaterialParameterType::Vec4)
-            return false;
+        std::string visible;
+        visible.reserve(name.size());
 
+        for (size_t index = 0; index < name.size(); ++index)
+        {
+            const char character = name[index];
+            if (character == '_')
+            {
+                if (!visible.empty() && visible.back() != ' ')
+                    visible.push_back(' ');
+                continue;
+            }
+
+            const bool startsWord = !visible.empty() && visible.back() != ' ' && std::isupper(static_cast<unsigned char>(character))
+                && index > 0 && std::islower(static_cast<unsigned char>(name[index - 1]));
+            if (startsWord)
+                visible.push_back(' ');
+            visible.push_back(character);
+        }
+
+        while (!visible.empty() && visible.front() == ' ')
+            visible.erase(visible.begin());
+        while (!visible.empty() && visible.back() == ' ')
+            visible.pop_back();
+
+        if (visible.empty())
+            visible = "Property";
+        else
+            visible.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(visible.front())));
+
+        // The original reflection/material name remains the stable ImGui identity but is hidden after ##.
+        visible += "##";
+        visible.append(name);
+        return visible;
+    }
+
+    bool IsColorName(std::string_view name)
+    {
         const std::string lower = ToLower(name);
         return lower.find("color") != std::string::npos || lower.find("emissive") != std::string::npos;
+    }
+
+    bool IsColorParameter(std::string_view name, Resource::MaterialParameterType type)
+    {
+        return type == Resource::MaterialParameterType::Vec4 && IsColorName(name);
+    }
+
+    ImGuiColorEditFlags ColorEditFlags(bool hdr, bool hasAlpha)
+    {
+        ImGuiColorEditFlags flags =
+            ImGuiColorEditFlags_Float | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_PickerHueBar;
+        if (hdr)
+            flags |= ImGuiColorEditFlags_HDR;
+        if (hasAlpha)
+            flags |= ImGuiColorEditFlags_AlphaBar;
+        return flags;
+    }
+
+    bool DrawColor3(const char* label, float* values, bool hdr = false)
+    {
+        // ColorEdit keeps RGB float fields visible and opens the picker when the preview swatch is clicked.
+        return ImGui::ColorEdit3(label, values, ColorEditFlags(hdr, false));
+    }
+
+    bool DrawColor4(const char* label, float* values, bool hdr = false)
+    {
+        return ImGui::ColorEdit4(label, values, ColorEditFlags(hdr, true));
     }
 
     bool IsEmissiveParameter(std::string_view name)
@@ -117,36 +179,32 @@ namespace ChikaEngine::Editor
     bool DrawMaterialParameterControl(const Resource::MaterialParameterInfo& parameter, std::vector<float>& values)
     {
         values.resize(parameter.componentCount, 0.0f);
+        const std::string label = InspectorLabel(parameter.name);
 
         switch (parameter.type)
         {
         case Resource::MaterialParameterType::Float:
         {
             if (IsUnitParameter(parameter.name))
-                return ImGui::SliderFloat(parameter.name.c_str(), values.data(), 0.0f, 1.0f);
+                return ImGui::DragFloat(label.c_str(), values.data(), 0.01f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             if (IsNormalScaleParameter(parameter.name))
-                return ImGui::SliderFloat(parameter.name.c_str(), values.data(), 0.0f, 4.0f);
-            return ImGui::DragFloat(parameter.name.c_str(), values.data(), 0.01f);
+                return ImGui::DragFloat(label.c_str(), values.data(), 0.01f, 0.0f, 4.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            return ImGui::DragFloat(label.c_str(), values.data(), 0.01f);
         }
         case Resource::MaterialParameterType::Vec2:
-            return ImGui::DragFloat2(parameter.name.c_str(), values.data(), 0.01f);
+            return ImGui::DragFloat2(label.c_str(), values.data(), 0.01f);
         case Resource::MaterialParameterType::Vec3:
-            return ImGui::DragFloat3(parameter.name.c_str(), values.data(), 0.01f);
+            return ImGui::DragFloat3(label.c_str(), values.data(), 0.01f);
         case Resource::MaterialParameterType::Vec4:
         {
             if (IsColorParameter(parameter.name, parameter.type))
-            {
-                ImGuiColorEditFlags flags = ImGuiColorEditFlags_Float;
-                if (IsEmissiveParameter(parameter.name))
-                    flags |= ImGuiColorEditFlags_HDR;
-                return ImGui::ColorEdit4(parameter.name.c_str(), values.data(), flags);
-            }
-            return ImGui::DragFloat4(parameter.name.c_str(), values.data(), 0.01f);
+                return DrawColor4(label.c_str(), values.data(), IsEmissiveParameter(parameter.name));
+            return ImGui::DragFloat4(label.c_str(), values.data(), 0.01f);
         }
         case Resource::MaterialParameterType::Bool:
         {
             bool enabled = !values.empty() && values[0] != 0.0f;
-            if (!ImGui::Checkbox(parameter.name.c_str(), &enabled))
+            if (!ImGui::Checkbox(label.c_str(), &enabled))
                 return false;
             values[0] = enabled ? 1.0f : 0.0f;
             return true;
@@ -162,6 +220,8 @@ namespace ChikaEngine::Editor
         if (!prop.Get || !prop.Set)
             return false;
 
+        const std::string label = InspectorLabel(prop.Name);
+
         if (prop.IsPointer)
         {
             void* ptrValue = nullptr;
@@ -175,7 +235,7 @@ namespace ChikaEngine::Editor
                 const auto* refClass = Reflection::TypeRegister::Instance().GetClassByName(typeName);
                 if (refClass)
                 {
-                    if (ImGui::TreeNodeEx(prop.Name.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         DrawReflectedObject(ptrValue, refClass);
                         ImGui::TreePop();
@@ -183,7 +243,7 @@ namespace ChikaEngine::Editor
                 }
                 else
                 {
-                    ImGui::TextDisabled("Unregistered Pointer: %s", prop.Name.c_str());
+                    ImGui::TextDisabled("Unregistered Pointer: %.*s", static_cast<int>(label.find("##")), label.c_str());
                 }
             }
             return false;
@@ -195,7 +255,7 @@ namespace ChikaEngine::Editor
         {
             int val;
             prop.Get(instance, &val);
-            if (ImGui::DragInt(prop.Name.c_str(), &val))
+            if (ImGui::DragInt(label.c_str(), &val))
             {
                 prop.Set(instance, &val);
                 return true;
@@ -206,7 +266,7 @@ namespace ChikaEngine::Editor
         {
             float val;
             prop.Get(instance, &val);
-            if (ImGui::DragFloat(prop.Name.c_str(), &val, 0.1f))
+            if (ImGui::DragFloat(label.c_str(), &val, 0.1f))
             {
                 prop.Set(instance, &val);
                 return true;
@@ -217,7 +277,7 @@ namespace ChikaEngine::Editor
         {
             bool val;
             prop.Get(instance, &val);
-            if (ImGui::Checkbox(prop.Name.c_str(), &val))
+            if (ImGui::Checkbox(label.c_str(), &val))
             {
                 prop.Set(instance, &val);
                 return true;
@@ -230,7 +290,7 @@ namespace ChikaEngine::Editor
             prop.Get(instance, &val);
             char buffer[256];
             CopyToFixedBuffer(buffer, val);
-            if (ImGui::InputText(prop.Name.c_str(), buffer, sizeof(buffer)))
+            if (ImGui::InputText(label.c_str(), buffer, sizeof(buffer)))
             {
                 val = buffer;
                 prop.Set(instance, &val);
@@ -244,7 +304,10 @@ namespace ChikaEngine::Editor
             {
                 Math::Vector3 val;
                 prop.Get(instance, &val);
-                if (ImGui::DragFloat3(prop.Name.c_str(), &val.x, 0.1f))
+                const bool changed = IsColorName(prop.Name)
+                    ? DrawColor3(label.c_str(), &val.x, IsEmissiveParameter(prop.Name))
+                    : ImGui::DragFloat3(label.c_str(), &val.x, 0.1f);
+                if (changed)
                 {
                     prop.Set(instance, &val);
                     return true;
@@ -254,7 +317,10 @@ namespace ChikaEngine::Editor
             {
                 Math::Vector4 val;
                 prop.Get(instance, &val);
-                if (ImGui::DragFloat4(prop.Name.c_str(), &val.x, 0.1f))
+                const bool changed = IsColorName(prop.Name)
+                    ? DrawColor4(label.c_str(), &val.x, IsEmissiveParameter(prop.Name))
+                    : ImGui::DragFloat4(label.c_str(), &val.x, 0.1f);
+                if (changed)
                 {
                     prop.Set(instance, &val);
                     return true;
@@ -265,7 +331,7 @@ namespace ChikaEngine::Editor
                 Math::Quaternion val;
                 prop.Get(instance, &val);
                 Math::Vector3 eulerDegrees = QuaternionToEulerDegrees(val);
-                if (ImGui::DragFloat3(prop.Name.c_str(), &eulerDegrees.x, 0.5f))
+                if (ImGui::DragFloat3(label.c_str(), &eulerDegrees.x, 0.5f))
                 {
                     val = EulerDegreesToQuaternion(eulerDegrees);
                     prop.Set(instance, &val);

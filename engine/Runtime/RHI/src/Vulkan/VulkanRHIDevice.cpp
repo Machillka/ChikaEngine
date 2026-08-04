@@ -1088,6 +1088,8 @@ namespace ChikaEngine::Render
                 .drawIndirectCount = false,
                 .maxDrawIndirectCount = 1,
                 .maxComputeWorkGroupInvocations = properties.limits.maxComputeWorkGroupInvocations,
+                .maxTexture2DSize = properties.limits.maxImageDimension2D,
+                .maxTextureCubeSize = properties.limits.maxImageDimensionCube,
             };
         }
 

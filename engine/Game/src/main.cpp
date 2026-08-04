@@ -56,6 +56,7 @@ namespace ChikaEngine::Game
         void OnInitialize() override
         {
             auto& context = GetEngineContext();
+            context.GetRenderer()->SetEnvironmentSettings(m_bootConfig.runtime.environment);
             Framework::Scene* scene = context.GetSceneManager()->LoadScene(m_bootConfig.startupScene.GetGuid(), true);
             if (!scene)
                 throw std::runtime_error("Failed to load startup Scene GUID: " + m_bootConfig.startupScene.guid);

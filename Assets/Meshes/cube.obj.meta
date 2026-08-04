@@ -1,4 +1,5 @@
 {
+  "dependencies": [],
   "guid": "ba9a83ddb0590c9ac74994e14ddd67f3",
   "imported": "Meshes/cube.obj",
   "importer": "passthrough",

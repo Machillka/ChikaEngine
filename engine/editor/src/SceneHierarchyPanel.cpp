@@ -1,4 +1,6 @@
 #include "SceneHierarchyPanel.hpp"
+#include "HierarchyActions.hpp"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/component/Animator.hpp"
 #include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
@@ -50,37 +52,50 @@ namespace ChikaEngine::Editor
 
     void SceneHierarchyPanel::DrawGameObjectNode(Framework::GameObject& gameObject)
     {
+        const Core::GameObjectID gameObjectId = gameObject.GetID();
+        const bool expandThisFrame = _expandOnNextDraw == gameObjectId;
+        if (expandThisFrame)
+            ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
         if (!gameObject.transform || gameObject.transform->GetChildren().empty())
             flags |= ImGuiTreeNodeFlags_Leaf;
         if (_context->selectedGameObject == gameObject.GetID())
             flags |= ImGuiTreeNodeFlags_Selected;
 
-        const bool open = ImGui::TreeNodeEx(reinterpret_cast<void*>(gameObject.GetID()), flags, "%s", gameObject.GetName().c_str());
+        const bool open = ImGui::TreeNodeEx(reinterpret_cast<void*>(gameObjectId), flags, "%s", gameObject.GetName().c_str());
+        if (expandThisFrame)
+            _expandOnNextDraw = Core::InvalidGameObjectID;
         if (ImGui::IsItemClicked())
-            _context->selectedGameObject = gameObject.GetID();
+            _context->selectedGameObject = gameObjectId;
+
+        if (ImGui::BeginPopupContextItem())
+        {
+            _context->selectedGameObject = gameObjectId;
+
+            if (_context->activeScene->IsEditing())
+            {
+                if (ImGui::MenuItem("Create Child"))
+                    _pendingCreateChildParent = gameObjectId;
+                DrawAddComponentMenu(gameObject, _context->isDirty);
+            }
+            else
+            {
+                ImGui::BeginDisabled();
+                ImGui::MenuItem("Create Child");
+                ImGui::MenuItem("Add Component");
+                ImGui::EndDisabled();
+                ImGui::Separator();
+                ImGui::TextDisabled("Return to Edit Mode to modify hierarchy.");
+            }
+            ImGui::EndPopup();
+        }
 
         if (_context->activeScene->IsEditing())
         {
-            if (ImGui::BeginPopupContextItem())
-            {
-                _context->selectedGameObject = gameObject.GetID();
-
-                if (ImGui::MenuItem("Create Child"))
-                {
-                    const auto childId = _context->activeScene->CreateGameobject("GameObject");
-                    if (auto* child = _context->activeScene->GetGameObject(childId); child && child->transform && gameObject.transform)
-                        child->transform->SetParent(gameObject.transform, true);
-                    _context->selectedGameObject = childId;
-                    _context->isDirty = true;
-                }
-                DrawAddComponentMenu(gameObject, _context->isDirty);
-                ImGui::EndPopup();
-            }
-
             if (ImGui::BeginDragDropSource())
             {
-                const auto id = gameObject.GetID();
+                const auto id = gameObjectId;
                 ImGui::SetDragDropPayload("CHIKA_GAME_OBJECT", &id, sizeof(id));
                 ImGui::TextUnformatted(gameObject.GetName().c_str());
                 ImGui::EndDragDropSource();
@@ -111,6 +126,30 @@ namespace ChikaEngine::Editor
         }
     }
 
+    void SceneHierarchyPanel::CommitPendingCreateChild()
+    {
+        if (!_pendingCreateChildParent)
+            return;
+
+        const Core::GameObjectID parentId = *_pendingCreateChildParent;
+        _pendingCreateChildParent.reset();
+
+        Framework::Scene* scene = _context ? _context->activeScene : nullptr;
+        if (!scene)
+            return;
+
+        const CreateChildResult result = CommitCreateChild(*scene, parentId);
+        if (!result.Succeeded())
+        {
+            LOG_ERROR("Editor", "Create Child failed for parent {}: {}", parentId, CreateChildStatusName(result.status));
+            return;
+        }
+
+        _context->selectedGameObject = result.childId;
+        _context->isDirty = true;
+        _expandOnNextDraw = parentId;
+    }
+
     void SceneHierarchyPanel::OnImGuiRender()
     {
         ImGui::Begin(GetName().c_str(), &_isActive);
@@ -123,13 +162,35 @@ namespace ChikaEngine::Editor
             return;
         }
 
-        if (scene->IsEditing() && ImGui::Button("Create GameObject"))
+        if (Core::IsValidGameObjectID(_expandOnNextDraw) && !scene->GetGameObject(_expandOnNextDraw))
+            _expandOnNextDraw = Core::InvalidGameObjectID;
+
+        const bool editing = scene->IsEditing();
+        if (!editing)
+            ImGui::BeginDisabled();
+        const bool createRoot = ImGui::Button("Create GameObject");
+        if (!editing)
         {
-            _context->selectedGameObject = scene->CreateGameobject("GameObject");
-            _context->isDirty = true;
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::TextDisabled("Edit Mode only");
         }
 
-        if (scene->IsEditing() && ImGui::BeginDragDropTarget())
+        if (editing && createRoot)
+        {
+            const Core::GameObjectID createdId = scene->CreateGameobject("GameObject");
+            if (Core::IsValidGameObjectID(createdId))
+            {
+                _context->selectedGameObject = createdId;
+                _context->isDirty = true;
+            }
+            else
+            {
+                LOG_ERROR("Editor", "Create GameObject failed");
+            }
+        }
+
+        if (editing && ImGui::BeginDragDropTarget())
         {
             if (const auto* payload = ImGui::AcceptDragDropPayload("CHIKA_GAME_OBJECT"))
             {
@@ -140,12 +201,31 @@ namespace ChikaEngine::Editor
             ImGui::EndDragDropTarget();
         }
 
-        if (scene->IsEditing() && ImGui::BeginPopupContextWindow("SceneHierarchyContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        if (ImGui::BeginPopupContextWindow("SceneHierarchyContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
-            if (ImGui::MenuItem("Create GameObject"))
+            if (editing)
             {
-                _context->selectedGameObject = scene->CreateGameobject("GameObject");
-                _context->isDirty = true;
+                if (ImGui::MenuItem("Create GameObject"))
+                {
+                    const Core::GameObjectID createdId = scene->CreateGameobject("GameObject");
+                    if (Core::IsValidGameObjectID(createdId))
+                    {
+                        _context->selectedGameObject = createdId;
+                        _context->isDirty = true;
+                    }
+                    else
+                    {
+                        LOG_ERROR("Editor", "Create GameObject failed");
+                    }
+                }
+            }
+            else
+            {
+                ImGui::BeginDisabled();
+                ImGui::MenuItem("Create GameObject");
+                ImGui::EndDisabled();
+                ImGui::Separator();
+                ImGui::TextDisabled("Return to Edit Mode to modify hierarchy.");
             }
             ImGui::EndPopup();
         }
@@ -155,6 +235,9 @@ namespace ChikaEngine::Editor
             if (!object->transform || !object->transform->GetParent())
                 DrawGameObjectNode(*object);
         }
+
+        // Scene structural mutations are committed only after traversal so vector iterators remain valid.
+        CommitPendingCreateChild();
 
         ImGui::End();
     }

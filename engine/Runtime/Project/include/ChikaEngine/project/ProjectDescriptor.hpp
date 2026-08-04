@@ -13,6 +13,7 @@ namespace ChikaEngine::Project
     struct ProjectRuntimeSettings
     {
         Render::RenderPipelineMode renderPipeline = Render::RenderPipelineMode::Forward;
+        Render::EnvironmentSettings environment;
         float fixedDeltaTime = 1.0f / 60.0f;
         uint32_t maxPhysicsStepsPerFrame = 4;
         bool enableScripting = true;

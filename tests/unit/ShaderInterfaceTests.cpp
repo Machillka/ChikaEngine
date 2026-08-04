@@ -143,17 +143,25 @@ namespace
         const Shader::ShaderReflectionData gbufferFragment = load("Assets/Shaders/gbuffer.frag.spv.reflection.json");
         const Shader::ShaderReflectionData deferredFragment = load("Assets/Shaders/deferred_lighting.frag.spv.reflection.json");
         const Shader::ShaderReflectionData postProcessFragment = load("Assets/Shaders/post_process.frag.spv.reflection.json");
+        const Shader::ShaderReflectionData skyboxVertex = load("Assets/Shaders/skybox.vert.spv.reflection.json");
+        const Shader::ShaderReflectionData skyboxFragment = load("Assets/Shaders/skybox.frag.spv.reflection.json");
 
         const std::array staticForwardStages{ staticVertex, forwardFragment };
         const std::array skinnedForwardStages{ skinnedVertex, forwardFragment };
         const std::array staticGBufferStages{ staticVertex, gbufferFragment };
         const std::array deferredStages{ fullscreenVertex, deferredFragment };
         const std::array postProcessStages{ fullscreenVertex, postProcessFragment };
+        const std::array skyboxStages{ skyboxVertex, skyboxFragment };
         Check(Shader::BuildShaderProgramInterface(staticForwardStages).success, "static forward shader interface builds");
         Check(Shader::BuildShaderProgramInterface(skinnedForwardStages).success, "skinned forward shader interface builds");
         Check(Shader::BuildShaderProgramInterface(staticGBufferStages).success, "gbuffer shader interface builds");
         Check(Shader::BuildShaderProgramInterface(deferredStages).success, "deferred lighting shader interface builds");
         Check(Shader::BuildShaderProgramInterface(postProcessStages).success, "post process shader interface builds");
+        const Shader::ShaderProgramBuildResult skyboxInterface = Shader::BuildShaderProgramInterface(skyboxStages);
+        Check(skyboxInterface.success, "Skybox shader interface builds");
+        Check(std::ranges::any_of(skyboxInterface.interface.resources, [](const Shader::ShaderResourceBinding& resource) { return resource.name == "skybox" && resource.type == Shader::ShaderDescriptorType::UniformBuffer; }), "Skybox reflection exposes independent SkyboxData UBO");
+        Check(std::ranges::any_of(skyboxInterface.interface.resources, [](const Shader::ShaderResourceBinding& resource) { return resource.name == "EnvironmentSkybox" && resource.type == Shader::ShaderDescriptorType::CombinedImageSampler; }), "Skybox reflection exposes Cubemap binding");
+        Check(std::ranges::any_of(skyboxInterface.interface.resources, [](const Shader::ShaderResourceBinding& resource) { return resource.name == "SceneDepth" && resource.type == Shader::ShaderDescriptorType::CombinedImageSampler; }), "Skybox reflection exposes deferred SceneDepth binding");
         Check(staticVertex.inputs.size() == 3, "static vertex reflection removes unused skinned attributes");
         Check(skinnedVertex.inputs.size() == 5, "skinned vertex reflection keeps bone attributes");
         Check(gbufferFragment.outputs.size() == 4, "gbuffer reflection exposes PBR and world-position attachments");
