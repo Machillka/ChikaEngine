@@ -1,0 +1,96 @@
+name: Test CI
+
+on:
+  push:
+    branches: [test]
+  pull_request:
+    branches: [test]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-24.04
+          - name: Windows MSVC
+            os: windows-2022
+          - name: macOS AppleClang
+            os: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.12.1"
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ninja-build libvulkan-dev glslc xorg-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja molten-vk shaderc vulkan-headers vulkan-loader
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install vulkan-sdk --no-progress --yes
+          $sdk = Get-ChildItem C:\VulkanSDK -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $sdk) { throw "Vulkan SDK was not installed" }
+          "VULKAN_SDK=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$($sdk.FullName)\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Configure
+        if: runner.os != 'Windows'
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_TESTING=ON
+          -DCHIKA_BUILD_GAME=ON
+          -DCHIKA_BUILD_EDITOR=ON
+          -DCHIKA_BUILD_TOOLS=ON
+          -DCHIKA_BUILD_BENCHMARKS=ON
+          -DCHIKA_ENABLE_RUNTIME_SMOKE_TESTS=OFF
+          -DGLFW_BUILD_WAYLAND=OFF
+
+      - name: Configure
+        if: runner.os == 'Windows'
+        run: >-
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DBUILD_TESTING=ON
+          -DCHIKA_BUILD_GAME=ON
+          -DCHIKA_BUILD_EDITOR=ON
+          -DCHIKA_BUILD_TOOLS=ON
+          -DCHIKA_BUILD_BENCHMARKS=ON
+          -DCHIKA_ENABLE_RUNTIME_SMOKE_TESTS=OFF
+
+      - name: Build all modules
+        run: cmake --build build --config Debug --parallel 4
+
+      - name: Run tests
+        run: ctest --test-dir build -C Debug --output-on-failure --no-tests=error

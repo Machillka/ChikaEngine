@@ -38,7 +38,7 @@ message(STATUS "[ChikaEngine] Bootstrapping isolated Python environment via uv..
 # 查找本地 uv 环境
 find_program(UV_EXECUTABLE uv REQUIRED)
 execute_process(
-    COMMAND ${UV_EXECUTABLE} sync
+    COMMAND ${UV_EXECUTABLE} sync --locked
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     RESULT_VARIABLE UV_SYNC_RESULT
 )
