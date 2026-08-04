@@ -75,6 +75,10 @@ set(TARGET_SAMPLES OFF CACHE BOOL "Build samples" FORCE)
 set(TARGET_HELLO_WORLD OFF CACHE BOOL "Build hello world" FORCE)
 set(TARGET_VIEWER OFF CACHE BOOL "Build Jolt viewer" FORCE)
 set(GENERATE_DEBUG_SYMBOLS ON CACHE BOOL "Generate debug symbols" FORCE)
+set(JPH_USE_DX12 OFF CACHE BOOL "Disable unused Jolt DirectX 12 compute backend" FORCE)
+set(JPH_USE_VK OFF CACHE BOOL "Disable unused Jolt Vulkan compute backend" FORCE)
+set(JPH_USE_MTL OFF CACHE BOOL "Disable unused Jolt Metal compute backend" FORCE)
+set(JPH_USE_CPU_COMPUTE OFF CACHE BOOL "Disable unused Jolt CPU compute backend" FORCE)
 add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
 
 # pybind11

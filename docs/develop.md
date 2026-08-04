@@ -14,6 +14,39 @@
 
 ---
 
+## 2026-08-04 - Jolt Compute 后端跨平台构建修复
+
+### Metadata
+
+- Area: CMake / Physics / ThirdParty Integration / Portability / Docs
+- Status: Complete
+
+### Changes
+
+- `engine/ThirdParty/CMakeLists.txt`
+  - 在接入 Jolt 子目录前显式关闭 `JPH_USE_DX12`、`JPH_USE_VK`、`JPH_USE_MTL` 和 `JPH_USE_CPU_COMPUTE`。
+  - 保留 Jolt 刚体物理库和现有 Physics 模块接口，不修改 vendored Jolt 源码。
+
+### Reason and Architecture
+
+- 当前 Jolt 版本默认启用全部 ComputeSystem 后端；其中 macOS Metal/Vulkan shader 构建需要额外的 `dxc`、`spirv-cross` 或 Metal 编译工具，导致不使用 ComputeSystem 的 ChikaEngine 仍无法在干净构建目录完成配置或编译。
+- ChikaEngine Physics 模块只消费 Jolt 刚体、碰撞和约束能力，没有使用 Jolt ComputeSystem。关闭这些可选后端不会改变 Physics runtime ownership、body lifecycle 或 contact event 契约。
+- 选项在调用 Jolt `add_subdirectory` 前以 cache 变量固定，确保新旧构建目录行为一致。
+
+### Verification
+
+- `cmake -S . -B build-integration -G Ninja -DCMAKE_BUILD_TYPE=Debug`：通过；没有要求 Metal、DXC 或 SPIR-V Cross 工具链，且 Python Runtime Home 正确解析为 Homebrew Framework base prefix。
+- `cmake --build build-integration --parallel 4`：通过；TinyEXR、Jolt、Game、Editor、Benchmark 和全部测试目标成功编译链接。
+- `ctest --test-dir build-integration --output-on-failure`：21/21 通过。
+- `ChikaGame --project .../ChikaProject.json --mode development --smoke-frames 3`：返回 0；Python 与 Jolt 初始化成功，NightSky OpenEXR 成功异步转换为 `512x512x6` RGBA16F Cubemap。
+
+### Remaining Work
+
+- 如果未来引入 Jolt ComputeSystem，应按目标平台单独启用所需后端，并补充 shader toolchain、运行时能力检测和跨平台验证。
+- Apple M4 / MoltenVK 的 queue family 报告 `timestampValidBits == 0`，当前 GPU profiler 仍调用 `vkCmdWriteTimestamp`；该 validation error 与 Jolt Compute 和 Skybox 资源加载无关，需要在 RHI profiler capability gate 中单独修复。
+
+---
+
 ## 2026-08-04 - Embedded Python Runtime Home 跨平台修复
 
 ### Metadata
