@@ -11,7 +11,7 @@ namespace ChikaEngine::Physics
         return instance;
     }
 
-    std::unique_ptr<PhysicsScene> PhysicsSystem::CreatePhysicsScene(PhysicsSystemDesc& desc)
+    std::unique_ptr<PhysicsScene> PhysicsSystem::CreatePhysicsScene(const PhysicsSystemDesc& desc)
     {
         auto physicsScene = std::make_unique<PhysicsScene>(desc);
 

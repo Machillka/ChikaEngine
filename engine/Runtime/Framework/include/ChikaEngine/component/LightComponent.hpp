@@ -19,6 +19,8 @@ namespace ChikaEngine::Framework
       public:
         /** @brief 根据当前 Transform 构建 Render Proxy。 */
         Render::RenderLightProxy BuildRenderLightProxy() const;
+        /** @brief 使用 render-facing world matrix 构建光源，供物理插值路径调用。 */
+        Render::RenderLightProxy BuildRenderLightProxy(const Math::Mat4& worldTransform) const;
 
         /** @brief 0=Directional, 1=Point, 2=Spot。 */
         MFIELD()

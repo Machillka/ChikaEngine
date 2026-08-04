@@ -15,6 +15,7 @@ namespace ChikaEngine::Framework
     // TODO[x]: 完善这个简陋的自增 ID
 
     class Scene; // 前向声明
+    class PhysicsSubsystem;
     MCLASS(GameObject)
     {
         REFLECTION_BODY(GameObject);
@@ -114,6 +115,7 @@ namespace ChikaEngine::Framework
             else if constexpr (Archive::IsLoading)
             {
                 _components.clear();
+                LegacyRigidbodyColliderData legacyCollider;
                 for (size_t i = 0; i < compCount; ++i)
                 {
                     ar.EnterNode(nullptr);
@@ -133,9 +135,29 @@ namespace ChikaEngine::Framework
 
                     // 反序列化组件内部数据
                     ar("CompData", *comp);
+                    if constexpr (requires(Archive& archive) { archive.Contains("field"); })
+                    {
+                        if (typeName.ends_with("Rigidbody"))
+                        {
+                            ar.EnterNode("CompData");
+                            const bool hasCenter = ar.Contains("_colliderCenter");
+                            const bool hasOffset = ar.Contains("_colliderOffset");
+                            legacyCollider.present = legacyCollider.present || hasCenter || hasOffset || ar.Contains("_colliderRadius") || ar.Contains("_colliderHeight") || ar.Contains("_friction");
+                            if (hasCenter)
+                                ar("_colliderCenter", legacyCollider.center);
+                            else if (hasOffset)
+                                ar("_colliderOffset", legacyCollider.center);
+                            ar.ProcessValue("_colliderRadius", legacyCollider.radius);
+                            ar.ProcessValue("_colliderHeight", legacyCollider.height);
+                            ar.ProcessValue("_friction", legacyCollider.friction);
+                            ar.LeaveNode();
+                        }
+                    }
                     _components.push_back(std::move(comp));
                     ar.LeaveNode();
                 }
+                if (legacyCollider.present)
+                    ApplyLegacyRigidbodyColliderMigration(legacyCollider);
             }
             ar.LeaveArray();
 
@@ -202,9 +224,21 @@ namespace ChikaEngine::Framework
       private:
         friend class Scene;
         friend class Prefab;
+        friend class PhysicsSubsystem;
+
+        struct LegacyRigidbodyColliderData
+        {
+            bool present = false;
+            Math::Vector3 center = Math::Vector3::zero;
+            float radius = 0.5f;
+            float height = 1.0f;
+            float friction = 0.5f;
+        };
 
         void InitializeComponent(Component & component);
+        void ApplyLegacyRigidbodyColliderMigration(const LegacyRigidbodyColliderData& legacy);
         void DestroyComponent(Component & component);
+        void DispatchPhysicsEvent(const PhysicsContactEvent& event);
         void MarkPendingDestroy()
         {
             _pendingDestroy = true;

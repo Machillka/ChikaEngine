@@ -11,12 +11,12 @@ namespace ChikaEngine::Physics
       public:
         static PhysicsSystem& Instance();
         // 工厂方法
-        std::unique_ptr<PhysicsScene> CreatePhysicsScene(PhysicsSystemDesc& desc);
+        std::unique_ptr<PhysicsScene> CreatePhysicsScene(const PhysicsSystemDesc& desc);
         // 通过 handle 访问后端
         // TODO: 应该是重新对 physics scene 暴露接口 还是让 scene 自己持有后端 ??
 
       private:
-        PhysicsSystem();
-        ~PhysicsSystem();
+        PhysicsSystem() = default;
+        ~PhysicsSystem() = default;
     };
 } // namespace ChikaEngine::Physics

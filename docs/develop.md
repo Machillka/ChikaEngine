@@ -14,6 +14,41 @@
 
 ---
 
+## 2026-08-04 - Editor/Skybox 与 Physics 分支整合
+
+### Metadata
+
+- Area: Integration / Editor / Render / Physics / Portability / Docs
+- Status: Complete
+
+### Changes
+
+- 在临时 `integrate` 分支按顺序合并 `origin/feat/editor` 和 `origin/feat/physics`，保留 Editor/Skybox 的 4 个提交及其后的 5 个 Physics 提交历史。
+- `docs/develop.md` 冲突按时间顺序保留双方完整记录，没有使用整文件 ours/theirs 丢弃任一分支历史。
+- `InspectorPanel.cpp` 保留 Editor 的可读 label 与 Physics 的 Collider authoring，并以 `CopyToFixedBuffer` 覆盖反射字符串、Collision Profile、Physics Material 和 GameObject Name 四处固定缓冲区写入。
+- 不纳入 `feat/physics` 中硬编码个人 Windows 绝对路径的 `.codex/hooks.json`；引擎代码、Physics 文档和测试均完整保留。
+- 规范 4 个 Physics 步骤文档的 EOF 空行，使 merge 补丁通过 `git diff --check`。
+
+### Reason and Architecture
+
+- `feat/editor` 是 `feat/physics` 的祖先，但分阶段合并提供了独立的 Editor/Skybox 与 Physics 验收门，同时保留原始提交可追溯性。
+- Skybox/HDR/EXR 完整加载链位于 Editor 分支历史中；合并恢复 Asset、Resource、RHI、RenderGraph、Project 和入口配置的完整闭环，而不是用路径特例掩盖缺失实现。
+- Physics merge 保留 Runtime ownership、body lifecycle、contact stream、Collider/Rigidbody authoring 和 Transform authority 的模块边界。
+
+### Verification
+
+- Editor/Skybox 阶段：全新 `build-integration` 配置与完整构建通过，CTest 21/21 通过。
+- Physics 阶段：增量重新配置和完整构建通过，CTest 27/27 通过，其中 6 个测试带 `physics` 标签。
+- Game 3 帧 smoke 返回 0；Python 与 Jolt 初始化成功，NightSky OpenEXR 在 worker 上成功转换为 `512x512x6` float16 Cubemap。
+- `git diff --cached --check`：通过。
+
+### Remaining Work
+
+- Editor 仍需人工视觉确认 NightSky 最终上传后的画面、Collider/Rigidbody Inspector 交互和 Hierarchy Create Child。
+- Apple M4 / MoltenVK 的 GPU timestamp capability gate 仍需单独修复；它不影响本次 Skybox 资源转换和 Physics 自动测试结论。
+
+---
+
 ## 2026-08-04 - Jolt Compute 后端跨平台构建修复
 
 ### Metadata
@@ -108,6 +143,397 @@
 
 - ImGui 编辑缓冲区仍保持 256 字节上限，过长名称会被安全截断；本次不扩展为动态字符串 ImGui adapter。
 - 本次未启动图形界面进行 Editor 交互 smoke test。
+## 2026-07-30 - 完成 Physics Step 2.2 Transform Authority 与运动插值
+
+### Metadata
+
+- Area: Core / Physics / Framework / Render Bridge / Test / Docs
+- Related step: `docs/physics/dev/steps/2.2-transform-motion-contract.future.md`
+- Status: Complete
+
+### Goal
+
+冻结 Static、Kinematic、Dynamic 三种 Body 的 Transform 权威方向，补齐 Kinematic target、Dynamic teleport、常用刚体运动 API、active Dynamic snapshot 和 render-only interpolation，并移除每个固定步回读所有 Body 的同步方式。
+
+### Changes
+
+- `FixedStepAccumulator.hpp`
+  - 增加 0..1 interpolation alpha、last/total dropped physics time 与 last catch-up step count。
+  - 固定步比较加入与 step 成比例的小 epsilon，避免 144 FPS 浮点累积在一秒窗口少执行一步。
+- `Scene::GetPhysicsTimingStatistics()` 与 Profiler counters
+  - 对外提供 fixed step、interpolation alpha、last/total dropped time、last/max step count，并记录 `Physics.FixedSteps` / `Physics.DroppedTimeUs`。
+- `PhysicsDescs.h` / `PhysicsCommandBuffer.hpp/.cpp`
+  - 新增包含 pose、linear/angular velocity、sleep state 的 `PhysicsBodySnapshot`。
+  - 命令缓冲补齐 angular velocity、torque、angular impulse 与 activation，继续遵守 destroy -> create/rebuild -> pose -> motion 的 phase 顺序。
+- `IPhysicsBackend` / `PhysicsJoltBackend`
+  - 增加 angular/torque/sleep-wake adapter。
+  - `CollectActiveDynamicBodySnapshots()` 使用 Jolt active rigid-body list，只为 active Dynamic Body 复制 backend-neutral 值快照；不再按 registry 遍历并锁定 Static、Kinematic 和 sleeping Body。
+- `PhysicsScene`
+  - 保存 main-thread snapshot cache、active handle set 和 explicit teleport dirty set。
+  - Rigidbody getter 与 Framework 同步读取缓存；sleeping body 不进入常规 transform upload，Wake 后重新出现。
+  - Teleport 明确支持 `resetVelocity` 与 `Wake / KeepState / DoNotWake`，无论 body 是否继续 active 都能产生一次权威 pose 更新。
+- `PhysicsSubsystem` / `Scene`
+  - 在全部 gameplay `FixedTick` 后增加统一 `PrepareTransforms()`：Static 改动 rebuild；Kinematic 改动 target；Dynamic 直接 pose 写入恢复为上一步 physics snapshot，scale 改动仍走 shape rebuild。
+  - post-step 只回写 active Dynamic snapshot，并保存 previous/current；Scene 把 accumulator alpha 交给 render bridge。
+  - render-facing world matrix 支持物理父节点层级，插值值不写回 gameplay Transform，也不进入序列化。
+- `RenderSubsystem` / `CameraComponent` / `LightComponent`
+  - Mesh proxy、runtime camera 和 light 统一消费 render-facing matrix；Editor/gameplay Transform 仍保持当前固定步物理姿态。
+- `Rigidbody`
+  - 增加 cached linear/angular velocity getter、angular velocity、force/torque、linear/angular impulse、`MoveKinematic`、`Teleport`、`WakeUp`、`Sleep`、`IsSleeping`。
+  - API 注释明确 Force、Torque、Impulse 与 Angular Impulse 的单位；旧 `Impulse()` 保留为 `AddImpulse()` 兼容入口。
+- `Collider`
+  - parented physics body 遇到 non-uniform parent world scale 时输出 authoring diagnostic，避免层级矩阵静默扭曲 backend shape。
+- `PhysicsMotionTests.cpp` / `CoreBoundaryTests.cpp` / `tests/CMakeLists.txt`
+  - 新增独立 `ChikaPhysicsMotionTests` 并加入 `physics` label。
+  - 覆盖 30/60/144 FPS oracle、三类 authority、Kinematic push、Dynamic direct-write/teleport、render interpolation、sleep/wake、force/impulse/torque、axis lock、parent scale 与 accumulator metrics。
+
+### Reason / Architecture
+
+Transform 不能同时被 gameplay、physics 和 renderer 反向修改，否则 Dynamic 会出现“一帧瞬移再被覆盖”，Kinematic 接触速度也无法由固定步 target 正确计算。现在 authority 判断只发生在 `PhysicsSubsystem` 的固定 PreStep 边界：组件只表达 authoring 或命令，`PhysicsScene` 维护 backend-neutral 状态，Jolt 只负责模拟。
+
+渲染插值不能修改权威 Transform。`PhysicsSubsystem` 因此保存 transient previous/current snapshot，按 Scene accumulator alpha 生成 render-facing world matrix；RenderWorld 只接收矩阵值。普通 Update、碰撞查询和下一次 physics step 继续读取 current fixed-step Transform，插值不会反馈到物理。
+
+Kinematic API 不让调用方传任意 deltaTime。调用方只提交 world target，`PhysicsScene::PreStep(fixedDeltaTime)` 在执行命令时把 Scene 的真实固定步传给 Jolt `MoveKinematic`，从而保持接触速度与模拟步长一致。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake --build build --target ChikaPhysicsMotionTests ChikaCoreBoundaryTests`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.PhysicsMotion|Chika.CoreBoundary"`：2/2 通过。
+- `cmake --build build`：完整 Debug 构建通过，包含 `ChikaEditor`、`ChikaGame` 与全部测试目标。
+- `ctest --test-dir build --output-on-failure -L physics`：6/6 通过。
+- `ctest --test-dir build --output-on-failure`：27/27 通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+
+### Remaining / Next
+
+- Step 3.1 继续实现命名 collision layer/profile 与 Ignore/Overlap/Block 响应矩阵。
+- 当前 snapshot 同步仍在 Scene 主线程完成；异步跨帧 physics、network prediction/rollback 明确不属于本步骤。
+- Capsule backend shape、Physics Material asset、CCD tunneling/performance gate 仍由 Step 4.1 完成。
+
+---
+
+## 2026-07-30 - 完成 Physics Step 2.1 Collider / Rigidbody Authoring
+
+### Metadata
+
+- Area: Physics / Framework / Editor / Serialization / Test / Docs
+- Status: Complete
+
+### Goal
+
+把碰撞几何与刚体动力学从旧 `Rigidbody` 单组件中拆开，形成 Collider-owned Body lifecycle 与 Rigidbody dynamics overlay，并让旧 Scene、Inspector、Gizmo、contact/query identity 和自动化测试形成完整闭环。
+
+### Changes
+
+- 新增 `Collider.hpp/.cpp`：承载 Box/Sphere/Capsule authoring、center、尺寸、Trigger、layer、friction/restitution、profile/material 名称与 query participation；没有 Rigidbody 时创建 Static Body。
+- 重写 `Rigidbody.hpp/.cpp`：移除默认 Box 与碰撞字段，仅保留 motion type、mass、damping、gravity factor、CCD、allow sleep、axis lock、runtime Body handle 和 velocity/force/impulse 命令；缺少 active Collider 时输出明确诊断。
+- Collider 统一处理 Start、Add、Remove、Enable、Disable、Dirty 的 deferred create/rebuild/destroy；Rigidbody 禁用后 Collider 自动重建为 Static，重新启用后恢复配置 motion type。
+- `PhysicsBodyCreateDesc` 扩展 backend-neutral dynamics/query 字段；Jolt adapter 接入 mass inertia override、damping、gravity factor、LinearCast CCD、sleep、allowed DOF 和 query BodyFilter，并使用 decorated shape 实现真实 center offset。
+- `PhysicsScene` 为每个 Collider 建立 generation-safe identity；atomic Body rebuild 保留 Collider handle，contact packet 和 Raycast hit 均返回有效 Collider handle。
+- `Gizmo` 新增 Sphere/Capsule wire drawing；Collider backend desc 与 Gizmo 共用 signed center scale、absolute shape scale 规则，Box 逐轴缩放、Sphere 取最大轴、Capsule 高度取 Y 且半径取 X/Z 最大值。
+- `JsonLoadArchive` 增加只读字段存在性检查；`GameObject` 检测旧 Rigidbody collider 字段并在缺少新 Collider 时迁移，迁移后的 Scene 保存只输出新 schema。
+- Inspector 新增 Collider/Rigidbody 专用 authoring panel，根据 shape 条件显示尺寸，支持 motion、CCD、sleep、axis lock、数值范围和可读诊断；Inspector 与 Hierarchy Add Component 阻止重复 Collider/Rigidbody。
+- 新增 `ChikaColliderAuthoringTests`，并更新 Core/Physics contract 与 lifecycle 旧断言；测试覆盖三种 motion 组合、非法/缺失/unsupported 诊断、稳定 Collider identity、命令化启停、shape/Gizmo/query、旧 scene migration 与新 schema round-trip。
+
+### Reason / Architecture
+
+碰撞形状决定 Body 是否存在，Rigidbody 只决定已有碰撞体如何运动，因此 Body 的结构生命周期必须由 Collider 拥有。这样 Collider-only 可自然表达静态场景，禁用或删除 Rigidbody 不会错误删除碰撞体；同时所有 backend mutation 仍停留在 fixed-step command buffer，组件不直接持有或调用 Jolt Body。
+
+Collider handle 与 Body handle 的生命周期不同：修改 authoring 会 atomic rebuild Body，因此 Body identity 必须更新；Collider component 本身没有被替换，所以 Collider identity 必须保留。当前在首次 Body slot 上建立独立类型 handle，并在 registry replacement 中沿用，使 contact/query payload 可稳定指向 authoring Collider。
+
+旧 schema 迁移发生在 GameObject 组件反序列化阶段：先读取新 Rigidbody 字段，再只读检测遗留碰撞字段；如果组件列表中已经存在 Collider 则不重复创建。该策略保持旧场景可加载，同时保证下一次保存完成一次性 schema 升级。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake --build build --target ChikaEditor ChikaCoreBoundaryTests ChikaPhysicsContractTests ChikaPhysicsLifecycleTests ChikaPhysicsContactTests ChikaPhysicsBroadcastTests ChikaColliderAuthoringTests ChikaSceneIntegrationTests -j 4`：通过。
+- `ctest --test-dir build --output-on-failure -L physics`：5/5 通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.(CoreBoundary|SceneIntegration)"`：2/2 通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `git diff --check`：通过。
+
+### Remaining / Next
+
+- Static/Kinematic/Dynamic Transform authority、Kinematic target、Dynamic teleport、active-body snapshot 与渲染插值已由本日后续 Step 2.2 记录完成。
+- Capsule backend shape、Convex/Mesh cooking、stable Physics Material asset/combine mode 和 CCD tunneling/performance gate 仍由 Step 4.1 完成。
+- `collisionProfile` 已进入 authoring schema，但项目级响应矩阵与完整 query filter 仍由 Step 3.1/3.2 完成。
+- 反射生成器仍会输出既有的 MSVC 标准库 Clang diagnostic；设置 `PYTHONUTF8=1` 后生成、编译和链接成功。
+
+---
+
+## 2026-07-17 - 完成 Physics Step 1.2 Collision / Trigger Broadcast
+
+### Metadata
+
+- Area: Physics / Framework / Script / Test / Docs
+- Status: Complete
+
+### Goal
+
+把 Step 1.1 生成的 canonical `PhysicsPairEvent` 安全接入 Framework 主线程，使 C++ Component、Python Script 与 Scene observer 都能收到完整且无重复的 Collision/Trigger Enter、Stay、Exit。
+
+### Changes
+
+- 新增 `PhysicsCallbackEvents.hpp`：定义 Framework owner-local `PhysicsContactEvent`，仅包含 stable GameObject ID、generation-safe Body/Collider handle、contact value、有效位、termination reason、alive 标记与 fixed step index。
+- `Component` 新增 `OnCollisionEnter/Stay/Exit` 与 `OnTriggerEnter/Stay/Exit` 六个虚函数；`GameObject` 按 active/enabled/started 状态创建 receiver snapshot，并隔离单个 C++ callback 异常。
+- `PhysicsSubsystem::DispatchEvents()` 在每个 fixed step 的 Simulate 与 Transform sync 后 drain 事件，固定执行 A owner、B owner、Scene observer；B view 交换 self/other 并反转 normal、relative velocity。
+- A callback 后重新解析参与对象：pending-destroy 或 Body 已移除的参与方不再接收 callback，存活对端仍获得 stable ID/handle 和 `otherAlive=false` 的一次 Exit。
+- `ScriptComponent` 接入六个 snake_case Python callback，并使用独立只读 `mappingproxy` payload；脚本异常只终止当前脚本 callback，不阻断后续组件或 observer。
+- 新增 `PhysicsBroadcastTests.cpp` 与 `physics_broadcast_probe.py`，覆盖 Collision/Trigger 全阶段、A/B/observer 顺序、normal 方向、pause/resume、inactive/disabled、EventBus unsubscribe mutation、component remove、销毁 self/other、BodyDestroyed Exit、脚本只读 payload 与异常隔离。
+- CTest 新增 `Chika.PhysicsBroadcast`，设置 physics label、仓库根目录 working directory 与 `PYTHONDONTWRITEBYTECODE=1`，避免测试污染源码目录。
+- Step 1.2 卡片、步骤索引和物理路线图已同步为 Implemented / M1 Complete，并记录 dispatch、mutation 与 subscription 生命周期契约。
+
+### Reason / Architecture
+
+Jolt ContactListener 可能在后端 worker 上执行，不能直接访问 Framework 对象或运行 gameplay。Step 1.1 因此只负责复制和归一化 POD contact stream；本步骤把 Scene/GameObject 查找与 callback 严格放在 `PhysicsSubsystem` 主线程 post-step 阶段，保持 Physics 层不依赖 Framework。
+
+canonical Scene event 和 owner-local view 用途不同：前者每个 pair/phase 只发布一次，供工具与跨对象系统观察；后者分别从 A、B 的 self 视角投影，供 gameplay 使用。固定 A -> B -> observer 顺序、receiver snapshot 和参与者重新解析共同保证 callback mutation 可预测且不会悬空访问。
+
+`StopPlay`/Physics cleanup 继续通过 `ResetSceneState()` 清空 pair cache 与待发事件；EventBus subscription 仍由订阅者和 Scene 生命周期拥有，不能因一次 Play session 结束而被 PhysicsSubsystem 擅自清空。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake -S . -B build`：通过。
+- `$env:PYTHONUTF8='1'; cmake --build build -- -j1`：全量构建通过，包含 Game、Editor、Benchmark 和全部测试目标。
+- `ctest --test-dir build --output-on-failure -R "Chika\.(PhysicsContract|PhysicsLifecycle|PhysicsContact|PhysicsBroadcast|SceneIntegration|CoreBoundary)"`：6/6 通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `clang-format` 已仅作用于本次修改的 C++ 文件；`git diff --check` 通过。
+
+### Remaining / Next
+
+- Step 2.1 拆分 Collider/Rigidbody authoring 后，当前 invalid Collider handle 占位才能映射为独立 Collider identity。
+- contact impulse 仍没有 post-solve provider；不可用时继续由 `hasImpulse=false` 明确表达。
+- Scene observer 与 owner-local callback 是两个入口，gameplay 不应同时订阅两者执行同一业务逻辑。
+- 反射生成器仍会打印既有的非致命 MSVC 标准库 Clang diagnostic，但代码生成、编译和链接成功；本步骤未修改反射器。
+
+---
+
+## 2026-07-16 - 完成 Physics Step 1.1 Contact State Stream
+
+### Metadata
+
+- Area: Physics / Test / Docs
+- Status: Complete
+
+### Goal
+
+把 Jolt 多线程 contact callbacks 转换为 backend-neutral、只在主线程 post-step 消费、按 canonical pair 去重的 Collision/Trigger Enter、Stay、Exit 流，并让 sleep、真实分离和 Body 销毁具有不同的终止语义。
+
+### Changes
+
+- 新增 `PhysicsEvents.hpp`：
+  - 定义 `RawContactPacket`、`PhysicsPairEvent`、排序后的 `PhysicsPairKey`、sub-shape feature key。
+  - point、normal、penetration、relative velocity、impulse 均有独立有效位；pre-solver impulse 明确为 unavailable。
+  - canonical event 缓存 A/B Body、Collider 占位 Handle 与 GameObject ID，并携带 Collision/Trigger、fixed-step 和 termination reason。
+- 重构 `IPhysicsBackend` 与 Jolt adapter：
+  - `Simulate` 接收 Scene fixed-step index；`DrainRawContactPackets` 替代旧的双份 self-oriented `PollCollisionEvents`。
+  - ContactListener 实现 Added、Persisted、Removed；Removed 只读取 Added/Persisted 时缓存的 identity，不访问 Jolt Body。
+  - callback 仅复制值数据到互斥队列；Update 返回后才查询 Body exists/active 与 `WereBodiesInContact`，分类为 separation、remaining sub-contact、deactivation 或 missing Body。
+  - engine Handle 到 Jolt BodyID 的映射只留在 backend，用于 post-step 状态补充；Reset 同时清空 Body、raw queue 和 listener contact identity。
+- 扩展 `PhysicsScene`：
+  - 维护按 Body/Collider Handle 排序的 pair cache，以 sub-shape feature set 聚合 contact，并为同一 pair/fixed-step/phase 去重。
+  - canonical normal 固定从 A 指向 B，relative velocity 与 normal 在 canonical swap 时同时反向。
+  - sleep/deactivation removal 不产生伪 Exit；真实分离产生 `Separated`，Body destroy/rebuild 产生一次 `BodyDestroyed` Exit。
+  - destroy 前暂存 pair Exit，backend destroy 失败时撤销；事件只有在 `PhysicsSystem::Update` 返回并 publish 后才可由 `DrainPairEvents()` 取得。
+  - 增加 active pair、pending event、raw packet、emitted event 和 suppressed deactivation Exit 统计。
+- 新增 `PhysicsContactTests.cpp` 与 `Chika.PhysicsContact`：
+  - 覆盖 Box Collision 的 Enter/Stay/Exit、Trigger 序列、canonical owner/normal、数据有效位、pair 去重/排序。
+  - 覆盖接触中销毁、registry identity 清理、PreStep 后不可见/PostStep 后可见，以及 180 fixed-step sleep suppression。
+- 更新 `PhysicsContractTests`、Step 1.1/1.2 卡片、步骤索引与物理路线图，使文档状态和公共 API 名称与实现一致。
+
+### Reason / Architecture
+
+Jolt contact callback 运行在物理工作线程且 Body 被锁定，Removed 阶段甚至可能已经销毁 Body。因此 callback 不能解析 Scene owner、发布 EventBus 或执行 gameplay mutation。实现把流程明确拆为三层：
+
+```text
+Jolt callback
+  -> RawContactPacket + cached sub-shape identity (worker-safe)
+  -> backend post-step removal classification
+  -> PhysicsScene canonical pair cache
+  -> ready PhysicsPairEvent queue
+  -> Step 1.2 Framework dispatch
+```
+
+Jolt 在 Body sleep 时会移除 contact constraint；如果直接把 Removed 映射为 Exit，静止物体会反复 Exit/Enter。当前由 post-step active 状态与 `WereBodiesInContact` 共同分类：deactivation 保留 pair state，真实 separation 才移除最后一个 active feature 并 Exit。Body destroy 则由 Scene 在 backend destroy 前使用已缓存 owner identity 主动生成一次 Exit，避免下一步 Removed 访问 stale registry 或重复发布。
+
+### Verification
+
+- `cmake --build build --target ChikaPhysicsContactTests`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.PhysicsContact"`：1/1 通过。
+- `cmake --build build --target ChikaPhysicsLifecycleTests ChikaPhysicsContractTests`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.Physics(Contract|Lifecycle|Contact)"`：3/3 通过。
+- `cmake --build build`：完整工程构建通过。
+- `ctest --test-dir build --output-on-failure -R "Chika.(CoreBoundary|PhysicsContract|PhysicsLifecycle|PhysicsContact|SceneIntegration)"`：5/5 通过。
+- `clang-format --dry-run --Werror <本次 C++ 文件>`：通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `git diff --check`：通过，仅报告仓库既有 Windows CRLF 转换提示。
+
+### Remaining / Next
+
+- Step 1.2 将在 PhysicsSubsystem 的 Simulate/Transform Sync 后 drain canonical events，投影 A/B self-oriented view，并接入 Scene EventBus、Component 和 Script；本步骤没有提前发布 gameplay callback。
+- Collider Handle 继续保持 invalid 占位，直到 Step 2.1 引入独立 Collider registry/authoring。
+- Jolt Added/Persisted 位于 solver 前，真实 impulse 暂无数据源并保持 `hasImpulse=false`；不得把数值 0 当作已计算冲量。
+- `FilterChanged` termination reason 已预留，实际 layer/profile 安全更新与 contact refresh 由 Step 3.1 完成。
+- 当前 Windows/Clang 配置未启用 ThreadSanitizer；线程边界由 callback queue/identity mutex 与 Scene post-step 单线程访问约束，并由集成测试锁定可见时序。
+
+---
+
+## 2026-07-16 - 完成 Physics Step 0.2 Body Lifecycle 与 Command Buffer
+
+### Metadata
+
+- Area: Physics / Framework / Test / Docs
+- Status: Complete
+
+### Goal
+
+将 Body create、destroy、rebuild 和运动修改统一到 fixed-step `PreStep`，建立 Scene-owned Registry 与确定性命令顺序，消除 Rigidbody immediate create、延迟 destroy 和同 owner 重复 Body 的生命周期竞态。
+
+### Changes
+
+- 新增 `PhysicsCommandBuffer.hpp/.cpp`：
+  - command variant 覆盖 Create、Destroy、Rebuild、Teleport、KinematicTarget、Velocity、Force、Impulse。
+  - 队列线程安全且有固定容量，记录 pending、peak、enqueued、rejected 和 cleared。
+  - Scene drain 后对同 owner 的结构命令保留最后意图，再按 `Destroy -> Create/Rebuild -> Transform -> Velocity/Force` 稳定执行。
+- 新增 `PhysicsBodyRegistry.hpp/.cpp`：
+  - Scene 分配 index + process-unique generation handle。
+  - record 保存 opaque backend token、owner、Collider Handle 占位、MotionType 和 active state，并维护 owner -> handle 索引。
+  - reservation、commit、replace、remove 分离，创建失败不会注册 Handle，slot 复用不会接受 stale Handle。
+- 重构 `IPhysicsBackend` 与 Jolt adapter：
+  - engine handle 与 backend token 分离，Jolt `BodyID` 不进入 Framework。
+  - Backend 追踪自身 token 集合，destroy/clear 都执行完整 remove + destroy。
+  - 新增 immediate adapter 操作：Force、Teleport、KinematicTarget；Force/Teleport 支持 wake policy。
+- 重构 `PhysicsScene`：
+  - 新增 queue API、`PreStep`、execution trace 与 lifecycle statistics。
+  - Rebuild 先 create-new；创建失败保留旧 Body，成功才 retire-old 并替换 owner mapping。
+  - owner-target command 可作用于同一 PreStep 新建/重建的 Body；handle-target command 严格拒绝旧 generation。
+  - `ResetSceneState` 幂等清空 command、Body、backend token、raw contact queue 和 transform snapshot。
+- 迁移 Framework：
+  - Rigidbody 在 Edit 模式不创建 runtime Body；`Start`、Enable/Dirty、Disable/Destroy 只提交 owner-targeted command。
+  - Scene StartPlay 前清理旧状态，StopPlay 恢复 snapshot 前清空物理状态；未执行首个 fixed step 的 pending create 也会被取消。
+  - PhysicsSubsystem 增加 queue、Force 和 Reset 包装。
+- 新增 `ChikaPhysicsLifecycleTests`，覆盖 atomic rebuild、duplicate owner、失败 create、stale handle、phase order、kinematic/force/impulse、queue overflow、幂等 reset，以及 1000 次 Rigidbody 启停和 1000 次 Dirty 压力。
+- 更新 `PhysicsContractTests` 以覆盖新的 command target 和默认 queue capacity。
+
+### Reason / Architecture
+
+Engine Handle 与 Jolt BodyID 的生命周期不同：前者用于 gameplay 长期引用，后者只在一个 backend world 内有效。Step 0.2 将 engine Handle ownership 上移到 Scene Registry，并让 Jolt 只返回 opaque token，从而使 owner mapping、generation、rebuild transaction 和 backend resource cleanup 各自只有一个 owner。
+
+命令既支持 Handle target，也支持 owner target。Handle target 不允许 fallback，保证旧 Handle 不会误操作 replacement；owner target 在执行阶段解析，允许 Rigidbody 在 Body 尚未创建时先提交 Velocity/Force，并由 phase order 保证 Create/Rebuild 先执行。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake -S . -B build`：通过。
+- `$env:PYTHONUTF8='1'; cmake --build build --target ChikaEditor ChikaPhysicsLifecycleTests ChikaPhysicsContractTests ChikaSceneIntegrationTests ChikaCoreBoundaryTests -- -j1`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika\\.(PhysicsContract|PhysicsLifecycle|CoreBoundary|SceneIntegration)"`：4/4 通过。
+- Debug stress：1000 次 Rigidbody disable/enable、1000 次 Dirty rebuild 后，registry active body 与 backend body 均保持 1；StopPlay 后均为 0。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- `git diff --check`、public header Jolt boundary、legacy lifecycle symbol 和 trailing whitespace 检查：通过。
+
+### Remaining / Next
+
+- Step 1.1 建立 raw contact packet 到 canonical pair state 的转换，并在 Body destroy/filter change 时生成确定的 pair cleanup 输入。
+- Step 1.2 才向 EventBus、Component 和 Script 广播 Collision/Trigger Enter、Stay、Exit。
+- `CreateBodyImmediate` 仍为 Step 0.1 契约测试和初始化夹具保留，但 runtime Framework 已不再调用。
+- 当前反射生成器仍会打印非致命 MSVC 标准库 Clang diagnostic；Framework/Editor 生成与链接正常，本步骤没有扩大该工具问题。
+
+---
+
+## 2026-07-16 - 完成 Physics Step 0.1 契约与 Runtime Ownership
+
+### Metadata
+
+- Area: Physics / Framework / Test / Docs
+- Status: Complete
+
+### Goal
+
+在保留现有 Jolt 模拟路径的前提下，完成 Step 0.1：冻结后端无关的初始化、能力和 Handle 契约，把 Jolt 进程级全局状态从单个 PhysicsScene world 中分离，并用自动化测试锁定多 Scene 与 stale handle 行为。
+
+### Changes
+
+- 新增 `PhysicsHandles.hpp`：定义不可混用的 `PhysicsBodyHandle`、`PhysicsColliderHandle`，统一 invalid sentinel，并以 index + 进程级唯一 generation 拒绝 stale 和 wrong-scene handle。
+- 新增 `PhysicsRuntime.hpp/.cpp`：使用 move-only Lease 引用计数管理 Jolt allocator、Factory 和 type registration；首个 lease 初始化，最后一个 lease 释放，并提供只读统计用于契约测试。
+- 重构 `PhysicsDescs.h`、`IPhysicsBackend.h` 和 `PhysicsScene`：
+  - 增加 `PhysicsResult`、`PhysicsStatus`、`PhysicsBodyCreateResult` 与 backend capability。
+  - 清理重复 shape enum，修正碰撞事件字段拼写，默认重力改为 `{0, -9.81, 0}`。
+  - 初始化、创建、模拟、查询、销毁和 mutation 对失败状态、invalid handle 与重复 Shutdown 安全。
+- 将 `PhysicsJoltBackend`、`JoltLayer` 头移入 `src/` 私有边界，并把 `ChikaThirdParty` 改为 `ChikaPhysics` 的 PRIVATE 依赖；Physics public headers 不再泄漏 `JPH::*` 或 Jolt include path。
+- Jolt adapter 增加 engine handle registry，Body user data 保存 engine handle；Raycast、CollisionEvent 和 Framework 不再传播 raw BodyID。Body 销毁同时执行 `RemoveBody` 与 `DestroyBody`，关闭 world 前清空所有 Body 与 registry。
+- Jolt capability 明确报告 Box、Sphere、closest Raycast；Capsule、constraint、CCD 保持 unsupported，Capsule 创建返回 `UnsupportedFeature`，不再回退为 Sphere。
+- `Rigidbody` 与 `PhysicsSubsystem` 迁移到强类型 Handle 和可诊断创建结果；Subsystem 初始化失败会记录 diagnostic，`Rigidbody.hpp` 只依赖 Handle 头。
+- 新增 `ChikaPhysicsContractTests` 并接入 CTest，覆盖默认契约、双 Scene 与顺序重启、Runtime 注册计数、失败/重复初始化与关闭、非法 body descriptor、stale/wrong-scene handle、slot generation、capability、Raycast 映射和公开头边界。
+
+### Reason / Architecture
+
+Jolt Factory 和 type registration 是进程级资源，PhysicsSystem world 则是 Scene 级资源。若每个 backend instance 都独立注册和删除全局 Factory，先销毁任意一个 Scene 都可能让另一个 Scene 失效。Lease 把这两个生命周期明确分层，且释放顺序由 RAII 保证。
+
+Jolt BodyID 同时包含 index/sequence，但它属于具体 backend world，不能作为 Framework 的长期身份。Engine registry 现在保存 BodyID，并只向外返回 engine-owned index + generation；generation 在进程内单调分配，从而同时解决 slot 复用后的悬空引用和跨 Scene 误命中。
+
+### Verification
+
+- `$env:PYTHONUTF8='1'; cmake -S . -B build`：通过。
+- `$env:PYTHONUTF8='1'; cmake --build build --target ChikaEditor ChikaPhysicsContractTests ChikaCoreBoundaryTests ChikaSceneIntegrationTests -- -j1`：通过。
+- `ctest --test-dir build --output-on-failure -R "Chika\\.(PhysicsContract|CoreBoundary|SceneIntegration)"`：3/3 通过。
+- 隐藏启动 `build/bin/ChikaEditor.exe` 5 秒并正常关闭：`ExitCode=0`。
+- 公开头扫描由 `Chika.PhysicsContract` 执行：未发现 `Jolt/`、`JPH::`、`PhysicsJoltBackend` 或 `JoltLayer` 泄漏。
+- `git diff --check`、旧 enum/拼写/raw-handle 搜索和新增文件 trailing whitespace 检查：通过。
+
+### Remaining / Next
+
+- Step 0.2 负责把创建、销毁、Transform、速度和冲量统一为 fixed-step command buffer；本步骤没有提前改变现有立即创建语义。
+- Step 1.1/1.2 才实现 contact state、Collision/Trigger Enter/Stay/Exit 和主线程广播；当前 `ContactListener` 采集能力不等于完整消息系统。
+- Capsule、material、CCD、sleep 和 constraint 仍按 Step 4.1/4.2 实施。
+- 当前反射生成器会打印其解析 MSVC 标准库的非致命 Clang diagnostic，但生成、Framework/Editor 编译和启动均成功；后续应在反射工具卡片中单独治理。
+
+---
+
+## 2026-07-16 - 规划物理层调整与碰撞消息闭环
+
+### Metadata
+
+- Area: Physics / Framework / Editor / Test / Docs
+- Status: Planning Complete（未修改代码）
+
+### Goal
+
+基于当前 Jolt backend、PhysicsScene、PhysicsSubsystem、Rigidbody、Scene fixed-step 和 EventBus 的真实实现，规划一条从基础模拟走向完整引擎物理层的可执行路线。
+
+### Changes
+
+- 新增 `docs/physics/plan/physics-layer-roadmap.md`，记录当前已实现能力、关键缺口、目标 ownership、fixed-step 顺序、事件语义、过滤策略和系统验收标准。
+- 新增 `docs/physics/dev/steps/README.md`，作为 12 张物理步骤卡片的实施顺序与状态入口。
+- 新增 Step 0.1-6.1 卡片，覆盖：
+  - Physics contract、Jolt Runtime RAII、generation-safe handle。
+  - Body lifecycle、command buffer 和 registry。
+  - Contact pair state、Collision/Trigger Enter/Stay/Exit 与主线程广播。
+  - Collider/Rigidbody 分离、Transform authority、插值和常用运动 API。
+  - Layer/Profile/Ignore-Overlap-Block、Raycast/Sweep/Overlap。
+  - Shape、Physics Material、CCD、sleep、constraint 和 CharacterController。
+  - Debug draw、Profiler、headless regression 和 benchmark gates。
+- 所有卡片均标记 `Planned`，本次没有修改 C++、CMake、资产或测试代码。
+
+### Reason / Architecture
+
+当前 Jolt `ContactListener` 已能收集 Added contact，但 PhysicsScene/PhysicsSubsystem 未消费事件，Persisted/Removed 和 Trigger 语义也未实现。规划将流程拆成两层：Jolt worker callback 只收集 raw packet；PhysicsScene 在模拟后维护 canonical pair state；PhysicsSubsystem 再在主线程向两个对象投影 self-oriented callback，并通过 EventBus 广播一次 canonical pair event。
+
+路线先处理 Runtime ownership、Handle 与 Body lifecycle，因为销毁、复用和 sleep 语义是正确 Enter/Stay/Exit 的前提；之后才拆分 Collider/Rigidbody、扩展查询和高级物理能力。公共契约保持后端无关，不把 `JPH::*` 泄漏到 Framework、Editor 或 Script。
+
+### Verification
+
+- 步骤卡片检查：`Cards=12 Planned=12`。
+- 相对 Markdown 卡片链接检查：全部可解析。
+- Physics docs trailing whitespace 检查：通过。
+- `git diff --check`：通过。
+- 未运行 build/test：本次仅修改 Markdown 规划，没有修改可编译代码。
+
+### Remaining / Next
+
+- 按 `docs/physics/dev/steps/README.md` 顺序从 Step 0.1 开始实现，禁止先跳到高级 shape、constraint 或 character feature。
+- 每完成一张卡片必须同步实现状态、实际验证、`docs/develop.md` 和新增/变化的公共 API 文档。
+- M0-M3 是核心可用闭环；M4-M5 是扩展；Step 6.1 的测试与观测要求需要随各步骤增量维护。
+
+---
+
 ## 2026-07-16 - 完成 Create Child 延迟提交修复
 
 ### Metadata

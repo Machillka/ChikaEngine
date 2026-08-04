@@ -2,6 +2,7 @@
 #include "HierarchyActions.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/Collider.hpp"
 #include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
@@ -35,7 +36,12 @@ namespace ChikaEngine::Editor
                 gameObject.AddComponent<Framework::Animator>();
                 isDirty = true;
             }
-            if (ImGui::MenuItem("Rigidbody"))
+            if (ImGui::MenuItem("Collider", nullptr, false, gameObject.GetComponent<Framework::Collider>() == nullptr))
+            {
+                gameObject.AddComponent<Framework::Collider>();
+                isDirty = true;
+            }
+            if (ImGui::MenuItem("Rigidbody", nullptr, false, gameObject.GetComponent<Framework::Rigidbody>() == nullptr))
             {
                 gameObject.AddComponent<Framework::Rigidbody>();
                 isDirty = true;

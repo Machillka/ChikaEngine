@@ -1,6 +1,7 @@
 #include "InspectorPanel.hpp"
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/component/Animator.hpp"
+#include "ChikaEngine/component/Collider.hpp"
 #include "ChikaEngine/component/LightComponent.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
 #include "ChikaEngine/component/Rigidbody.hpp"
@@ -12,6 +13,7 @@
 #include "ChikaEngine/reflection/TypeRegister.h"
 #include <imgui.h>
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -363,6 +365,186 @@ namespace ChikaEngine::Editor
         return changed;
     }
 
+    bool DrawColliderAuthoring(Framework::Collider& collider)
+    {
+        bool changed = false;
+        int shape = static_cast<int>(collider.GetShapeType());
+        constexpr const char* ShapeNames[] = { "Box", "Sphere", "Capsule" };
+        if (ImGui::Combo("Shape", &shape, ShapeNames, static_cast<int>(std::size(ShapeNames))))
+        {
+            collider.SetShapeType(static_cast<Physics::ColliderShapeType>(shape));
+            changed = true;
+        }
+
+        Math::Vector3 center = collider.GetCenter();
+        if (ImGui::DragFloat3("Center", &center.x, 0.05f))
+        {
+            collider.SetCenter(center);
+            changed = true;
+        }
+
+        if (shape == static_cast<int>(Physics::ColliderShapeType::Box))
+        {
+            Math::Vector3 halfExtents = collider.GetHalfExtents();
+            if (ImGui::DragFloat3("Half Extents", &halfExtents.x, 0.05f, 0.001f, 100000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                collider.SetHalfExtents(halfExtents);
+                changed = true;
+            }
+        }
+        else
+        {
+            float radius = collider.GetRadius();
+            if (ImGui::DragFloat("Radius", &radius, 0.05f, 0.001f, 100000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                collider.SetRadius(radius);
+                changed = true;
+            }
+            if (shape == static_cast<int>(Physics::ColliderShapeType::Capsule))
+            {
+                float height = collider.GetHeight();
+                if (ImGui::DragFloat("Height", &height, 0.05f, 0.001f, 100000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+                {
+                    collider.SetHeight(height);
+                    changed = true;
+                }
+            }
+        }
+
+        bool trigger = collider.IsTrigger();
+        if (ImGui::Checkbox("Is Trigger", &trigger))
+        {
+            collider.SetTrigger(trigger);
+            changed = true;
+        }
+        bool queryEnabled = collider.IsQueryEnabled();
+        if (ImGui::Checkbox("Query Enabled", &queryEnabled))
+        {
+            collider.SetQueryEnabled(queryEnabled);
+            changed = true;
+        }
+
+        int layer = collider.GetLayer();
+        if (ImGui::DragInt("Layer", &layer, 0.2f, 0, Physics::PHYSICS_LAYER_COUNT - 1, "%d", ImGuiSliderFlags_AlwaysClamp))
+        {
+            collider.SetLayer(layer);
+            changed = true;
+        }
+        float friction = collider.GetFriction();
+        if (ImGui::DragFloat("Friction", &friction, 0.01f, 0.0f, 1000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            collider.SetFriction(friction);
+            changed = true;
+        }
+        float restitution = collider.GetRestitution();
+        if (ImGui::DragFloat("Restitution", &restitution, 0.01f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            collider.SetRestitution(restitution);
+            changed = true;
+        }
+
+        char profile[128];
+        CopyToFixedBuffer(profile, collider.GetCollisionProfile());
+        if (ImGui::InputText("Collision Profile", profile, sizeof(profile)))
+        {
+            collider.SetCollisionProfile(profile);
+            changed = true;
+        }
+        char material[128];
+        CopyToFixedBuffer(material, collider.GetMaterialName());
+        if (ImGui::InputText("Physics Material", material, sizeof(material)))
+        {
+            collider.SetMaterialName(material);
+            changed = true;
+        }
+
+        if (!collider.GetAuthoringDiagnostic().empty())
+            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.25f, 1.0f), "%s", collider.GetAuthoringDiagnostic().c_str());
+        return changed;
+    }
+
+    bool DrawRigidbodyAuthoring(Framework::Rigidbody& rigidbody)
+    {
+        bool changed = false;
+        int motion = static_cast<int>(rigidbody.GetMotionType());
+        constexpr const char* MotionNames[] = { "Static", "Kinematic", "Dynamic" };
+        if (ImGui::Combo("Motion Type", &motion, MotionNames, static_cast<int>(std::size(MotionNames))))
+        {
+            rigidbody.SetMotionType(static_cast<Physics::MotionType>(motion));
+            changed = true;
+        }
+
+        float mass = rigidbody.GetMass();
+        if (ImGui::DragFloat("Mass", &mass, 0.05f, 0.001f, 1000000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            rigidbody.SetMass(mass);
+            changed = true;
+        }
+        float linearDamping = rigidbody.GetLinearDamping();
+        if (ImGui::DragFloat("Linear Damping", &linearDamping, 0.01f, 0.0f, 1000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            rigidbody.SetLinearDamping(linearDamping);
+            changed = true;
+        }
+        float angularDamping = rigidbody.GetAngularDamping();
+        if (ImGui::DragFloat("Angular Damping", &angularDamping, 0.01f, 0.0f, 1000.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            rigidbody.SetAngularDamping(angularDamping);
+            changed = true;
+        }
+        float gravityFactor = rigidbody.GetGravityFactor();
+        if (ImGui::DragFloat("Gravity Factor", &gravityFactor, 0.01f))
+        {
+            rigidbody.SetGravityFactor(gravityFactor);
+            changed = true;
+        }
+        bool ccd = rigidbody.IsContinuousCollisionDetectionEnabled();
+        if (ImGui::Checkbox("Continuous Collision Detection", &ccd))
+        {
+            rigidbody.SetContinuousCollisionDetectionEnabled(ccd);
+            changed = true;
+        }
+        bool allowSleeping = rigidbody.IsSleepingAllowed();
+        if (ImGui::Checkbox("Allow Sleeping", &allowSleeping))
+        {
+            rigidbody.SetSleepingAllowed(allowSleeping);
+            changed = true;
+        }
+
+        int axisLockMask = rigidbody.GetAxisLockMask();
+        if (ImGui::TreeNodeEx("Axis Locks", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            constexpr std::array<std::pair<const char*, int>, 6> AxisLocks{
+                std::pair{ "Position X", static_cast<int>(Physics::PhysicsAxisLockTranslationX) },
+                std::pair{ "Position Y", static_cast<int>(Physics::PhysicsAxisLockTranslationY) },
+                std::pair{ "Position Z", static_cast<int>(Physics::PhysicsAxisLockTranslationZ) },
+                std::pair{ "Rotation X", static_cast<int>(Physics::PhysicsAxisLockRotationX) },
+                std::pair{ "Rotation Y", static_cast<int>(Physics::PhysicsAxisLockRotationY) },
+                std::pair{ "Rotation Z", static_cast<int>(Physics::PhysicsAxisLockRotationZ) },
+            };
+            bool axisChanged = false;
+            for (const auto& [label, bit] : AxisLocks)
+            {
+                bool locked = (axisLockMask & bit) != 0;
+                if (ImGui::Checkbox(label, &locked))
+                {
+                    axisLockMask = locked ? axisLockMask | bit : axisLockMask & ~bit;
+                    axisChanged = true;
+                }
+            }
+            if (axisChanged)
+            {
+                rigidbody.SetAxisLockMask(axisLockMask);
+                changed = true;
+            }
+            ImGui::TreePop();
+        }
+
+        if (!rigidbody.GetAuthoringDiagnostic().empty())
+            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.25f, 1.0f), "%s", rigidbody.GetAuthoringDiagnostic().c_str());
+        return changed;
+    }
+
     void InspectorPanel::DrawMeshRendererMaterialPanel(Framework::MeshRenderer& meshRenderer)
     {
         if (!ImGui::TreeNodeEx("Material", ImGuiTreeNodeFlags_DefaultOpen))
@@ -528,9 +710,24 @@ namespace ChikaEngine::Editor
                         if (ImGui::CollapsingHeader(shortName.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::PushID(comp.get());
-                            if (DrawReflectedObject(comp.get(), compClassInfo))
+                            bool authoringPanelHandledDirty = false;
+                            bool componentChanged = false;
+                            if (auto* collider = dynamic_cast<Framework::Collider*>(comp.get()))
                             {
-                                comp->MarkDirty();
+                                componentChanged = DrawColliderAuthoring(*collider);
+                                authoringPanelHandledDirty = true;
+                            }
+                            else if (auto* rigidbody = dynamic_cast<Framework::Rigidbody*>(comp.get()))
+                            {
+                                componentChanged = DrawRigidbodyAuthoring(*rigidbody);
+                                authoringPanelHandledDirty = true;
+                            }
+                            else
+                                componentChanged = DrawReflectedObject(comp.get(), compClassInfo);
+                            if (componentChanged)
+                            {
+                                if (!authoringPanelHandledDirty)
+                                    comp->MarkDirty();
                                 _context->isDirty = scene->IsEditing();
                             }
                             if (auto* meshRenderer = dynamic_cast<Framework::MeshRenderer*>(comp.get()))
@@ -567,7 +764,12 @@ namespace ChikaEngine::Editor
                         go->AddComponent<Framework::LightComponent>();
                         _context->isDirty = scene->IsEditing();
                     }
-                    if (ImGui::MenuItem("Rigidbody"))
+                    if (ImGui::MenuItem("Collider", nullptr, false, go->GetComponent<Framework::Collider>() == nullptr))
+                    {
+                        go->AddComponent<Framework::Collider>();
+                        _context->isDirty = scene->IsEditing();
+                    }
+                    if (ImGui::MenuItem("Rigidbody", nullptr, false, go->GetComponent<Framework::Rigidbody>() == nullptr))
                     {
                         go->AddComponent<Framework::Rigidbody>();
                         _context->isDirty = scene->IsEditing();

@@ -1,73 +1,167 @@
 #pragma once
+
+#include "ChikaEngine/PhysicsHandles.hpp"
 #include "ChikaEngine/base/UIDGenerator.h"
 #include "ChikaEngine/math/quaternion.h"
 #include "ChikaEngine/math/vector3.h"
+
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <utility>
 
 namespace ChikaEngine::Physics
 {
-    using PhysicsBodyHandle = std::uint32_t;
     using PhysicsLayerID = std::uint8_t;
-    using PhysicsLayerMask = std::uint32_t; // 对应位掩码
-    // 最大值说明 mask 了所有 layer
-    constexpr PhysicsLayerMask PHYSICS_LAYER_MASK_ALL = 0xFFFFFFFF;
+    using PhysicsLayerMask = std::uint32_t;
 
-    enum class PhysicsBackendTypes
+    constexpr PhysicsLayerMask PHYSICS_LAYER_MASK_ALL = 0xFFFFFFFFu;
+    constexpr PhysicsLayerID PHYSICS_LAYER_COUNT = 32;
+
+    enum class PhysicsBackendType
     {
         None,
-        Jolt
+        Jolt,
+    };
+
+    enum class PhysicsStatus
+    {
+        Success,
+        AlreadyInitialized,
+        NotInitialized,
+        UnsupportedBackend,
+        UnsupportedFeature,
+        InvalidArgument,
+        InvalidHandle,
+        CapacityExceeded,
+        QueueFull,
+        DuplicateOwner,
+        BackendFailure,
+    };
+
+    struct PhysicsResult
+    {
+        PhysicsStatus status = PhysicsStatus::Success;
+        std::string diagnostic;
+
+        [[nodiscard]] bool Succeeded() const noexcept
+        {
+            return status == PhysicsStatus::Success || status == PhysicsStatus::AlreadyInitialized;
+        }
+
+        explicit operator bool() const noexcept
+        {
+            return Succeeded();
+        }
+
+        [[nodiscard]] static PhysicsResult Ok()
+        {
+            return {};
+        }
+
+        [[nodiscard]] static PhysicsResult Failure(PhysicsStatus failureStatus, std::string message)
+        {
+            return PhysicsResult{ .status = failureStatus, .diagnostic = std::move(message) };
+        }
     };
 
     enum class MotionType
     {
         Static,
         Kinematic,
-        Dynamic
+        Dynamic,
     };
 
-    // 提供默认的物理参数
+    enum class PhysicsWakePolicy
+    {
+        KeepState,
+        Wake,
+        DoNotWake,
+    };
+
+    enum class ColliderShapeType
+    {
+        Box,
+        Sphere,
+        Capsule,
+    };
+
+    enum PhysicsAxisLock : std::uint8_t
+    {
+        PhysicsAxisLockNone = 0,
+        PhysicsAxisLockTranslationX = 1u << 0u,
+        PhysicsAxisLockTranslationY = 1u << 1u,
+        PhysicsAxisLockTranslationZ = 1u << 2u,
+        PhysicsAxisLockRotationX = 1u << 3u,
+        PhysicsAxisLockRotationY = 1u << 4u,
+        PhysicsAxisLockRotationZ = 1u << 5u,
+        PhysicsAxisLockAll = (1u << 6u) - 1u,
+    };
+
+    struct PhysicsBackendCapabilities
+    {
+        bool boxShape = false;
+        bool sphereShape = false;
+        bool capsuleShape = false;
+        bool closestRaycast = false;
+        bool constraints = false;
+        bool continuousCollisionDetection = false;
+
+        [[nodiscard]] bool SupportsShape(ColliderShapeType type) const noexcept
+        {
+            switch (type)
+            {
+            case ColliderShapeType::Box:
+                return boxShape;
+            case ColliderShapeType::Sphere:
+                return sphereShape;
+            case ColliderShapeType::Capsule:
+                return capsuleShape;
+            }
+            return false;
+        }
+    };
+
+    /** @brief World initialization in meters, seconds, kilograms, Y-up, right-handed coordinates. */
     struct PhysicsInitDesc
     {
-        // Default gravity: downwards on Y
-        // Math::Vector3 gravity = Math::Vector3(0.0f, -9.8f, 0.0f);
-        Math::Vector3 gravity = Math::Vector3(0.0f, 0.0f, 0.0f);
+        Math::Vector3 gravity = Math::Vector3(0.0f, -9.81f, 0.0f);
+        int workerThreadCount = -1;
     };
 
     struct PhysicsSystemDesc
     {
-        // 制定后端类型
-        PhysicsBackendTypes backendType = PhysicsBackendTypes::Jolt;
-
-        // 默认的物理参数
+        PhysicsBackendType backendType = PhysicsBackendType::Jolt;
         PhysicsInitDesc initDesc;
+        std::size_t commandQueueCapacity = 4096;
     };
 
-    // 用于记录物理计算后的位置
     struct PhysicsTransform
     {
         Math::Vector3 pos;
         Math::Quaternion rot;
     };
 
-    enum class ColliderShapeTypes
+    /**
+     * @brief Main-thread value snapshot produced after a fixed simulation step.
+     *
+     * Gameplay getters consume this cache instead of reading backend bodies from
+     * arbitrary threads. Regular transform uploads contain active Dynamic bodies
+     * only; explicit teleports may emit one additional dirty snapshot.
+     */
+    struct PhysicsBodySnapshot
     {
-        Box,
-        Sphere
-    };
-
-    enum class RigidbodyShapes
-    {
-        Box,
-        Sphere,
-        Capsule
+        PhysicsBodyHandle handle = PhysicsBodyHandle::Invalid();
+        PhysicsTransform transform;
+        Math::Vector3 linearVelocity = Math::Vector3::zero;
+        Math::Vector3 angularVelocity = Math::Vector3::zero;
+        bool sleeping = false;
     };
 
     struct ColliderShapeDesc
     {
-        RigidbodyShapes type = RigidbodyShapes::Box;
-        Math::Vector3 center = { 0, 0, 0 }; // 相对偏移
-
-        // Box / Sphere 参数
+        ColliderShapeType type = ColliderShapeType::Box;
+        Math::Vector3 center = { 0, 0, 0 };
         Math::Vector3 halfExtents = { 0.5f, 0.5f, 0.5f };
         float radius = 0.5f;
         float height = 1.0f;
@@ -75,36 +169,40 @@ namespace ChikaEngine::Physics
 
     struct PhysicsBodyCreateDesc
     {
-        Core::GameObjectID ownerId = 0; // 用于查找 go
-
-        // 变换 从 transform 中解耦
+        Core::GameObjectID ownerId = Core::InvalidGameObjectID;
         Math::Vector3 position = { 0, 0, 0 };
         Math::Quaternion rotation = { 0, 0, 0, 1 };
-
-        // 形状 (从 Collider 获取 if 有)
         ColliderShapeDesc shapeDesc;
         bool isTrigger = false;
-
-        // 动力学属性 (来自 Rigidbody，如果没有则为默认)
         MotionType motionType = MotionType::Dynamic;
         float mass = 1.0f;
         float friction = 0.5f;
         float restitution = 0.0f;
-
-        // 当前物体在哪一层 0 是 default
         PhysicsLayerID layer = 0;
-        // 需要和什么层碰撞
         PhysicsLayerMask collisionMask = PHYSICS_LAYER_MASK_ALL;
+        float linearDamping = 0.05f;
+        float angularDamping = 0.05f;
+        float gravityFactor = 1.0f;
+        std::uint8_t axisLockMask = PhysicsAxisLockNone;
+        bool continuousCollisionDetection = false;
+        bool allowSleeping = true;
+        bool queryEnabled = true;
     };
 
-    // 用于Collider回调
-    struct CollisionEvent
+    struct PhysicsBodyCreateResult
     {
-        PhysicsBodyHandle selfRigidbodyHandle;
-        PhysicsBodyHandle oherRigidbodyHandle;
-        Math::Vector3 contactPoint;
-        Math::Vector3 contactNormal;
-        float impulse;
+        PhysicsResult result = PhysicsResult::Failure(PhysicsStatus::NotInitialized, "Physics backend is not initialized");
+        PhysicsBodyHandle handle = PhysicsBodyHandle::Invalid();
+
+        [[nodiscard]] bool Succeeded() const noexcept
+        {
+            return result.Succeeded() && handle.IsValid();
+        }
+
+        explicit operator bool() const noexcept
+        {
+            return Succeeded();
+        }
     };
 
     struct Ray
@@ -113,28 +211,15 @@ namespace ChikaEngine::Physics
         Math::Vector3 direction;
     };
 
-    // 射线信息
     struct RaycastHit
     {
-        PhysicsBodyHandle bodyHandle = 0;
-        Core::GameObjectID gameObjectId = 0;
-        float distance = 0.0f; // 距离
-        Math::Vector3 point;   // 世界空间击中点
-        Math::Vector3 normal;  // 世界空间击中法线
+        PhysicsBodyHandle bodyHandle = PhysicsBodyHandle::Invalid();
+        PhysicsColliderHandle colliderHandle = PhysicsColliderHandle::Invalid();
+        Core::GameObjectID gameObjectId = Core::InvalidGameObjectID;
+        float distance = 0.0f;
+        Math::Vector3 point;
+        Math::Vector3 normal;
         bool hasHit = false;
     };
 
-    // 处理修改速度事件的数据
-    struct VelocityCommand
-    {
-        PhysicsBodyHandle handle;
-        Math::Vector3 v;
-    };
-
-    // 处理冲量的数据
-    struct ImpulseCommand
-    {
-        PhysicsBodyHandle handle;
-        Math::Vector3 impulse;
-    };
 } // namespace ChikaEngine::Physics
