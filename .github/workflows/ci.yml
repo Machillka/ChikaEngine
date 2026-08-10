@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
 concurrency:
   group: main-ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -56,6 +60,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          choco install ninja --no-progress --yes
           choco install vulkan-sdk --no-progress --yes
           $sdk = Get-ChildItem C:\VulkanSDK -Directory | Sort-Object Name -Descending | Select-Object -First 1
           if (-not $sdk) { throw "Vulkan SDK was not installed" }
@@ -78,21 +83,38 @@ jobs:
           -DCHIKA_ENABLE_RUNTIME_SMOKE_TESTS=OFF
           -DGLFW_BUILD_WAYLAND=OFF
 
-      - name: Configure
+      - name: Configure, build, and test with MSVC
         if: runner.os == 'Windows'
-        run: >-
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-          -DBUILD_TESTING=ON
-          -DCHIKA_BUILD_GAME=ON
-          -DCHIKA_BUILD_EDITOR=ON
-          -DCHIKA_BUILD_TOOLS=ON
-          -DCHIKA_BUILD_BENCHMARKS=ON
-          -DCHIKA_ENABLE_RUNTIME_SMOKE_TESTS=OFF
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "MSVC toolchain was not found" }
+          Import-Module (Join-Path $vsPath "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
+          Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64"
+          cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Debug `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DBUILD_TESTING=ON `
+            -DCHIKA_BUILD_GAME=ON `
+            -DCHIKA_BUILD_EDITOR=ON `
+            -DCHIKA_BUILD_TOOLS=ON `
+            -DCHIKA_BUILD_BENCHMARKS=ON `
+            -DCHIKA_ENABLE_RUNTIME_SMOKE_TESTS=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path build/compile_commands.json)) { throw "compile_commands.json was not generated" }
+          cmake --build build --parallel 4
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir build -C Debug --output-on-failure --no-tests=error
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build all modules
+        if: runner.os != 'Windows'
         run: cmake --build build --config Debug --parallel 4
 
       - name: Run tests
+        if: runner.os != 'Windows'
         run: ctest --test-dir build -C Debug --output-on-failure --no-tests=error
 
   required:
