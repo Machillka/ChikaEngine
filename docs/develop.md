@@ -14,6 +14,38 @@
 
 ---
 
+## 2026-08-10 - Windows CI Vulkan SDK 安装修复
+
+### Metadata
+
+- Area: CI / Windows / Vulkan / Portability
+- Status: Implemented（等待 GitHub Windows runner 验证）
+
+### Changes
+
+- `.github/workflows/ci.yml` 不再通过 Chocolatey 社区包安装 Vulkan SDK。
+- Windows job 改为下载固定版本 `1.4.350.0` 的 LunarG 官方安装器，并在执行前校验官方 SHA-256。
+- SDK 安装到确定的 `C:\VulkanSDK\1.4.350.0`，安装后检查 Vulkan 头文件，再向后续步骤导出 `VULKAN_SDK` 和 SDK `Bin` 路径。
+- 删除 `choco install ninja`；GitHub `windows-2022` runner 已提供 Ninja，后续 Ninja + MSVC 构建逻辑保持不变。
+
+### Reason and Architecture
+
+- Chocolatey 报告安装 `0/0` packages 后，旧脚本仍无条件读取 `C:\VulkanSDK`，导致 CI 在 CMake 配置前失败。
+- CI 依赖改为官方固定下载地址和校验值，避免社区包可用性与版本解析影响 Windows 构建。
+- 修改仅位于平台依赖准备层，不改变 CMake target、MSVC 编译器选择或测试矩阵。
+
+### Verification
+
+- Ruby YAML 解析：通过。
+- `git diff --check`：通过。
+- 本机未安装 `actionlint`，未执行该项检查。
+
+### Remaining Work
+
+- macOS 主机无法执行 Windows 安装器；SDK 静默安装、Ninja + MSVC 构建和 CTest 仍须由 GitHub `windows-2022` runner 验证。
+
+---
+
 ## 2026-08-05 - 跨平台 CI 生成与静态链接修复
 
 ### Metadata

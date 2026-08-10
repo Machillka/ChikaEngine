@@ -60,12 +60,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install ninja --no-progress --yes
-          choco install vulkan-sdk --no-progress --yes
-          $sdk = Get-ChildItem C:\VulkanSDK -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $sdk) { throw "Vulkan SDK was not installed" }
-          "VULKAN_SDK=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "$($sdk.FullName)\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $version = "1.4.350.0"
+          $sdkPath = "C:\VulkanSDK\$version"
+          $installer = Join-Path $env:RUNNER_TEMP "vulkan-sdk.exe"
+          $url = "https://sdk.lunarg.com/sdk/download/$version/windows/vulkansdk-windows-X64-$version.exe"
+          $expectedSha256 = "855b27ba05d2d8119c5114c5d4ff870ca38f2c632b11e1bb9923b9b7e6ecfe7b"
+
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          $actualSha256 = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSha256 -ne $expectedSha256) { throw "Vulkan SDK checksum mismatch" }
+
+          & $installer --root $sdkPath --accept-licenses --default-answer --confirm-command install
+          if ($LASTEXITCODE -ne 0) { throw "Vulkan SDK installer failed with exit code $LASTEXITCODE" }
+          if (!(Test-Path "$sdkPath\Include\vulkan\vulkan.h")) { throw "Vulkan SDK installation is incomplete" }
+
+          "VULKAN_SDK=$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$sdkPath\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Python
         run: uv python install 3.14
