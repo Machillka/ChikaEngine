@@ -14,11 +14,11 @@
 
 ---
 
-## 2026-08-10 - Windows CI Vulkan SDK 安装修复
+## 2026-08-10 - Windows CI Vulkan SDK 与 Render 对齐修复
 
 ### Metadata
 
-- Area: CI / Windows / Vulkan / Portability
+- Area: CI / Windows / Vulkan / Render / MSVC / Portability
 - Status: Implemented（等待 GitHub Windows runner 验证）
 
 ### Changes
@@ -27,22 +27,27 @@
 - Windows job 改为下载固定版本 `1.4.350.0` 的 LunarG 官方安装器，并在执行前校验官方 SHA-256。
 - SDK 安装到确定的 `C:\VulkanSDK\1.4.350.0`，安装后检查 Vulkan 头文件，再向后续步骤导出 `VULKAN_SDK` 和 SDK `Bin` 路径。
 - 删除 `choco install ninja`；GitHub `windows-2022` runner 已提供 Ninja，后续 Ninja + MSVC 构建逻辑保持不变。
+- `ChikaRender` 在 MSVC 下私有启用 `_ENABLE_EXTENDED_ALIGNED_STORAGE`，允许标准库为包含 `alignas(16)` GPU 数据的 `PendingInstance` 创建正确对齐的 `stable_sort` 临时存储。
 
 ### Reason and Architecture
 
 - Chocolatey 报告安装 `0/0` packages 后，旧脚本仍无条件读取 `C:\VulkanSDK`，导致 CI 在 CMake 配置前失败。
 - CI 依赖改为官方固定下载地址和校验值，避免社区包可用性与版本解析影响 Windows 构建。
 - 修改仅位于平台依赖准备层，不改变 CMake target、MSVC 编译器选择或测试矩阵。
+- `std::ranges::stable_sort` 的稳定顺序属于 GPU-driven frame data 的确定性要求；选择 MSVC 提供的标准扩展对齐 ABI，而不是改用非稳定排序或启用旧的非标准对齐布局。
+- 对齐宏限制在 `ChikaRender` target 内，避免影响第三方库和无关引擎模块。
 
 ### Verification
 
 - Ruby YAML 解析：通过。
 - `git diff --check`：通过。
 - 本机未安装 `actionlint`，未执行该项检查。
+- `cmake --build /private/tmp/chika-ci-audit.QvkHIR --target ChikaRender --parallel 4`：AppleClang 路径重新生成并通过。
+- `ctest --test-dir /private/tmp/chika-ci-audit.QvkHIR -C Debug -R 'Chika\.(Render|Environment|Material|Shader)' --output-on-failure --no-tests=error`：8/8 通过。
 
 ### Remaining Work
 
-- macOS 主机无法执行 Windows 安装器；SDK 静默安装、Ninja + MSVC 构建和 CTest 仍须由 GitHub `windows-2022` runner 验证。
+- macOS 主机无法执行 Windows 安装器或 MSVC STL；SDK 静默安装、扩展对齐编译、Ninja + MSVC 构建和 CTest 仍须由 GitHub `windows-2022` runner 验证。
 
 ---
 
