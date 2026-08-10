@@ -14,11 +14,11 @@
 
 ---
 
-## 2026-08-10 - Windows CI Vulkan SDK 与 Render 对齐修复
+## 2026-08-10 - Windows CI 工具链与第三方链接修复
 
 ### Metadata
 
-- Area: CI / Windows / Vulkan / Render / MSVC / Portability
+- Area: CI / Windows / Vulkan / Render / Physics / ThirdParty / MSVC / Portability
 - Status: Implemented（等待 GitHub Windows runner 验证）
 
 ### Changes
@@ -28,6 +28,8 @@
 - SDK 安装到确定的 `C:\VulkanSDK\1.4.350.0`，安装后检查 Vulkan 头文件，再向后续步骤导出 `VULKAN_SDK` 和 SDK `Bin` 路径。
 - 删除 `choco install ninja`；GitHub `windows-2022` runner 已提供 Ninja，后续 Ninja + MSVC 构建逻辑保持不变。
 - `ChikaRender` 在 MSVC 下私有启用 `_ENABLE_EXTENDED_ALIGNED_STORAGE`，允许标准库为包含 `alignas(16)` GPU 数据的 `PendingInstance` 创建正确对齐的 `stable_sort` 临时存储。
+- Jolt 关闭 `USE_STATIC_MSVC_RUNTIME_LIBRARY`，与 ChikaEngine 的动态 Debug CRT `/MDd` 保持一致，消除 `/MTd` 与 `/MDd` 的 `LNK2038` 和重复标准库符号。
+- TinyEXR 的 `exr_jph_simd.c` 在 MSVC 下强制包含项目侧兼容头，通过 `_BitScanReverse` 提供 `__builtin_clz` 等价语义；不修改 vendored TinyEXR 源码，也不关闭运行时 SIMD。
 
 ### Reason and Architecture
 
@@ -36,6 +38,8 @@
 - 修改仅位于平台依赖准备层，不改变 CMake target、MSVC 编译器选择或测试矩阵。
 - `std::ranges::stable_sort` 的稳定顺序属于 GPU-driven frame data 的确定性要求；选择 MSVC 提供的标准扩展对齐 ABI，而不是改用非稳定排序或启用旧的非标准对齐布局。
 - 对齐宏限制在 `ChikaRender` target 内，避免影响第三方库和无关引擎模块。
+- MSVC 链接要求同一二进制内的对象使用一致 CRT；让 Jolt 继承项目默认动态 CRT，比对整个引擎强制 `/MTd` 或忽略 `LIBCMTD` 更小且符合现有构建配置。
+- TinyEXR 的 JPH AVX2 路径直接调用 GCC/Clang builtin；兼容 shim 仅应用于该 C 源文件，并使用所有 x86-64 MSVC 目标都支持的 bit-scan intrinsic，避免把 LZCNT 当作 AVX2 的隐含前提。
 
 ### Verification
 
@@ -44,10 +48,13 @@
 - 本机未安装 `actionlint`，未执行该项检查。
 - `cmake --build /private/tmp/chika-ci-audit.QvkHIR --target ChikaRender --parallel 4`：AppleClang 路径重新生成并通过。
 - `ctest --test-dir /private/tmp/chika-ci-audit.QvkHIR -C Debug -R 'Chika\.(Render|Environment|Material|Shader)' --output-on-failure --no-tests=error`：8/8 通过。
+- `cmake --build /private/tmp/chika-ci-audit.QvkHIR --target ChikaGame --parallel 4`：第三方配置重新生成，AppleClang Game 链接通过。
+- `ctest --test-dir /private/tmp/chika-ci-audit.QvkHIR -C Debug --output-on-failure --no-tests=error`：27/27 通过。
+- `clang-format --dry-run --Werror engine/cmake/TinyExrMsvcCompat.h`：通过。
 
 ### Remaining Work
 
-- macOS 主机无法执行 Windows 安装器或 MSVC STL；SDK 静默安装、扩展对齐编译、Ninja + MSVC 构建和 CTest 仍须由 GitHub `windows-2022` runner 验证。
+- macOS 主机无法执行 Windows 安装器、MSVC STL/CRT 或 TinyEXR shim；SDK 静默安装、扩展对齐编译、统一 CRT、TinyEXR 链接、Ninja + MSVC 构建和 CTest 仍须由 GitHub `windows-2022` runner 验证。
 
 ---
 

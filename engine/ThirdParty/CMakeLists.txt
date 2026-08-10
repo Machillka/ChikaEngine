@@ -71,6 +71,10 @@ if(MSVC)
         _CRT_SECURE_NO_WARNINGS
         "_Atomic="
     )
+    set_source_files_properties(
+        "${THIRD_PARTY_PATH}/tinyexr/src/exr_jph_simd.c"
+        PROPERTIES COMPILE_OPTIONS "/FI${ENGINE_ROOT_DIR}/cmake/TinyExrMsvcCompat.h"
+    )
 endif()
 if(CMAKE_C_COMPILER_ID MATCHES "Clang")
     target_compile_options(tinyexr PRIVATE -Wno-macro-redefined)
@@ -86,6 +90,7 @@ set(JPH_USE_DX12 OFF CACHE BOOL "Disable unused Jolt DirectX 12 compute backend"
 set(JPH_USE_VK OFF CACHE BOOL "Disable unused Jolt Vulkan compute backend" FORCE)
 set(JPH_USE_MTL OFF CACHE BOOL "Disable unused Jolt Metal compute backend" FORCE)
 set(JPH_USE_CPU_COMPUTE OFF CACHE BOOL "Disable unused Jolt CPU compute backend" FORCE)
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "Use the dynamic MSVC runtime used by ChikaEngine" FORCE)
 add_subdirectory(${THIRD_PARTY_PATH}/jolt/Build JoltPhysics)
 
 # pybind11
