@@ -14,6 +14,36 @@
 
 ---
 
+## 2026-08-10 - Windows PhysicsBroadcast Python Home 修复
+
+### Metadata
+
+- Area: CI / Windows / Scripts / Tests / CMake
+- Status: Implemented（等待 GitHub Windows runner 验证）
+
+### Changes
+
+- `ChikaScripts` 在生成 `CHIKA_PYTHON_HOME` 编译定义前，将 Python Home 转换为 CMake 风格的正斜杠路径。
+- 未修改 `Chika.PhysicsBroadcast` 的测试内容、重试策略或物理运行逻辑。
+
+### Reason and Architecture
+
+- Windows CI 的 `.venv`、Python 3.14 运行时和 DLL 均已正确生成；测试唯一失败点是 `ScriptsSystem::Init()`。
+- Windows 原生路径中的反斜杠此前被直接放入 C++ 字符串字面量，`\a` 等片段会被编译器解释为转义字符，使 `PyConfig` 收到损坏的 Python Home。
+- 修复限制在 CMake 到 C++ 编译定义的转换边界；正斜杠路径在 Windows API 中有效，不改变脚本系统的所有权或初始化流程。
+
+### Verification
+
+- `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`：配置通过。
+- `cmake --build build --target ChikaPhysicsBroadcastTests --parallel 4`：目标构建通过。
+- `ctest --test-dir build -C Debug -R '^Chika\.PhysicsBroadcast$' --output-on-failure --no-tests=error`：1/1 通过。
+
+### Remaining Work
+
+- 本机无法执行 MSVC；最终需由 GitHub `windows-2022` runner 确认该测试通过。
+
+---
+
 ## 2026-08-10 - Windows CI 工具链与第三方链接修复
 
 ### Metadata
