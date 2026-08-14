@@ -14,6 +14,35 @@
 
 ---
 
+## 2026-08-14 - Windows Embedded Python 路径编译修复
+
+### Metadata
+
+- Area: CMake / Scripts / Portability / Docs
+- Status: Complete
+
+### Changes
+
+- `engine/Runtime/Scripts/CMakeLists.txt` 使用 `file(TO_CMAKE_PATH ...)` 为 `CHIKA_PYTHON_HOME` 编译定义生成正斜杠路径。
+- 保留 CMake 中原始的 Python base prefix，仅规范化进入 C++ 字符串字面量的副本，不改变 Python 查找、部署或运行时 ownership。
+
+### Reason and Architecture
+
+- Windows 上 `sys.base_prefix` 返回反斜杠路径；未经转义直接写入 C++ 宏后，路径中的 `\u` 会被编译器解析为 Unicode 转义起始，导致 `ScriptsSystem.cpp` 编译失败。
+- `std::filesystem::path` 在 Windows 上接受正斜杠，因此在 CMake/C++ 边界统一路径表示可以消除字符串转义问题，同时保持路径语义不变。
+
+### Verification
+
+- `cmake --build build`：通过；CMake 自动重新生成，`ChikaScripts`、`ChikaGame`、`ChikaEditor` 和测试目标均成功编译链接。
+- `ctest --test-dir build -R "Chika\.PhysicsBroadcast$" --output-on-failure`：1/1 通过；覆盖 `ScriptsSystem` 的嵌入式 Python 初始化与关闭。
+
+### Remaining Work
+
+- Reflection 工具仍会输出既有的非致命 libclang 诊断，但生成文件和后续编译均成功；该噪声不属于本次 build 阻塞根因。
+- PowerShell profile 的 `PSReadLine` 非交互终端提示仍存在，但不影响 CMake、Ninja 或测试结果。
+
+---
+
 ## 2026-08-04 - Editor/Skybox 与 Physics 分支整合
 
 ### Metadata
