@@ -119,6 +119,11 @@ add_executable(ChikaHierarchyActionTests
 target_include_directories(ChikaHierarchyActionTests PRIVATE ${PROJECT_ROOT_DIR}/engine/Editor/include)
 target_link_libraries(ChikaHierarchyActionTests PRIVATE ChikaEngine)
 
+add_executable(ChikaTinyExrMsvcCompatTests
+    unit/TinyExrMsvcCompatTests.cpp
+)
+target_include_directories(ChikaTinyExrMsvcCompatTests PRIVATE ${PROJECT_ROOT_DIR}/engine/cmake)
+
 add_executable(ChikaJobSystemTests
     unit/JobSystemTests.cpp
 )
@@ -159,6 +164,7 @@ add_test(NAME Chika.ProjectDescriptor COMMAND ChikaProjectDescriptorTests)
 add_test(NAME Chika.Profiler COMMAND ChikaProfilerTests)
 add_test(NAME Chika.ProfilerTimelineModel COMMAND ChikaProfilerTimelineModelTests)
 add_test(NAME Chika.HierarchyAction COMMAND ChikaHierarchyActionTests)
+add_test(NAME Chika.TinyExrMsvcCompat COMMAND ChikaTinyExrMsvcCompatTests)
 add_test(NAME Chika.JobSystem COMMAND ChikaJobSystemTests)
 add_test(NAME Chika.JobStress COMMAND ChikaJobStressTests)
 set_tests_properties(Chika.JobStress PROPERTIES LABELS "stress" TIMEOUT 120)
@@ -172,7 +178,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.TinyExrMsvcCompat Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsContact Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion PROPERTIES LABELS "physics")
