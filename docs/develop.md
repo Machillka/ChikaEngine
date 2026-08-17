@@ -14,6 +14,67 @@
 
 ---
 
+## 2026-08-17 - `origin/main` 合并到 `test`
+
+### Metadata
+
+- Area: Integration / CMake / Scripts / Documentation
+- Status: Complete
+
+### Changes
+
+- 将最新的 `origin/main` 合并到 `test`，保留两条分支各自的提交历史。
+- `docs/develop.md` 冲突按时间倒序保留双方完整记录，并增加本次集成记录。
+- `engine/Runtime/Scripts/CMakeLists.txt` 保留双方一致的 Windows 路径规范化行为，并采用 `main` 中更明确的变量命名和 C++ 转义原因注释。
+- 保留 `main` 中随提交进入的 `imgui.ini` 更新；合并前用户未提交的 `.gitignore` 修改不纳入合并提交。
+
+### Reason and Architecture
+
+- `test` 包含跨平台 CI 与 Windows 工具链修复，`main` 包含后续 Embedded Python 路径编译修复；合并后 `test` 同时包含两侧历史。
+- 冲突只涉及开发日志和同一 Python Home 路径转换代码，没有改变脚本系统 ownership、Python 查找方式或引擎模块边界。
+
+### Verification
+
+- `cmake --build build --parallel 4`：通过；CMake 重新生成后，Game、Editor、Benchmark 与全部测试目标成功编译链接。
+- `ctest --test-dir build -C Debug --output-on-failure --no-tests=error`：27/27 通过。
+- `git diff --check` 与 `git diff --cached --check`：通过。
+
+### Remaining Work
+
+- 本机只能验证 macOS/AppleClang；Windows Embedded Python 路径仍需由远程 Windows CI 最终复验。
+- 合并结果当前仅存在于本地 `test`，尚未推送到 `origin/test`。
+
+---
+
+## 2026-08-14 - Windows Embedded Python 路径编译修复
+
+### Metadata
+
+- Area: CMake / Scripts / Portability / Docs
+- Status: Complete
+
+### Changes
+
+- `engine/Runtime/Scripts/CMakeLists.txt` 使用 `file(TO_CMAKE_PATH ...)` 为 `CHIKA_PYTHON_HOME` 编译定义生成正斜杠路径。
+- 保留 CMake 中原始的 Python base prefix，仅规范化进入 C++ 字符串字面量的副本，不改变 Python 查找、部署或运行时 ownership。
+
+### Reason and Architecture
+
+- Windows 上 `sys.base_prefix` 返回反斜杠路径；未经转义直接写入 C++ 宏后，路径中的 `\u` 会被编译器解析为 Unicode 转义起始，导致 `ScriptsSystem.cpp` 编译失败。
+- `std::filesystem::path` 在 Windows 上接受正斜杠，因此在 CMake/C++ 边界统一路径表示可以消除字符串转义问题，同时保持路径语义不变。
+
+### Verification
+
+- `cmake --build build`：通过；CMake 自动重新生成，`ChikaScripts`、`ChikaGame`、`ChikaEditor` 和测试目标均成功编译链接。
+- `ctest --test-dir build -R "Chika\.PhysicsBroadcast$" --output-on-failure`：1/1 通过；覆盖 `ScriptsSystem` 的嵌入式 Python 初始化与关闭。
+
+### Remaining Work
+
+- Reflection 工具仍会输出既有的非致命 libclang 诊断，但生成文件和后续编译均成功；该噪声不属于本次 build 阻塞根因。
+- PowerShell profile 的 `PSReadLine` 非交互终端提示仍存在，但不影响 CMake、Ninja 或测试结果。
+
+---
+
 ## 2026-08-10 - Windows PhysicsBroadcast Python Home 修复
 
 ### Metadata
