@@ -45,7 +45,18 @@ add_custom_command(
 file(GLOB_RECURSE ENGINE_SRC CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp")
 file(GLOB_RECURSE ENGINE_HDR CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/include/*.h" "${CMAKE_CURRENT_LIST_DIR}/include/*.hpp")
 
-add_library(ChikaEngine STATIC ${ENGINE_SRC} ${ENGINE_HDR} ${REGISTRY_CPP} ${PYTHON_REGISTRY_CPP})
+add_library(ChikaEngine STATIC ${ENGINE_SRC} ${ENGINE_HDR} ${REGISTRY_CPP})
+
+add_library(ChikaPythonRegistryObjects OBJECT "${PYTHON_REGISTRY_CPP}")
+target_link_libraries(ChikaPythonRegistryObjects PRIVATE ChikaCore)
+
+# Keep the registry object ahead of all static libraries so its binding anchor
+# references pull the generated binding objects from every runtime archive.
+add_library(ChikaPythonRegistry INTERFACE)
+target_link_libraries(ChikaPythonRegistry INTERFACE
+    ChikaPythonRegistryObjects
+    "$<TARGET_OBJECTS:ChikaPythonRegistryObjects>"
+)
 
 target_include_directories(ChikaEngine
     PUBLIC
@@ -55,6 +66,7 @@ target_include_directories(ChikaEngine
 target_link_libraries(ChikaEngine
 	PUBLIC
 		ChikaRuntime
+		ChikaPythonRegistry
 )
 
 if(CHIKA_BUILD_GAME)

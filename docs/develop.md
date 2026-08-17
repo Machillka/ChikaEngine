@@ -14,6 +14,38 @@
 
 ---
 
+## 2026-08-17 - `origin/main` 合并到 `test`
+
+### Metadata
+
+- Area: Integration / CMake / Scripts / Documentation
+- Status: Complete
+
+### Changes
+
+- 将最新的 `origin/main` 合并到 `test`，保留两条分支各自的提交历史。
+- `docs/develop.md` 冲突按时间倒序保留双方完整记录，并增加本次集成记录。
+- `engine/Runtime/Scripts/CMakeLists.txt` 保留双方一致的 Windows 路径规范化行为，并采用 `main` 中更明确的变量命名和 C++ 转义原因注释。
+- 保留 `main` 中随提交进入的 `imgui.ini` 更新；合并前用户未提交的 `.gitignore` 修改不纳入合并提交。
+
+### Reason and Architecture
+
+- `test` 包含跨平台 CI 与 Windows 工具链修复，`main` 包含后续 Embedded Python 路径编译修复；合并后 `test` 同时包含两侧历史。
+- 冲突只涉及开发日志和同一 Python Home 路径转换代码，没有改变脚本系统 ownership、Python 查找方式或引擎模块边界。
+
+### Verification
+
+- `cmake --build build --parallel 4`：通过；CMake 重新生成后，Game、Editor、Benchmark 与全部测试目标成功编译链接。
+- `ctest --test-dir build -C Debug --output-on-failure --no-tests=error`：27/27 通过。
+- `git diff --check` 与 `git diff --cached --check`：通过。
+
+### Remaining Work
+
+- 本机只能验证 macOS/AppleClang；Windows Embedded Python 路径仍需由远程 Windows CI 最终复验。
+- 合并结果当前仅存在于本地 `test`，尚未推送到 `origin/test`。
+
+---
+
 ## 2026-08-14 - Windows Embedded Python 路径编译修复
 
 ### Metadata
@@ -40,6 +72,160 @@
 
 - Reflection 工具仍会输出既有的非致命 libclang 诊断，但生成文件和后续编译均成功；该噪声不属于本次 build 阻塞根因。
 - PowerShell profile 的 `PSReadLine` 非交互终端提示仍存在，但不影响 CMake、Ninja 或测试结果。
+
+---
+
+## 2026-08-10 - Windows PhysicsBroadcast Python Home 修复
+
+### Metadata
+
+- Area: CI / Windows / Scripts / Tests / CMake
+- Status: Implemented（等待 GitHub Windows runner 验证）
+
+### Changes
+
+- `ChikaScripts` 在生成 `CHIKA_PYTHON_HOME` 编译定义前，将 Python Home 转换为 CMake 风格的正斜杠路径。
+- 未修改 `Chika.PhysicsBroadcast` 的测试内容、重试策略或物理运行逻辑。
+
+### Reason and Architecture
+
+- Windows CI 的 `.venv`、Python 3.14 运行时和 DLL 均已正确生成；测试唯一失败点是 `ScriptsSystem::Init()`。
+- Windows 原生路径中的反斜杠此前被直接放入 C++ 字符串字面量，`\a` 等片段会被编译器解释为转义字符，使 `PyConfig` 收到损坏的 Python Home。
+- 修复限制在 CMake 到 C++ 编译定义的转换边界；正斜杠路径在 Windows API 中有效，不改变脚本系统的所有权或初始化流程。
+
+### Verification
+
+- `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`：配置通过。
+- `cmake --build build --target ChikaPhysicsBroadcastTests --parallel 4`：目标构建通过。
+- `ctest --test-dir build -C Debug -R '^Chika\.PhysicsBroadcast$' --output-on-failure --no-tests=error`：1/1 通过。
+
+### Remaining Work
+
+- 本机无法执行 MSVC；最终需由 GitHub `windows-2022` runner 确认该测试通过。
+
+---
+
+## 2026-08-10 - Windows CI 工具链与第三方链接修复
+
+### Metadata
+
+- Area: CI / Windows / Vulkan / Render / Physics / ThirdParty / MSVC / Portability
+- Status: Implemented（等待 GitHub Windows runner 验证）
+
+### Changes
+
+- `.github/workflows/ci.yml` 不再通过 Chocolatey 社区包安装 Vulkan SDK。
+- Windows job 改为下载固定版本 `1.4.350.0` 的 LunarG 官方安装器，并在执行前校验官方 SHA-256。
+- SDK 安装到确定的 `C:\VulkanSDK\1.4.350.0`，安装后检查 Vulkan 头文件，再向后续步骤导出 `VULKAN_SDK` 和 SDK `Bin` 路径。
+- 删除 `choco install ninja`；GitHub `windows-2022` runner 已提供 Ninja，后续 Ninja + MSVC 构建逻辑保持不变。
+- `ChikaRender` 在 MSVC 下私有启用 `_ENABLE_EXTENDED_ALIGNED_STORAGE`，允许标准库为包含 `alignas(16)` GPU 数据的 `PendingInstance` 创建正确对齐的 `stable_sort` 临时存储。
+- Jolt 关闭 `USE_STATIC_MSVC_RUNTIME_LIBRARY`，与 ChikaEngine 的动态 Debug CRT `/MDd` 保持一致，消除 `/MTd` 与 `/MDd` 的 `LNK2038` 和重复标准库符号。
+- TinyEXR 的 `exr_jph_simd.c` 在 MSVC 下强制包含项目侧兼容头，通过 `_BitScanReverse` 提供 `__builtin_clz` 等价语义；不修改 vendored TinyEXR 源码，也不关闭运行时 SIMD。
+
+### Reason and Architecture
+
+- Chocolatey 报告安装 `0/0` packages 后，旧脚本仍无条件读取 `C:\VulkanSDK`，导致 CI 在 CMake 配置前失败。
+- CI 依赖改为官方固定下载地址和校验值，避免社区包可用性与版本解析影响 Windows 构建。
+- 修改仅位于平台依赖准备层，不改变 CMake target、MSVC 编译器选择或测试矩阵。
+- `std::ranges::stable_sort` 的稳定顺序属于 GPU-driven frame data 的确定性要求；选择 MSVC 提供的标准扩展对齐 ABI，而不是改用非稳定排序或启用旧的非标准对齐布局。
+- 对齐宏限制在 `ChikaRender` target 内，避免影响第三方库和无关引擎模块。
+- MSVC 链接要求同一二进制内的对象使用一致 CRT；让 Jolt 继承项目默认动态 CRT，比对整个引擎强制 `/MTd` 或忽略 `LIBCMTD` 更小且符合现有构建配置。
+- TinyEXR 的 JPH AVX2 路径直接调用 GCC/Clang builtin；兼容 shim 仅应用于该 C 源文件，并使用所有 x86-64 MSVC 目标都支持的 bit-scan intrinsic，避免把 LZCNT 当作 AVX2 的隐含前提。
+
+### Verification
+
+- Ruby YAML 解析：通过。
+- `git diff --check`：通过。
+- 本机未安装 `actionlint`，未执行该项检查。
+- `cmake --build /private/tmp/chika-ci-audit.QvkHIR --target ChikaRender --parallel 4`：AppleClang 路径重新生成并通过。
+- `ctest --test-dir /private/tmp/chika-ci-audit.QvkHIR -C Debug -R 'Chika\.(Render|Environment|Material|Shader)' --output-on-failure --no-tests=error`：8/8 通过。
+- `cmake --build /private/tmp/chika-ci-audit.QvkHIR --target ChikaGame --parallel 4`：第三方配置重新生成，AppleClang Game 链接通过。
+- `ctest --test-dir /private/tmp/chika-ci-audit.QvkHIR -C Debug --output-on-failure --no-tests=error`：27/27 通过。
+- `clang-format --dry-run --Werror engine/cmake/TinyExrMsvcCompat.h`：通过。
+
+### Remaining Work
+
+- macOS 主机无法执行 Windows 安装器、MSVC STL/CRT 或 TinyEXR shim；SDK 静默安装、扩展对齐编译、统一 CRT、TinyEXR 链接、Ninja + MSVC 构建和 CTest 仍须由 GitHub `windows-2022` runner 验证。
+
+---
+
+## 2026-08-05 - 跨平台 CI 生成与静态链接修复
+
+### Metadata
+
+- Area: CI / CMake / Reflection / Scripts / ThirdParty Integration / Portability
+- Status: Complete（全新目录本地验证完成，等待 GitHub 三平台 matrix 复验）
+
+### Changes
+
+- `engine/CMakeLists.txt` 使用同目录 `ChikaPythonRegistryObjects` OBJECT target 消费生成的 `PythonRegistry.cpp`，恢复 CMake 的实际生成边。
+- `ChikaPythonRegistry` INTERFACE target 通过 `$<TARGET_OBJECTS:...>` 把 registry object 传递给最终链接，使其位于所有 runtime 静态库之前，不再依赖 archive 重扫或平台链接器行为。
+- `engine/ThirdParty/CMakeLists.txt` 在 MSVC 下将 TinyEXR v3 使用但 MSVC C11 模式不支持的 `_Atomic T` qualifier 编译为空，同时保留 `_CRT_SECURE_NO_WARNINGS`。
+- `.github/workflows/ci.yml` 将 Windows 从 Visual Studio generator 改为 MSVC Developer Environment 下的 Ninja；显式选择 `cl`、检查 `compile_commands.json`，并在同一开发环境中完成构建与测试，同时启用 Python UTF-8 输出。
+- 未修改 `engine/ThirdParty/tinyexr/` 内的 vendored 源码。
+
+### Reason and Architecture
+
+- 先前把父目录 custom command 的输出通过 `target_sources()` 加入子目录创建的 `ChikaScripts`，只传播了 `GENERATED` 属性，没有把生成命令关联到该 target；旧本地构建目录中的残留文件掩盖了这个问题，干净 CI 因而直接编译不存在的 `PythonRegistry.cpp`。
+- Registry 同时引用 Core、Asset、Framework 等静态 archive 中的 Python binding anchors。将原始 object 放在所有 archive 之前，可让 GNU ld 在首次扫描各 archive 时看到完整未解析符号集合，同时解决 `InitAllPythonBindings()` 与 binding anchors 的顺序问题。
+- Windows 的反射器依赖 `compile_commands.json`，而 Visual Studio generator 忽略 `CMAKE_EXPORT_COMPILE_COMMANDS`。改用 Ninja 不改变 MSVC 编译器覆盖，但统一了三平台生成模型。
+- TinyEXR v3 的运行时 zlib backend 函数指针使用 C11 `_Atomic` qualifier；MSVC 的 C11 模式不支持该写法。ChikaEngine 遵守 TinyEXR 已声明的“解码前设置 backend”契约，因此 MSVC 构建无需并发切换这些指针，可以在项目集成层移除 qualifier，而无需维护第三方源码补丁。
+
+### Verification
+
+- 在全新的 `/private/tmp/chika-ci-clean.oYiZ3q` 中完成 Ninja Debug 配置；未使用仓库既有 `build/` 生成物。
+- 新 `build.ninja` 包含带实际 `COMMAND` 的 `Reflection: Generating Python Registry` 规则，不再出现无命令的 assumed generated source。
+- Game 链接命令显示 `PythonRegistry.cpp.o` 位于 `ChikaEngine` 和全部 runtime 静态库之前。
+- `cmake --build /private/tmp/chika-ci-clean.oYiZ3q --parallel 4`：完整干净构建通过，包含 Game、Editor、Benchmark 和全部测试目标。
+- `ctest --test-dir /private/tmp/chika-ci-clean.oYiZ3q -C Debug --output-on-failure --no-tests=error`：27/27 通过。
+- workflow YAML 解析通过。
+- `git diff --check`：通过。
+
+### Remaining Work
+
+- 当前机器只能执行 macOS/AppleClang 验证；Linux/GCC 的 archive 链接结果、Windows 的 Ninja+MSVC 环境和 TinyEXR 编译结果仍须由 GitHub Actions matrix 最终确认。
+- 若未来允许在解码进行期间动态切换 TinyEXR zlib backend，需要为 MSVC 增加等价的原子指针适配，而不能继续依赖 set-before-decode 契约。
+
+---
+
+## 2026-08-04 - Main 分支 GitHub Actions 跨平台 CI 与保护指南
+
+### Metadata
+
+- Area: CI / Test / Portability / Documentation
+- Status: Complete
+
+### Changes
+
+- `.github/workflows/ci.yml` 改为响应 `main` 分支 push、以 `main` 为目标的 Pull Request 和手动触发，没有 `schedule` 或 nightly。
+- 新增固定名称 `CI Required` 汇总 job；它通过 `needs` 聚合三平台 matrix，并使用 `always()` 保证 matrix 失败或取消时仍给出失败门禁结果。
+- 调整 concurrency：同一 PR 的旧运行会取消；每个 main commit 以 SHA 隔离，确保每次 merge/main push 都完整运行。
+- CI 使用 Ubuntu 24.04/GCC、Windows Server 2022/MSVC、macOS 15/AppleClang 三平台矩阵；递归 checkout submodule，安装固定版本 uv/Python 3.14 和平台 Vulkan 依赖，完整构建 Runtime、Engine、Game、Editor、Benchmark 与 tests，并运行全部 CTest。
+- action 固定到完整 commit SHA，workflow 权限限制为 `contents: read`；同一 ref 的新运行会取消旧运行，matrix 使用 `fail-fast: false` 保留全部平台诊断。
+- 将 Git 路径 `engine/editor` 统一为 `engine/Editor`，并将 Framework 的 `CmakeLists.txt` 统一为标准 `CMakeLists.txt`，消除 Linux 大小写敏感 checkout 的配置阻塞。
+- 根 `CMakeLists.txt` 将配置期依赖准备改为 `uv sync --locked`，防止 CI 静默改写锁文件。
+- 更新 `docs/test/github-actions-ci-plan.md`，记录当前精简实现和远端验收边界。
+- 新增 `docs/test/main-branch-protection-guide.md`，说明如何对 `main` 创建 Ruleset，要求 PR、`CI Required`、最新分支，并禁止 bypass、强推和删除。
+
+### Reason and Architecture
+
+- 单一三平台 workflow 足以提供当前需要的合并前门禁和 main 合入后审计，也保持配置精简；按要求不增加每日任务、发布任务或图形 smoke。
+- 三个平台都构建完整产品目标，避免条件编译、系统 SDK 和链接问题被单平台或最小目标构建漏掉。
+- CI 使用只读权限并固定 action SHA；PR 代码无需 secrets，也不会通过 `pull_request_target` 在高权限上下文执行。
+
+### Verification
+
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"`：YAML 语法解析通过。
+- 静态检查确认 workflow 只监听 `main` 的 `pull_request`/`push` 和手动触发，不包含 `schedule`；`CI Required` 使用 `always()` 并依赖完整 matrix。
+- macOS 等价配置命令：Debug、tests/Game/Editor/Tools/Benchmark 全部启用，locked uv sync 与 CMake 配置通过。
+- `cmake --build build --config Debug --parallel 4`：完整构建通过，包含 `ChikaGame`、`ChikaEditor`、`ChikaBenchmark` 和全部测试目标。
+- `ctest --test-dir build -C Debug --output-on-failure --no-tests=error`：27/27 通过，包含 6 个 Physics 测试与 JobStress。
+- `git diff --check` 和 `git diff --cached --check`：通过。
+
+### Remaining Work
+
+- 本地只能验证 macOS 等价路径；Linux 和 Windows 的最终状态须在 workflow 推送到 GitHub 后由实际 matrix 结果确认。
+- 按当前要求不实现 nightly 和图形 smoke；若未来需要运行时 GPU/窗口验证，应作为独立范围增加。
 
 ---
 

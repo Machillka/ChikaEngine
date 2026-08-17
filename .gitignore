@@ -8,3 +8,6 @@ temp.*
 
 .venv/
 .vscode/
+
+# Local analysis notes (not part of the engine source tree).
+notes/

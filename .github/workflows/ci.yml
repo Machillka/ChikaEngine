@@ -1,0 +1,137 @@
+name: Main CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
+concurrency:
+  group: main-ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-24.04
+          - name: Windows MSVC
+            os: windows-2022
+          - name: macOS AppleClang
+            os: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.12.1"
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ninja-build libvulkan-dev glslc xorg-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja molten-vk shaderc vulkan-headers vulkan-loader
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "1.4.350.0"
+          $sdkPath = "C:\VulkanSDK\$version"
+          $installer = Join-Path $env:RUNNER_TEMP "vulkan-sdk.exe"
+          $url = "https://sdk.lunarg.com/sdk/download/$version/windows/vulkansdk-windows-X64-$version.exe"
+          $expectedSha256 = "855b27ba05d2d8119c5114c5d4ff870ca38f2c632b11e1bb9923b9b7e6ecfe7b"
+
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          $actualSha256 = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSha256 -ne $expectedSha256) { throw "Vulkan SDK checksum mismatch" }
+
+          & $installer --root $sdkPath --accept-licenses --default-answer --confirm-command install
+          if ($LASTEXITCODE -ne 0) { throw "Vulkan SDK installer failed with exit code $LASTEXITCODE" }
+          if (!(Test-Path "$sdkPath\Include\vulkan\vulkan.h")) { throw "Vulkan SDK installation is incomplete" }
+
+          "VULKAN_SDK=$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$sdkPath\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Configure
+        if: runner.os != 'Windows'
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_TESTING=ON
+          -DCHIKA_BUILD_GAME=ON
+          -DCHIKA_BUILD_EDITOR=ON
+          -DCHIKA_BUILD_TOOLS=ON
+          -DCHIKA_BUILD_BENCHMARKS=ON
+          -DCHIKA_ENABLE_RUNTIME_SMOKE_TESTS=OFF
+          -DGLFW_BUILD_WAYLAND=OFF
+
+      - name: Configure, build, and test with MSVC
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "MSVC toolchain was not found" }
+          Import-Module (Join-Path $vsPath "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
+          Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64"
+          cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Debug `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DBUILD_TESTING=ON `
+            -DCHIKA_BUILD_GAME=ON `
+            -DCHIKA_BUILD_EDITOR=ON `
+            -DCHIKA_BUILD_TOOLS=ON `
+            -DCHIKA_BUILD_BENCHMARKS=ON `
+            -DCHIKA_ENABLE_RUNTIME_SMOKE_TESTS=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path build/compile_commands.json)) { throw "compile_commands.json was not generated" }
+          cmake --build build --parallel 4
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir build -C Debug --output-on-failure --no-tests=error
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build all modules
+        if: runner.os != 'Windows'
+        run: cmake --build build --config Debug --parallel 4
+
+      - name: Run tests
+        if: runner.os != 'Windows'
+        run: ctest --test-dir build -C Debug --output-on-failure --no-tests=error
+
+  required:
+    name: CI Required
+    if: always()
+    needs: build-test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify all platforms
+        run: test "${{ needs.build-test.result }}" = "success"
