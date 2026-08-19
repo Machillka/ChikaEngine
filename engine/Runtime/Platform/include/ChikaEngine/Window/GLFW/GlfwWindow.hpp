@@ -11,7 +11,7 @@ namespace ChikaEngine::Platform
         GlfwWindow() = default;
         ~GlfwWindow() override;
 
-        void Initialize(const WindowDesc& desc) override;
+        [[nodiscard]] bool Initialize(const WindowDesc& desc) override;
         void Shutdown() override;
         void Tick() override;
 
@@ -46,6 +46,7 @@ namespace ChikaEngine::Platform
 
       private:
         GLFWwindow* m_window = nullptr;
+        bool m_glfwInitialized = false;
 
         // 将所有状态封装到一个 Data 结构体中，方便传给 GLFW 的 C 回调函数
         struct WindowData

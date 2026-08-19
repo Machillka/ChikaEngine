@@ -14,8 +14,10 @@ namespace ChikaEngine::Platform
         Shutdown();
     }
 
-    void GlfwWindow::Initialize(const WindowDesc& desc)
+    bool GlfwWindow::Initialize(const WindowDesc& desc)
     {
+        Shutdown();
+
         m_data.title = desc.title;
         m_data.width = desc.width;
         m_data.height = desc.height;
@@ -24,19 +26,25 @@ namespace ChikaEngine::Platform
         m_data.windowedWidth = desc.width;
         m_data.windowedHeight = desc.height;
 
+        glfwSetErrorCallback(GLFWErrorCallback);
         int success = glfwInit();
         if (!success)
         {
             LOG_ERROR("GLFW", "Could not initialize GLFW!");
-            return;
+            return false;
         }
-
-        glfwSetErrorCallback(GLFWErrorCallback);
+        m_glfwInitialized = true;
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_VISIBLE, desc.visible ? GLFW_TRUE : GLFW_FALSE);
 
         m_window = glfwCreateWindow((int)desc.width, (int)desc.height, m_data.title.c_str(), nullptr, nullptr);
+        if (!m_window)
+        {
+            LOG_ERROR("GLFW", "Could not create window!");
+            Shutdown();
+            return false;
+        }
 
         glfwSetWindowUserPointer(m_window, &m_data);
 
@@ -57,6 +65,7 @@ namespace ChikaEngine::Platform
         {
             SetFullScreen(true);
         }
+        return true;
     }
 
     void GlfwWindow::Shutdown()
@@ -65,7 +74,11 @@ namespace ChikaEngine::Platform
         {
             glfwDestroyWindow(m_window);
             m_window = nullptr;
+        }
+        if (m_glfwInitialized)
+        {
             glfwTerminate();
+            m_glfwInitialized = false;
         }
     }
 

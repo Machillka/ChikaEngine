@@ -11,3 +11,6 @@ temp.*
 
 # Local analysis notes (not part of the engine source tree).
 notes/
+
+# Local development plans and audit notes.
+docs/dev/

@@ -1007,7 +1007,7 @@ namespace ChikaEngine::Render
     void VulkanRHIDevice::CreateSurface()
     {
         if (!m_windowHandle)
-            LOG_ERROR("Vulkan", "No window input");
+            throw std::invalid_argument("VulkanRHIDevice requires a valid native window handle");
         auto glfwWindowHandle = static_cast<GLFWwindow*>(m_windowHandle);
         VK_CHECK(glfwCreateWindowSurface(m_instance, glfwWindowHandle, nullptr, &m_surface), "Failed to create window surface");
     }
