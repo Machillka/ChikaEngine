@@ -160,6 +160,8 @@ namespace ChikaEngine::Project
                 error = "Unsupported or missing project descriptor version";
             else if (loaded.name.empty())
                 error = "Project name is required";
+            else if (loaded.window.width == 0 || loaded.window.height == 0)
+                error = "Window width and height must be greater than zero";
             else if (!IsSafeRelativePath(loaded.contentRoot))
                 error = "contentRoot must be a safe relative path";
             else if (!IsSafeRelativePath(loaded.cookedContentRoot))
