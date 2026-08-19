@@ -14,6 +14,41 @@
 
 ---
 
+## 2026-08-20 - 最小 OBJ Mesh 加载闭环
+
+### Metadata
+
+- Area: Asset / Tests / Documentation
+- Status: Complete（最小几何支持）
+
+### Changes
+
+- `MeshLoader` 按小写扩展名分派 `.obj`，使用仓库已链接的 TinyObjLoader 解析和三角化 OBJ。
+- OBJ 导入按面角点展开顶点，正确保留 position/normal/UV 的独立索引；缺失 UV 保持零值，缺失 normal 时生成 flat triangle normal。
+- OBJ 路径检查属性索引和非有限数值，拒绝空几何、不可三角化面、退化无法线三角形和 32-bit index 溢出。
+- 将已有 glTF local bounds 计算提取为文件内共用收尾函数，OBJ 与 glTF 产生一致的 AABB 和 sphere radius；保留已有 skinned bounds 扩张语义。
+- 新增 `ChikaMeshLoaderTests`，覆盖大小写 dispatch、三角形属性、quad 三角化、缺失 normal/UV、独立属性索引、负索引、多 shape 合并、失败输入和 `AssetDatabase -> GUID -> AssetManager -> MeshLoader` 完整链路。
+
+### Reason and Architecture
+
+- `AssetDatabase` 已把 `.obj` 公开分类为 Mesh，但 `MeshLoader` 原先只接受 glTF/GLB，导致资产可扫描、可生成 GUID，却在真正加载时返回无效句柄。
+- 修复保留现有 passthrough importer 和 meta/GUID 契约，只在 CPU Mesh loader 增加格式 dispatch，不引入新导入产物或依赖。
+- 选择展开顶点而非建立去重 hash，用更高的 CPU/GPU 顶点存储换取简单明确的 OBJ 多索引正确性，符合当前收束边界。
+
+### Verification
+
+- `cmake --build build --target ChikaMeshLoaderTests ChikaAssetPipelineTests ChikaGame --parallel 4`：通过；首次在沙箱内重生成因 `uv` 缓存权限失败，使用允许的用户缓存权限原命令通过。
+- `ctest --test-dir build -R "Chika\\.(MeshLoader|AssetPipeline)" --output-on-failure --no-tests=error`：2/2 通过。
+- `ctest --test-dir build --output-on-failure --no-tests=error`：28/28 通过。
+- `git diff --check`：通过。
+
+### Remaining Work
+
+- 当前 OBJ 是静态单 Mesh 几何路径；不把 MTL、material groups、submesh、tangent、smoothing group、顶点去重、蒙皮或动画列为已支持能力。
+- 展开顶点会增加大型 OBJ 内存和上传开销；只有在实测成为瓶颈时才引入复合索引去重。
+
+---
+
 ## 2026-08-17 - `origin/main` 合并到 `test`
 
 ### Metadata
