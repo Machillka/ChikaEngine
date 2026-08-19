@@ -14,6 +14,43 @@
 
 ---
 
+## 2026-08-20 - 开发期 Python venv 路径收束
+
+### Metadata
+
+- Area: Scripts / Project startup / Tests
+- Status: Complete（开发期边界）
+
+### Changes
+
+- `ScriptsSystem` 改为接收显式 `scriptRoot` 与 `virtualEnvironmentRoot`，拒绝空路径和相对路径，不再读取进程 `current_path()`。
+- Game 与 Editor 从已验证的 `ChikaProject.json` 所在目录定位 `.venv`；Editor 同时改为使用 Project Descriptor 锚定后的绝对 Content Root。
+- 嵌入式 CPython 使用 venv Python executable 和 `pyvenv.cfg` 解析环境，移除编译期 `CHIKA_PYTHON_HOME`；禁用外部 `PYTHONHOME`、`PYTHONPATH`、用户 site-packages 与源码目录 bytecode 写入。
+- 初始化后校验 `sys.prefix` 必须等价于请求的 `.venv`，否则清理解释器并失败；缺失 Python executable 或 `pyvenv.cfg` 时输出完整诊断路径。
+- 新增 `ChikaScriptsTests`，覆盖非仓库工作目录、相对路径拒绝、缺失 venv、真实 `sys.prefix`、venv Jinja2、内嵌 `chika_engine` 和 Project 脚本导入。
+
+### Reason and Architecture
+
+- 旧实现把 `.venv` 解析为 `current_path()/.venv`，导致从 `build/bin`、Finder、启动器或任意外部目录运行时错误失败；同时 `.venv` 只被检查存在，实际 Python Home 仍来自构建机绝对路径。
+- Project Descriptor 已提供稳定的绝对 `projectRoot`，因此应用入口负责项目语义，`EngineContext` 只透传明确路径，Scripts 模块仅处理 Python venv 布局；无需把 `.venv` 业务规则下沉到 Platform。
+- 本轮明确保留开发期 venv 模型，不引入跨平台 Python Runtime 打包，也不宣称产物可脱离开发机发布。
+
+### Verification
+
+- `cmake --build build --parallel 4`：通过。
+- `ctest --test-dir build -R "Chika\\.(Scripts|PhysicsBroadcast)" --output-on-failure --no-tests=error`：2/2 通过。
+- 从 `/private/tmp` 执行绝对路径 `ChikaGame --project .../ChikaProject.json --mode development --smoke-frames 3`：通过，日志确认使用 Project Root 下 `.venv`，进程正常退出。
+- `ctest --test-dir build --output-on-failure --no-tests=error`：29/29 通过。
+- `git diff --check`：通过。
+
+### Remaining Work
+
+- `.venv` 仍依赖开发机基础 CPython；换机后必须重新执行 `uv sync --locked`。
+- macOS/Unix 链接的 CPython 动态库和 Windows Runtime 部署尚未形成独立安装布局；Packaged Game 的私有 Python Runtime 继续作为后续发布阶段工作。
+- 未显式传入 `--project` 时，示例入口仍按当前工作目录查找 `ChikaProject.json`；本轮仅保证显式 Project 路径后的脚本与 venv 定位不受工作目录影响。
+
+---
+
 ## 2026-08-20 - 最小 OBJ Mesh 加载闭环
 
 ### Metadata

@@ -89,7 +89,7 @@ namespace ChikaEngine::Editor
     class EditorApplication final : public Engine::Application
     {
       public:
-        EditorApplication(Render::RenderPipelineMode pipelineMode, Render::RenderPathMode renderPath, Render::EnvironmentSettings environment) : m_pipelineMode(pipelineMode), m_renderPath(renderPath), m_environment(std::move(environment)) {}
+        EditorApplication(Render::RenderPipelineMode pipelineMode, Render::RenderPathMode renderPath, Project::ProjectDescriptor descriptor) : m_pipelineMode(pipelineMode), m_renderPath(renderPath), m_descriptor(std::move(descriptor)) {}
 
       protected:
         Engine::EngineContextCreateInfo CreateEngineContextInfo() const override
@@ -100,6 +100,9 @@ namespace ChikaEngine::Editor
             createInfo.window.height = 720;
             createInfo.window.isFullscreen = false;
             createInfo.runtimeMode = Project::RuntimeMode::Editor;
+            createInfo.contentRoot = (m_descriptor.projectRoot / m_descriptor.contentRoot).lexically_normal();
+            createInfo.pythonEnvironmentRoot = (m_descriptor.projectRoot / ".venv").lexically_normal();
+            createInfo.enableScripting = m_descriptor.runtime.enableScripting;
             createInfo.renderPipeline = m_pipelineMode;
             createInfo.renderPathMode = m_renderPath;
             return createInfo;
@@ -118,7 +121,7 @@ namespace ChikaEngine::Editor
                 .scene = scene,
             });
 
-            context.GetRenderer()->SetEnvironmentSettings(m_environment);
+            context.GetRenderer()->SetEnvironmentSettings(m_descriptor.runtime.environment);
             CreateRenderBaselineScene(*scene);
         }
 
@@ -143,7 +146,7 @@ namespace ChikaEngine::Editor
         std::unique_ptr<EditorManager> m_editor;
         Render::RenderPipelineMode m_pipelineMode = Render::RenderPipelineMode::Forward;
         Render::RenderPathMode m_renderPath = Render::RenderPathMode::JobCpu;
-        Render::EnvironmentSettings m_environment;
+        Project::ProjectDescriptor m_descriptor;
     };
 } // namespace ChikaEngine::Editor
 
@@ -169,6 +172,6 @@ int main(int argc, char** argv)
         return 2;
     }
 
-    ChikaEngine::Editor::EditorApplication application(pipelineMode, renderPath, descriptor.runtime.environment);
+    ChikaEngine::Editor::EditorApplication application(pipelineMode, renderPath, std::move(descriptor));
     return application.Run();
 }
