@@ -3,25 +3,228 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/GLTFHelper.hpp"
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
+#include <tiny_obj_loader.h>
 #include <tiny_gltf.h>
 
 namespace ChikaEngine::Asset
 {
+    namespace
+    {
+        std::string LowerExtension(const std::filesystem::path& path)
+        {
+            std::string extension = path.extension().string();
+            std::ranges::transform(extension, extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+            return extension;
+        }
+
+        bool FinalizeMeshGeometry(MeshData& mesh)
+        {
+            if (mesh.vertices.empty() || mesh.indices.empty())
+                return false;
+
+            Math::Vector3 minimum(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+            Math::Vector3 maximum(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest());
+            for (const auto& vertex : mesh.vertices)
+            {
+                if (!std::isfinite(vertex.position[0]) || !std::isfinite(vertex.position[1]) || !std::isfinite(vertex.position[2]))
+                    return false;
+                minimum.x = std::min(minimum.x, vertex.position[0]);
+                minimum.y = std::min(minimum.y, vertex.position[1]);
+                minimum.z = std::min(minimum.z, vertex.position[2]);
+                maximum.x = std::max(maximum.x, vertex.position[0]);
+                maximum.y = std::max(maximum.y, vertex.position[1]);
+                maximum.z = std::max(maximum.z, vertex.position[2]);
+            }
+
+            mesh.bounds = Math::Bounds::FromMinMax(minimum, maximum);
+            float sphereRadius = 0.0f;
+            for (const auto& vertex : mesh.vertices)
+            {
+                const Math::Vector3 position(vertex.position[0], vertex.position[1], vertex.position[2]);
+                sphereRadius = std::max(sphereRadius, Math::Vector3::Distance(position, mesh.bounds.center));
+            }
+            mesh.bounds.sphereRadius = sphereRadius;
+            if (mesh.isSkinned)
+                mesh.bounds = Math::ExpandBounds(mesh.bounds, 1.25f);
+            return true;
+        }
+
+        bool ReadObjPosition(const tinyobj::attrib_t& attributes, int index, VertexData& vertex)
+        {
+            if (index < 0)
+                return false;
+            const size_t offset = static_cast<size_t>(index) * 3u;
+            if (offset + 2u >= attributes.vertices.size())
+                return false;
+            for (size_t component = 0; component < 3; ++component)
+            {
+                vertex.position[component] = static_cast<float>(attributes.vertices[offset + component]);
+                if (!std::isfinite(vertex.position[component]))
+                    return false;
+            }
+            return true;
+        }
+
+        bool ReadObjNormal(const tinyobj::attrib_t& attributes, int index, VertexData& vertex, bool& present)
+        {
+            present = index >= 0;
+            if (!present)
+                return true;
+            const size_t offset = static_cast<size_t>(index) * 3u;
+            if (offset + 2u >= attributes.normals.size())
+                return false;
+            for (size_t component = 0; component < 3; ++component)
+            {
+                vertex.normal[component] = static_cast<float>(attributes.normals[offset + component]);
+                if (!std::isfinite(vertex.normal[component]))
+                    return false;
+            }
+            return true;
+        }
+
+        bool ReadObjTexcoord(const tinyobj::attrib_t& attributes, int index, VertexData& vertex)
+        {
+            if (index < 0)
+                return true;
+            const size_t offset = static_cast<size_t>(index) * 2u;
+            if (offset + 1u >= attributes.texcoords.size())
+                return false;
+            for (size_t component = 0; component < 2; ++component)
+            {
+                vertex.uv[component] = static_cast<float>(attributes.texcoords[offset + component]);
+                if (!std::isfinite(vertex.uv[component]))
+                    return false;
+            }
+            return true;
+        }
+
+        bool GenerateMissingTriangleNormals(std::array<VertexData, 3>& triangle, const std::array<bool, 3>& hasNormal)
+        {
+            if (std::ranges::all_of(hasNormal, [](bool present) { return present; }))
+                return true;
+
+            const Math::Vector3 first(triangle[0].position[0], triangle[0].position[1], triangle[0].position[2]);
+            const Math::Vector3 second(triangle[1].position[0], triangle[1].position[1], triangle[1].position[2]);
+            const Math::Vector3 third(triangle[2].position[0], triangle[2].position[1], triangle[2].position[2]);
+            Math::Vector3 normal = Math::Vector3::Cross(second - first, third - first);
+            const float length = normal.Length();
+            if (!std::isfinite(length) || length <= std::numeric_limits<float>::epsilon())
+                return false;
+            normal /= length;
+
+            for (size_t corner = 0; corner < triangle.size(); ++corner)
+            {
+                if (hasNormal[corner])
+                    continue;
+                triangle[corner].normal[0] = normal.x;
+                triangle[corner].normal[1] = normal.y;
+                triangle[corner].normal[2] = normal.z;
+            }
+            return true;
+        }
+
+        std::unique_ptr<MeshData> LoadObj(const std::string& path)
+        {
+            tinyobj::ObjReaderConfig config;
+            config.triangulate = true;
+            config.mtl_search_path = std::filesystem::path(path).parent_path().string();
+
+            tinyobj::ObjReader reader;
+            if (!reader.ParseFromFile(path, config))
+            {
+                LOG_ERROR("MeshLoader", "Failed to parse OBJ '{}': {}", path, reader.Error());
+                return nullptr;
+            }
+            if (!reader.Warning().empty())
+                LOG_WARN("MeshLoader", "OBJ '{}' warning: {}", path, reader.Warning());
+
+            const tinyobj::attrib_t& attributes = reader.GetAttrib();
+            const std::vector<tinyobj::shape_t>& shapes = reader.GetShapes();
+            auto mesh = std::make_unique<MeshData>();
+            mesh->path = path;
+
+            size_t cornerCount = 0;
+            for (const tinyobj::shape_t& shape : shapes)
+                cornerCount += shape.mesh.indices.size();
+            mesh->vertices.reserve(cornerCount);
+            mesh->indices.reserve(cornerCount);
+
+            for (const tinyobj::shape_t& shape : shapes)
+            {
+                size_t indexOffset = 0;
+                for (size_t face = 0; face < shape.mesh.num_face_vertices.size(); ++face)
+                {
+                    const size_t faceVertexCount = shape.mesh.num_face_vertices[face];
+                    if (faceVertexCount != 3 || indexOffset + faceVertexCount > shape.mesh.indices.size())
+                    {
+                        LOG_ERROR("MeshLoader", "OBJ '{}' contains a face that could not be triangulated", path);
+                        return nullptr;
+                    }
+                    if (mesh->vertices.size() > std::numeric_limits<uint32_t>::max() - faceVertexCount)
+                    {
+                        LOG_ERROR("MeshLoader", "OBJ '{}' exceeds the 32-bit mesh index limit", path);
+                        return nullptr;
+                    }
+
+                    std::array<VertexData, 3> triangle{};
+                    std::array<bool, 3> hasNormal{};
+                    for (size_t corner = 0; corner < triangle.size(); ++corner)
+                    {
+                        const tinyobj::index_t& index = shape.mesh.indices[indexOffset + corner];
+                        if (!ReadObjPosition(attributes, index.vertex_index, triangle[corner]) || !ReadObjNormal(attributes, index.normal_index, triangle[corner], hasNormal[corner]) || !ReadObjTexcoord(attributes, index.texcoord_index, triangle[corner]))
+                        {
+                            LOG_ERROR("MeshLoader", "OBJ '{}' contains an invalid attribute index or non-finite value", path);
+                            return nullptr;
+                        }
+                    }
+                    if (!GenerateMissingTriangleNormals(triangle, hasNormal))
+                    {
+                        LOG_ERROR("MeshLoader", "OBJ '{}' contains a degenerate triangle without usable normals", path);
+                        return nullptr;
+                    }
+
+                    for (const VertexData& vertex : triangle)
+                    {
+                        mesh->indices.push_back(static_cast<uint32_t>(mesh->vertices.size()));
+                        mesh->vertices.push_back(vertex);
+                    }
+                    indexOffset += faceVertexCount;
+                }
+                if (indexOffset != shape.mesh.indices.size())
+                {
+                    LOG_ERROR("MeshLoader", "OBJ '{}' contains unconsumed face indices", path);
+                    return nullptr;
+                }
+            }
+
+            if (!FinalizeMeshGeometry(*mesh))
+            {
+                LOG_ERROR("MeshLoader", "OBJ '{}' does not contain valid indexed geometry", path);
+                return nullptr;
+            }
+            LOG_INFO("MeshLoader", "Loaded OBJ '{}' with {} vertices and {} indices", path, mesh->vertices.size(), mesh->indices.size());
+            return mesh;
+        }
+    } // namespace
+
     std::unique_ptr<MeshData> MeshLoader::Load(const std::string& path)
     {
         LOG_INFO("MeshLoader", "[Trace 1] Start loading path: {}", path);
+
+        const std::string ext = LowerExtension(path);
+        if (ext == ".obj")
+            return LoadObj(path);
 
         tinygltf::Model model;
         tinygltf::TinyGLTF loader;
         std::string err, warn;
         bool ret = false;
-
-        std::string ext = std::filesystem::path(path).extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
         LOG_INFO("MeshLoader", "[Trace 2] Calling tinygltf Parse...");
         if (ext == ".gltf")
@@ -176,31 +379,8 @@ namespace ChikaEngine::Asset
          * Local Bounds 在导入时只计算一次，避免运行时为同一 Mesh 重复遍历全部顶点。
          * 蒙皮 Mesh 暂时扩张 25%，在动态蒙皮 Bounds 落地前优先避免错误剔除。
          */
-        if (!mesh->vertices.empty())
-        {
-            Math::Vector3 minimum(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-            Math::Vector3 maximum(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest());
-            for (const auto& vertex : mesh->vertices)
-            {
-                minimum.x = std::min(minimum.x, vertex.position[0]);
-                minimum.y = std::min(minimum.y, vertex.position[1]);
-                minimum.z = std::min(minimum.z, vertex.position[2]);
-                maximum.x = std::max(maximum.x, vertex.position[0]);
-                maximum.y = std::max(maximum.y, vertex.position[1]);
-                maximum.z = std::max(maximum.z, vertex.position[2]);
-            }
-
-            mesh->bounds = Math::Bounds::FromMinMax(minimum, maximum);
-            float sphereRadius = 0.0f;
-            for (const auto& vertex : mesh->vertices)
-            {
-                const Math::Vector3 position(vertex.position[0], vertex.position[1], vertex.position[2]);
-                sphereRadius = std::max(sphereRadius, Math::Vector3::Distance(position, mesh->bounds.center));
-            }
-            mesh->bounds.sphereRadius = sphereRadius;
-            if (mesh->isSkinned)
-                mesh->bounds = Math::ExpandBounds(mesh->bounds, 1.25f);
-        }
+        if (!mesh->vertices.empty() && !FinalizeMeshGeometry(*mesh))
+            return nullptr;
 
         LOG_INFO("MeshLoader", "[Trace 7] Reading Skeleton...");
         if (mesh->isSkinned && !model.skins.empty())
@@ -302,61 +482,5 @@ namespace ChikaEngine::Asset
         LOG_INFO("Skin", "Max bone index = {}", maxIndex);
         return mesh;
     }
-
-    // std::unique_ptr<MeshData> MeshLoader::Load(const std::string& path)
-    // {
-    //     LOG_INFO("Mesh Loader", "Loading {}", path);
-    //     tinyobj::ObjReader reader;
-    //     tinyobj::ObjReaderConfig config;
-    //     config.triangulate = true;
-
-    //     if (!reader.ParseFromFile(path, config))
-    //     {
-    //         LOG_ERROR("MeshLoader", "Fail to load, path: " + path);
-    //         return nullptr;
-    //     }
-
-    //     const auto& attrib = reader.GetAttrib();
-    //     const auto& shapes = reader.GetShapes();
-
-    //     auto mesh = std::make_unique<MeshData>();
-    //     mesh->path = path;
-
-    //     std::vector<VertexData> vertices;
-    //     std::vector<uint32_t> indices;
-
-    //     for (const auto& shape : shapes)
-    //     {
-    //         for (const auto& idx : shape.mesh.indices)
-    //         {
-    //             VertexData v{};
-
-    //             v.position[0] = attrib.vertices[3 * idx.vertex_index + 0];
-    //             v.position[1] = attrib.vertices[3 * idx.vertex_index + 1];
-    //             v.position[2] = attrib.vertices[3 * idx.vertex_index + 2];
-
-    //             if (idx.normal_index >= 0)
-    //             {
-    //                 v.normal[0] = attrib.normals[3 * idx.normal_index + 0];
-    //                 v.normal[1] = attrib.normals[3 * idx.normal_index + 1];
-    //                 v.normal[2] = attrib.normals[3 * idx.normal_index + 2];
-    //             }
-
-    //             if (idx.texcoord_index >= 0)
-    //             {
-    //                 v.uv[0] = attrib.texcoords[2 * idx.texcoord_index + 0];
-    //                 v.uv[1] = attrib.texcoords[2 * idx.texcoord_index + 1];
-    //             }
-
-    //             vertices.push_back(v);
-    //             indices.push_back((uint32_t)indices.size());
-    //         }
-    //     }
-
-    //     mesh->vertices = std::move(vertices);
-    //     mesh->indices = std::move(indices);
-
-    //     return mesh;
-    // }
 
 } // namespace ChikaEngine::Asset

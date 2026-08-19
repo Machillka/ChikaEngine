@@ -22,14 +22,5 @@ target_link_libraries(${TARGET_NAME}
         ChikaCore
 )
 
-# C++ string literals cannot consume unescaped Windows path separators from a
-# compile definition (for example, "\u" is parsed as a Unicode escape).
-file(TO_CMAKE_PATH "${CHIKA_PYTHON_HOME}" CHIKA_PYTHON_HOME_CMAKE_PATH)
-
-target_compile_definitions(${TARGET_NAME}
-    PRIVATE
-        CHIKA_PYTHON_HOME="${CHIKA_PYTHON_HOME_CMAKE_PATH}"
-)
-
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include PREFIX "Header Files" FILES ${CORE_PUBLIC_HEADERS})
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files" FILES ${CORE_SOURCES})

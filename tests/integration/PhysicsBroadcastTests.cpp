@@ -11,6 +11,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <type_traits>
@@ -376,7 +377,10 @@ int main()
     static_assert(std::is_trivially_copyable_v<Framework::PhysicsContactEvent>);
     ChikaEngine::Reflection::InitAllReflection();
     Core::UIDGenerator::Instance().Init(29);
-    if (!Scripts::ScriptsSystem::Instance().Init("tests/integration"))
+    if (!Scripts::ScriptsSystem::Instance().Init({
+            .scriptRoot = std::filesystem::path(CHIKA_PROJECT_ROOT_DIR) / "tests/integration",
+            .virtualEnvironmentRoot = std::filesystem::path(CHIKA_PROJECT_ROOT_DIR) / ".venv",
+        }))
     {
         std::cerr << "FAILED: Script system did not initialize\n";
         return 1;
