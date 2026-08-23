@@ -14,6 +14,49 @@
 
 ---
 
+## 2026-08-23 - Vulkan swapchain semaphore 生命周期修复
+
+### Metadata
+
+- Area: RHI / Vulkan / Tests / Documentation
+- Status: Complete
+- Constraint: 保留现有 per-swapchain-image `renderFinished` 同步模型，未引入第三方依赖或公开 API
+
+### Changes
+
+- `VulkanRHIDevice` 将同步对象拆分为 frame-in-flight 与 swapchain 两个生命周期：
+  - `imageAvailable`、in-flight fence 和 timestamp query pool 仍只在设备初始化时创建。
+  - `renderFinished` semaphore 在首次 swapchain 创建后生成，并在每次 `CleanupSwapchain()` 中销毁、每次 `Resize()` 新 swapchain 创建后按新的实际 image count 重建。
+- shutdown 不再于 `CleanupSwapchain()` 之后使用 `m_imageCount` 二次索引和销毁旧 semaphore；swapchain cleanup 会清空图像、纹理、image view、semaphore、image count 与当前 image index，重复调用安全。
+- `renderFinished` 创建使用可回滚的内部生命周期函数：任意 `vkCreateSemaphore` 失败会销毁本轮已创建句柄、保持集合为空并向上返回原始 `VkResult`，避免部分初始化继续运行。
+- frame-in-flight semaphore、fence 和 query pool 的创建结果也全部检查；任一创建失败会先回滚本组同步对象，再由初始化路径统一 shutdown 已建立的 Vulkan 资源。
+- swapchain image 枚举开始检查 Vulkan 返回值并处理 `VK_INCOMPLETE`，最多重试 8 次；持续未稳定时明确失败而不是在主线程无限忙循环。最终 `m_imageCount` 以成功枚举的实际数量为准。Acquire 后增加 image index 与 semaphore 数量的一致性保护，避免异常状态下越界访问。
+- `Resize()` 在新 swapchain 或 semaphore 创建失败时清理本轮部分资源后重新抛出，避免留下可被后续帧误用的半重建状态。
+- 新增 `ChikaVulkanSwapchainSyncTests`，以注入式 fake Vulkan handle 覆盖 `3 -> 2`、`2 -> 3`、创建中途失败、零 image、显式清理和重复清理。
+
+### Reason and Architecture
+
+- 原实现只在 `Initialize()` 中按首次 `m_imageCount` 创建 `m_renderFinishedSemaphores`；`Resize()` 只执行 `CleanupSwapchain()` 和 `CreateSwapchain()`。如果重建后 image count 增加，`EndFrame()` 会用新的 image index 越界访问旧 vector；如果减少，旧 semaphore 不再对应新 swapchain 生命周期且 shutdown 的销毁计数也不可靠。
+- binary `renderFinished` semaphore 当前按 acquired image index 使用，因此正确 ownership 是 swapchain image，而不是固定的 frame-in-flight。修复围绕 ownership 收束生命周期，没有用改成 per-frame 的方式掩盖复用协议问题。
+- 可测试的内部 helper 只负责句柄集合的 replace/rollback，不持有 `VkDevice`、不进入公开 RHI API；真实 Vulkan create/destroy 仍由 `VulkanRHIDevice` 注入并拥有。
+
+### Verification
+
+- 环境：Darwin 24.6.0 arm64，Apple clang 17.0.0，Debug，Apple M4 + MoltenVK。
+- `cmake --build build/debug --target ChikaVulkanSwapchainSyncTests ChikaRHI ChikaGame -j 4`：通过。
+- `ctest --test-dir build/debug -R '^Chika\.VulkanSwapchainSync$' --output-on-failure --no-tests=error`：1/1 通过。
+- `cmake --build build/debug -j 4`：全量构建通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：34/34 通过。
+- `ChikaGame --project ChikaProject.json --mode development --smoke-frames 3`：真实 Vulkan/MoltenVK 初始化、swapchain 创建、提交、呈现与正常 shutdown 通过。
+- macOS System Events 没有辅助功能授权，无法自动拖动真实窗口；LLDB 进程内求值调用 `Resize()` 会阻塞在 debugger expression 环境，因此不把它记录为真实 resize 通过证据。image count 变化由直接复用生产生命周期 helper 的 `3 -> 2 -> 3` 注入测试确定性覆盖。
+
+### Remaining Work
+
+- Windows/Linux CI 仍需执行新增测试，并在各自 WSI 上做窗口缩放、最小化/恢复和全屏切换；真实驱动是否改变 image count 由 surface 能力决定，不能依靠一次人工 resize 稳定复现。
+- 本机 smoke 仍报告既有的 `timestampValidBits == 0` validation error；它属于 queue timestamp 能力判断问题，与本次 semaphore 生命周期无关，应独立修复。
+
+---
+
 ## 2026-08-23 - JobSystem 正确性审计与关闭死锁修复
 
 ### Metadata
