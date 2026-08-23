@@ -14,6 +14,45 @@
 
 ---
 
+## 2026-08-23 - AnimationLoader glTF accessor 边界修复
+
+### Metadata
+
+- Area: Asset / Animation / Tests / Documentation
+- Status: Complete（最小安全修复）
+- Constraint: 未新增动画格式、插值模式、公开 API 或第三方依赖
+
+### Changes
+
+- `AnimationLoader` 在 glTF/GLB 解析失败时立即返回空结果，不再继续读取空模型。
+- animation channel 现在验证 target node、sampler、input/output accessor 与 buffer view/buffer 索引，非法引用稳定返回空结果，避免越界访问。
+- 新增 loader 内部的 float accessor 读取边界：按 `byteStride` 定位元素，检查 offset、element size、buffer view 与实际 buffer 范围，并用 `memcpy` 读取，避免未对齐访问。
+- 明确收束现阶段能力为 float、`LINEAR`、translation/rotation/scale；拒绝 sparse accessor、非有限数值、不严格递增的时间、数量不匹配以及尚未实现的 target/interpolation。
+- 新增 `ChikaAnimationLoaderTests`，覆盖带 padding 的 interleaved time accessor、越界 target node 与不存在文件。
+
+### Reason and Architecture
+
+- 原实现取得 accessor 起始地址后直接使用 `times[i]` 与 `values[i * componentCount]`，没有使用 buffer view 的 `byteStride`。在合法的 stride=8 测试资产中，规范时间为 `0, 1`，修复前实际读取为 `0, 1234`，并把 clip duration 错算为 `1234`。
+- 原实现也直接以 glTF 文件中的索引调用 `model.nodes[nodeIdx]`、`gltfAnim.samplers[channel.sampler]` 和 `model.accessors[...]`；损坏或恶意资产可触发未定义行为。
+- 修复保持在 Asset loader 私有边界内：加载器负责把不可信文件数据验证为引擎可用的 AnimationClip，Animation 数据结构、运行时采样接口和 TinyGLTF 均不改变。
+
+### Verification
+
+- `cmake --build build/debug --target ChikaAnimationLoaderTests ChikaAsset ChikaGame -j 4`：通过。
+- `ctest --test-dir build/debug -R '^Chika\.AnimationLoader$' --output-on-failure --no-tests=error`：1/1 通过。
+- `cmake --build build/debug -j 4`：全量构建通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：35/35 通过。
+- 合法 interleaved fixture 确认第二个 key time 与 duration 均为 `1`；越界 node 与缺失文件均返回空结果。
+- `clang-format --dry-run --Werror engine/Runtime/Asset/src/AnimationLoader.cpp tests/unit/AnimationLoaderTests.cpp` 与 `git diff --check`：通过。
+
+### Remaining Work
+
+- `STEP`、`CUBICSPLINE`、weights、sparse accessor 与非 float component 仍未实现；当前会明确拒绝，不能宣称完整 glTF animation 支持。
+- 当前仍只读取文件中的第一段 animation；多 clip 导入应作为独立功能设计，不纳入本次安全修复。
+- quaternion 归一化及 skeleton/joint 语义一致性尚未在 loader 层验证，后续应结合动画运行时契约单独审查。
+
+---
+
 ## 2026-08-23 - Vulkan acquire 失败帧隔离
 
 ### Metadata
