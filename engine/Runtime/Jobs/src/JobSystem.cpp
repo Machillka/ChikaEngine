@@ -71,7 +71,10 @@ namespace ChikaEngine::Jobs
             catch (...)
             {
                 m_accepting.store(false, std::memory_order_release);
-                m_stopRequested.store(true, std::memory_order_release);
+                {
+                    std::lock_guard wakeLock(m_wakeMutex);
+                    m_stopRequested.store(true, std::memory_order_release);
+                }
                 m_wakeCondition.notify_all();
                 for (std::thread& worker : m_workers)
                 {
@@ -129,7 +132,10 @@ namespace ChikaEngine::Jobs
                 m_completionCondition.wait(lock, [this] { return m_activeWaiters.load(std::memory_order_acquire) == 0; });
             }
 
-            m_stopRequested.store(true, std::memory_order_release);
+            {
+                std::lock_guard wakeLock(m_wakeMutex);
+                m_stopRequested.store(true, std::memory_order_release);
+            }
             m_wakeCondition.notify_all();
             for (std::thread& worker : m_workers)
             {
@@ -404,7 +410,10 @@ namespace ChikaEngine::Jobs
 
             if (slot.target == JobTarget::AnyWorker)
             {
-                m_readyJobs.fetch_add(1, std::memory_order_relaxed);
+                {
+                    std::lock_guard wakeLock(m_wakeMutex);
+                    m_readyJobs.fetch_add(1, std::memory_order_relaxed);
+                }
                 m_wakeCondition.notify_one();
             }
             JobProfiler::Enqueued(handle);

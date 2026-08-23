@@ -14,6 +14,67 @@
 
 ---
 
+## 2026-08-23 - JobSystem 正确性审计与关闭死锁修复
+
+### Metadata
+
+- Area: Jobs / Tests / Documentation
+- Status: Complete
+- Constraint: 未新增模块、公开 API 或第三方依赖
+
+### Changes
+
+- `engine/Runtime/Jobs/src/JobSystem.cpp`
+  - 初始化回滚与正常 shutdown 在持有 `m_wakeMutex` 时发布 `stopRequested=true`，释放 mutex 后再 `notify_all()`。
+  - AnyWorker 入队在持有同一 mutex 时发布 ready-job 计数，释放后再 `notify_one()`。
+- `tests/unit/JobSystemTests.cpp`
+  - 增加命名场景选择和可选进程内重复次数，例如 `shutdown-drain 1000`。
+  - 将 cancel-pending、drain、submission-race 三种 shutdown 契约拆分，保留完整单测默认入口。
+  - 为 shutdown 增加 5 秒 watchdog；超时时输出 repetition、submitted/completed/failed/cancelled、queued 和 active 计数后快速失败，避免 CI 无诊断地永久卡住。
+  - 增加 idle-worker wake 回归：worker 完全休眠后提交任务，不调用主线程 `Wait` help，验证通知本身足以推进执行。
+- `tests/CMakeLists.txt`
+  - 新增四个独立 CTest：`Chika.JobSystem.IdleWake`、`ShutdownCancel`、`ShutdownDrain`、`ShutdownRace`。
+  - JobSystem 与命名子测试统一设置 10 秒 CTest 上限。
+- `docs/jobs/result/README.md`
+  - 记录环境、复现命令、单元/压力/实际集成结果、线程栈证据、能力结论和剩余工作。
+
+### Reason and Architecture
+
+- 仓库历史多次记录 `Chika.JobSystem` 超过 90 秒，但原测试只有进程级超时，无法判断是执行遗漏、等待者未唤醒还是 shutdown join 卡死。
+- 本轮先用阶段输出把问题定位到 shutdown drain，再用 watchdog 的终态计数和 LLDB 全线程栈区分“任务完成正确性”与“调度器生命周期可用性”。
+- 卡死时所有任务已经终态、队列和 active worker 均为零；主线程停在 `Shutdown()` 的 worker `join()`，剩余 worker 停在条件变量等待。因此确认是关闭唤醒/退出协议问题，不是任务少执行或重复执行。
+- 根因是 condition-variable 谓词发布协议不完整：worker 持有 `m_wakeMutex` 检查 `stopRequested || readyJobs > 0` 并进入 wait，但 stop/ready 的 false-to-true 发布原先不持有该 mutex。通知可能落入“worker 已检查为 false、尚未完成 unlock-and-wait”的窗口而丢失。
+- 修复让 stop 和 ready 两种谓词的发布者都参与 `m_wakeMutex` 协议；notify 放在解锁后，等待者要么已经注册并被唤醒，要么随后拿锁时直接看到 true。公开 API、模块依赖和所有权不变。
+
+### Verification
+
+- 环境：Darwin 24.6.0 arm64，Apple clang 17.0.0，Debug，测试 revision `7b49b42`。
+- `cmake --build build/debug --target ChikaJobSystemTests ChikaJobStressTests ChikaAssetJobIntegrationTests -j 4`：通过。
+- `ctest --test-dir build/debug -R '^Chika\.JobSystem$' --output-on-failure`：1/1 通过，0.22 秒。
+- `ctest --test-dir build/debug -R '^Chika\.JobSystem\.Shutdown(Cancel|Drain|Race)$' --output-on-failure`：单次 3/3 通过，0.04 秒；证明单次通过不能排除竞争。
+- `ctest --test-dir build/debug -R '^Chika\.JobStress$' --output-on-failure`：1/1 通过，100 万任务逐项 exact-once，4.14 秒。
+- `ctest --test-dir build/debug -R '^Chika\.AssetJobs$' --output-on-failure`：1/1 通过，0.37 秒。
+- `ChikaJobSystemTests shutdown-race 1000`：1000/1000 次通过。
+- `ChikaJobSystemTests shutdown-drain 1000`：第 255 次由 watchdog 失败；`submitted=1000, completed=1000, queued=0, active=0`。
+- `ChikaJobSystemTests shutdown-cancel 1000`：第 806 次由 watchdog 失败；`submitted=101, completed=1, cancelled=100, queued=0, active=0`。
+- LLDB 失败现场：主线程在 `JobSystem.cpp:137` join worker；worker 在 `JobSystem.cpp:474` 等待 `m_wakeCondition`。
+- 修复后 Debug：drain 2000/2000、cancel 1000/1000、shutdown-race 2000/2000 通过；idle-wake 为 100×1000 次通过。
+- 修复后 Release：drain 2000/2000、cancel 1000/1000、shutdown-race 2000/2000 通过；idle-wake 为 100×1000 次通过。
+- Debug focused CTest 7/7 通过；Release focused CTest 7/7 通过，均包含百万任务 stress 与 Asset job 集成。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：完整构建后 33/33 通过。
+- 独立 ThreadSanitizer 构建执行整个 JobSystem unit matrix 10 次：通过，无 TSan 报告。
+- 单进程 drain 10,000 次尝试在创建数万 worker thread 后被系统以 137 终止，未触发 deadlock watchdog；因此有效 soak 证据采用有界 2,000 次、双构建和 TSan 组合，不把该资源终止算作调度器通过或失败。
+- `clang-format --dry-run --Werror engine/Runtime/Jobs/src/JobSystem.cpp tests/unit/JobSystemTests.cpp`：通过。
+- `git diff --check`：通过。
+
+### Remaining Work
+
+- 本机 Debug、Release 和 TSan 范围内未再复现关闭卡死；仍需 Windows/Linux CI 运行命名 shutdown 与 idle-wake 用例，完成跨平台证据。
+- 更长生命周期 soak 应采用多进程批次，避免单进程反复创建线程池时 profiler/thread registry 的累计状态干扰测试资源上限。
+- watchdog 与独立 CTest 必须保留，避免未来回归重新退化为无诊断的全套测试超时。
+
+---
+
 ## 2026-08-20 - 开发期 Python venv 路径收束
 
 ### Metadata

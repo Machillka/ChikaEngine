@@ -2,15 +2,108 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug ChikaEditor",
-            "type": "cppvsdbg",
+            "name": "ChikaGame: Interactive",
+            "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/bin/ChikaEditor.exe",
-            "args": [],
-            "stopAtEntry": false,
+            "program": "${workspaceFolder}/build/debug/bin/ChikaGame",
+            "args": [
+                "--project",
+                "${workspaceFolder}/ChikaProject.json",
+                "--mode",
+                "development"
+            ],
             "cwd": "${workspaceFolder}",
-            "environment": [],
-            "console": "integratedTerminal"
+            "env": {
+                "PYTHONDONTWRITEBYTECODE": "1"
+            },
+            "terminal": "integrated",
+            "stopOnEntry": false,
+            "preLaunchTask": "Build: ChikaGame (Debug)"
+        },
+        {
+            "name": "ChikaGame: 3-frame Smoke",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/ChikaGame",
+            "args": [
+                "--project",
+                "${workspaceFolder}/ChikaProject.json",
+                "--mode",
+                "development",
+                "--smoke-frames",
+                "3"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONDONTWRITEBYTECODE": "1"
+            },
+            "terminal": "integrated",
+            "stopOnEntry": false,
+            "preLaunchTask": "Build: ChikaGame (Debug)"
+        },
+        {
+            "name": "ChikaEditor: Forward + Job CPU",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/ChikaEditor",
+            "args": [
+                "--project",
+                "${workspaceFolder}/ChikaProject.json"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONDONTWRITEBYTECODE": "1"
+            },
+            "terminal": "integrated",
+            "stopOnEntry": false,
+            "preLaunchTask": "Build: ChikaEditor (Debug)"
+        },
+        {
+            "name": "ChikaEditor: Deferred + GPU-driven",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/ChikaEditor",
+            "args": [
+                "--project",
+                "${workspaceFolder}/ChikaProject.json",
+                "--deferred",
+                "--gpu-driven"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONDONTWRITEBYTECODE": "1"
+            },
+            "terminal": "integrated",
+            "stopOnEntry": false,
+            "preLaunchTask": "Build: ChikaEditor (Debug)"
+        },
+        {
+            "name": "Test: JobSystem",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/ChikaJobSystemTests",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONDONTWRITEBYTECODE": "1"
+            },
+            "terminal": "integrated",
+            "stopOnEntry": false,
+            "preLaunchTask": "Build: ChikaJobSystemTests (Debug)"
+        },
+        {
+            "name": "Test: RenderGraph Skybox",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/ChikaRenderGraphSkyboxPassTests",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONDONTWRITEBYTECODE": "1"
+            },
+            "terminal": "integrated",
+            "stopOnEntry": false,
+            "preLaunchTask": "Build: ChikaRenderGraphSkyboxPassTests (Debug)"
         }
     ]
 }
