@@ -174,7 +174,12 @@ add_test(NAME Chika.Profiler COMMAND ChikaProfilerTests)
 add_test(NAME Chika.ProfilerTimelineModel COMMAND ChikaProfilerTimelineModelTests)
 add_test(NAME Chika.HierarchyAction COMMAND ChikaHierarchyActionTests)
 add_test(NAME Chika.JobSystem COMMAND ChikaJobSystemTests)
+add_test(NAME Chika.JobSystem.IdleWake COMMAND ChikaJobSystemTests idle-wake)
+add_test(NAME Chika.JobSystem.ShutdownCancel COMMAND ChikaJobSystemTests shutdown-cancel)
+add_test(NAME Chika.JobSystem.ShutdownDrain COMMAND ChikaJobSystemTests shutdown-drain)
+add_test(NAME Chika.JobSystem.ShutdownRace COMMAND ChikaJobSystemTests shutdown-race)
 add_test(NAME Chika.JobStress COMMAND ChikaJobStressTests)
+set_tests_properties(Chika.JobSystem Chika.JobSystem.IdleWake Chika.JobSystem.ShutdownCancel Chika.JobSystem.ShutdownDrain Chika.JobSystem.ShutdownRace PROPERTIES TIMEOUT 10)
 set_tests_properties(Chika.JobStress PROPERTIES LABELS "stress" TIMEOUT 120)
 if(CHIKA_BUILD_BENCHMARKS)
     add_test(NAME Chika.Benchmark COMMAND ChikaBenchmarkTests)
@@ -186,7 +191,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.Scripts Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.MeshLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.Scripts Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.MeshLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.JobSystem.IdleWake Chika.JobSystem.ShutdownCancel Chika.JobSystem.ShutdownDrain Chika.JobSystem.ShutdownRace Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsContact Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion PROPERTIES LABELS "physics")
