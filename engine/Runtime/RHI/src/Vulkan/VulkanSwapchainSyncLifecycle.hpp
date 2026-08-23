@@ -7,6 +7,12 @@
 
 namespace ChikaEngine::Render::Detail
 {
+    /** @brief 只有真正取得可用 swapchain image 的结果才能继续当前帧。 */
+    constexpr bool IsSwapchainAcquireUsable(VkResult result) noexcept
+    {
+        return result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+    }
+
     /**
      * @brief 销毁全部按 swapchain image 分配的 semaphore，并清空句柄集合。
      *

@@ -342,14 +342,11 @@ namespace ChikaEngine::Render
 
         VkResult res = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex);
 
-        if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        m_frameSkipped = !Detail::IsSwapchainAcquireUsable(res);
+        if (m_frameSkipped)
         {
-            m_frameSkipped = true; // 告诉底层本帧作废
-            return;
-        }
-        else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
-        {
-            LOG_ERROR("Vulkan", "Failed to acquire swapchain image");
+            if (res != VK_ERROR_OUT_OF_DATE_KHR)
+                LOG_ERROR("Vulkan", "Failed to acquire swapchain image (VkResult={})", static_cast<int>(res));
             return;
         }
 
