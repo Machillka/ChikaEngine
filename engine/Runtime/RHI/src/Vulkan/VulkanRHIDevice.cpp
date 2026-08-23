@@ -3,6 +3,7 @@
 #include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/rhi/Vulkan/VulkanCommandList.hpp"
 #include "ChikaEngine/rhi/Vulkan/VulkanResource.hpp"
+#include "Vulkan/VulkanSwapchainSyncLifecycle.hpp"
 #include <ChikaEngine/rhi/Vulkan/VulkanRHIDevice.hpp>
 #include <ChikaEngine/rhi/Vulkan/VulkanHelper.hpp>
 #include <algorithm>
@@ -201,7 +202,16 @@ namespace ChikaEngine::Render
         CreateDescriptorInfrastructure();
         CreateCommandPools();
         CreateSwapchain();
-        CreateSyncObjects();
+        try
+        {
+            CreateFrameSyncObjects();
+            CreateSwapchainSyncObjects();
+        }
+        catch (...)
+        {
+            Shutdown();
+            throw;
+        }
     }
     void VulkanRHIDevice::Shutdown()
     {
@@ -210,26 +220,20 @@ namespace ChikaEngine::Render
         vkDeviceWaitIdle(m_device);
         SavePipelineCache();
 
-        // for (auto imageView : m_swapchainImageViews)
-        // {
-        //     vkDestroyImageView(m_device, imageView, nullptr);
-        // }
-        // vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
         CleanupSwapchain();
-
-        for (uint32_t i = 0; i < m_imageCount; i++)
-        {
-            vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
-        }
 
         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
         {
-            vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
-            // vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
-            vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
-            vkDestroyCommandPool(m_device, m_commandPools[i], nullptr);
-            vkDestroyDescriptorPool(m_device, m_descriptorPools[i], nullptr);
-            vkDestroyQueryPool(m_device, m_timestampQueryPools[i], nullptr);
+            if (m_imageAvailableSemaphores[i])
+                vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
+            if (m_inFlightFences[i])
+                vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
+            if (m_commandPools[i])
+                vkDestroyCommandPool(m_device, m_commandPools[i], nullptr);
+            if (m_descriptorPools[i])
+                vkDestroyDescriptorPool(m_device, m_descriptorPools[i], nullptr);
+            if (m_timestampQueryPools[i])
+                vkDestroyQueryPool(m_device, m_timestampQueryPools[i], nullptr);
         }
 
         if (m_persistentDescriptorPool)
@@ -348,6 +352,9 @@ namespace ChikaEngine::Render
             LOG_ERROR("Vulkan", "Failed to acquire swapchain image");
             return;
         }
+
+        if (m_currentImageIndex >= m_renderFinishedSemaphores.size())
+            VK_CHECK(VK_ERROR_INITIALIZATION_FAILED, "Swapchain image index has no render-finished semaphore");
 
         vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
         vkResetCommandPool(m_device, m_commandPools[m_currentFrame], 0);
@@ -1340,14 +1347,32 @@ namespace ChikaEngine::Render
         VK_CHECK(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain), "Failed to create swapchain");
         LOG_INFO("VulkanRHI", "Created swapchain with present mode {} (VSync requested: {})", static_cast<int>(presentMode), m_vSync);
 
-        // uint32_t imageCount;
-        vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr);
+        constexpr uint32_t maxImageEnumerationAttempts = 8;
+        bool imageEnumerationComplete = false;
+        for (uint32_t attempt = 0; attempt < maxImageEnumerationAttempts; ++attempt)
+        {
+            uint32_t swapchainImageCount = 0;
+            VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchainImageCount, nullptr), "Failed to query swapchain image count");
+            VK_CHECK(swapchainImageCount > 0 ? VK_SUCCESS : VK_ERROR_INITIALIZATION_FAILED, "Swapchain returned no images");
 
-        m_swapchainImages.resize(m_imageCount);
+            m_swapchainImages.resize(swapchainImageCount);
+            uint32_t writtenImageCount = swapchainImageCount;
+            const VkResult enumerateResult = vkGetSwapchainImagesKHR(m_device, m_swapchain, &writtenImageCount, m_swapchainImages.data());
+            if (enumerateResult == VK_INCOMPLETE)
+                continue;
+
+            VK_CHECK(enumerateResult, "Failed to enumerate swapchain images");
+            VK_CHECK(writtenImageCount > 0 ? VK_SUCCESS : VK_ERROR_INITIALIZATION_FAILED, "Swapchain image enumeration returned no images");
+            m_swapchainImages.resize(writtenImageCount);
+            m_imageCount = writtenImageCount;
+            imageEnumerationComplete = true;
+            break;
+        }
+        VK_CHECK(imageEnumerationComplete ? VK_SUCCESS : VK_ERROR_INITIALIZATION_FAILED, "Swapchain image enumeration remained incomplete after 8 attempts");
+        LOG_INFO("VulkanRHI", "Enumerated {} swapchain images", m_imageCount);
+
         m_swapchainTextures.resize(m_imageCount);
-        m_swapchainImageViews.resize(m_imageCount);
-
-        vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data());
+        m_swapchainImageViews.resize(m_imageCount, VK_NULL_HANDLE);
 
         for (size_t i = 0; i < m_imageCount; i++)
         {
@@ -1375,37 +1400,60 @@ namespace ChikaEngine::Render
         }
     }
 
-    void VulkanRHIDevice::CreateSyncObjects()
+    void VulkanRHIDevice::CreateFrameSyncObjects()
     {
-        m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        // m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+        m_imageAvailableSemaphores.assign(MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
+        m_inFlightFences.assign(MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
 
         VkSemaphoreCreateInfo semaphoreInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 
         VkFenceCreateInfo fenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        try
         {
-            vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]);
-            // vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]);
-            vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]);
-            VkQueryPoolCreateInfo queryInfo{ VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
-            queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
-            queryInfo.queryCount = MAX_TIMESTAMP_QUERIES;
-            VK_CHECK(vkCreateQueryPool(m_device, &queryInfo, nullptr, &m_timestampQueryPools[i]), "Failed to create timestamp query pool");
+            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+            {
+                VK_CHECK(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]), "Failed to create frame image-available semaphore");
+                VK_CHECK(vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]), "Failed to create frame in-flight fence");
+                VkQueryPoolCreateInfo queryInfo{ VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
+                queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                queryInfo.queryCount = MAX_TIMESTAMP_QUERIES;
+                VK_CHECK(vkCreateQueryPool(m_device, &queryInfo, nullptr, &m_timestampQueryPools[i]), "Failed to create timestamp query pool");
+            }
+        }
+        catch (...)
+        {
+            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                if (m_imageAvailableSemaphores[i])
+                    vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
+                if (m_inFlightFences[i])
+                    vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
+                if (m_timestampQueryPools[i])
+                    vkDestroyQueryPool(m_device, m_timestampQueryPools[i], nullptr);
+                m_imageAvailableSemaphores[i] = VK_NULL_HANDLE;
+                m_inFlightFences[i] = VK_NULL_HANDLE;
+                m_timestampQueryPools[i] = VK_NULL_HANDLE;
+            }
+            throw;
         }
 
         VkPhysicalDeviceProperties properties{};
         vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
         m_timestampPeriodNs = properties.limits.timestampPeriod;
+    }
 
-        m_renderFinishedSemaphores.resize(m_imageCount);
-        for (uint32_t i = 0; i < m_imageCount; ++i)
-        {
-            vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]);
-        }
+    void VulkanRHIDevice::CreateSwapchainSyncObjects()
+    {
+        const VkSemaphoreCreateInfo semaphoreInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+        const VkResult result = Detail::RecreateSwapchainSemaphores(m_renderFinishedSemaphores, m_imageCount, [&](VkSemaphore* semaphore) { return vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, semaphore); }, [&](VkSemaphore semaphore) { vkDestroySemaphore(m_device, semaphore, nullptr); });
+        VK_CHECK(result, "Failed to create swapchain render-finished semaphores");
+    }
+
+    void VulkanRHIDevice::DestroySwapchainSyncObjects()
+    {
+        Detail::DestroySwapchainSemaphores(m_renderFinishedSemaphores, [&](VkSemaphore semaphore) { vkDestroySemaphore(m_device, semaphore, nullptr); });
     }
 
     void VulkanRHIDevice::DestroyBuffer(BufferHandle handle)
@@ -1641,6 +1689,8 @@ namespace ChikaEngine::Render
 
     void VulkanRHIDevice::CleanupSwapchain()
     {
+        DestroySwapchainSyncObjects();
+
         for (size_t i = 0; i < m_swapchainImageViews.size(); i++)
         {
             if (m_swapchainImageViews[i] != VK_NULL_HANDLE)
@@ -1668,6 +1718,8 @@ namespace ChikaEngine::Render
         m_swapchainImageViews.clear();
         m_swapchainImages.clear();
         m_swapchainTextures.clear();
+        m_imageCount = 0;
+        m_currentImageIndex = 0;
     }
 
     void VulkanRHIDevice::Resize(uint32_t width, uint32_t height)
@@ -1678,7 +1730,16 @@ namespace ChikaEngine::Render
         WaitIdle();
 
         CleanupSwapchain();
-        CreateSwapchain();
+        try
+        {
+            CreateSwapchain();
+            CreateSwapchainSyncObjects();
+        }
+        catch (...)
+        {
+            CleanupSwapchain();
+            throw;
+        }
     }
 
 } // namespace ChikaEngine::Render

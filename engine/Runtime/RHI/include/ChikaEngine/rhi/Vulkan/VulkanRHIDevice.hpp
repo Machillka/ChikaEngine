@@ -211,7 +211,9 @@ namespace ChikaEngine::Render
          */
         VulkanPipeline CreatePipelineLayout(const Shader::ShaderProgramInterface& interface);
         void CreateSwapchain();
-        void CreateSyncObjects();
+        void CreateFrameSyncObjects();
+        void CreateSwapchainSyncObjects();
+        void DestroySwapchainSyncObjects();
         void FlushDeletionQueue();
         void CleanupSwapchain();
 
@@ -223,7 +225,7 @@ namespace ChikaEngine::Render
         uint32_t m_height;
         uint32_t m_width;
 
-        uint32_t m_imageCount;
+        uint32_t m_imageCount = 0;
         static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
         VkInstance m_instance = VK_NULL_HANDLE;
