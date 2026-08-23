@@ -14,6 +14,44 @@
 
 ---
 
+## 2026-08-23 - Core ObjectPool 基础实现
+
+### Metadata
+
+- Area: Core / Containers / Tests / Documentation
+- Status: Complete（基础单线程对象池）
+- Constraint: 未引入锁、句柄代际、跨线程回收或自定义 allocator
+
+### Changes
+
+- `ObjectPool<T>` 现在真正使用初始容量；零容量实例会在第一次获取时建立一个槽位，耗尽后按当前容量倍增。
+- 底层改为 `deque<Slot>` 稳定存储，slot 使用 `optional<T>` 按需构造和销毁；扩容不移动已借出的对象，也支持不可复制、不可移动但可原位构造的类型。
+- 保留 `Get()` 默认构造入口并增加 `Emplace(args...)`；`Release()` 返回成功状态，拒绝 null、外部指针和未复用前的重复释放。
+- 增加 `Clear()`、`IsAcquired()`、`Capacity()`、`InUseCount()` 与 `AvailableCount()` 基础观察接口；pool 析构会销毁仍处于 active 状态的对象。
+- 构造对象或 active-index 注册抛出异常时会销毁半构造状态并把槽位放回 free list；对象池之后仍可继续使用。
+- 新增 `ChikaObjectPoolTests`，覆盖初始/零容量、自动扩容和地址稳定性、带参数构造、非 movable 对象、释放校验、槽位复用、clear/destruction 与构造异常回滚。
+
+### Reason and Architecture
+
+- 原构造函数忽略 `initializedSize`；首次 `Get()` 以当前 size `0` 扩容，随后对空 free stack 调用 `top()`，首次使用即产生未定义行为。
+- 即使只补初始容量，原 `vector<T>` 扩容仍会移动元素并使所有已返回 `T*` 失效，因此修复必须同时解决地址稳定性。
+- 本实现保持 raw-pointer 获取方式以维持现有窄 API，并用 active pointer-to-slot map 提供 O(1) release 校验；它是 Core 内单线程拥有者容器，不承担跨线程生命周期同步。
+
+### Verification
+
+- `cmake --build build/debug --target ChikaObjectPoolTests ChikaCore -j 4`：通过，无新增编译告警。
+- `ctest --test-dir build/debug -R '^Chika\.ObjectPool$' --output-on-failure --no-tests=error`：1/1 通过。
+- `cmake --build build/debug -j 4`：全量构建通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：37/37 通过。
+
+### Remaining Work
+
+- ObjectPool 明确不是线程安全容器；若未来由 Job worker 共享，调用方必须外部同步或另行设计并发池，不能把锁隐式塞进当前基础类型。
+- raw pointer 在 `Release()` 后立即失效；若同一地址已被新对象复用，旧指针无法表达 generation。需要 stale-reference 检测的消费者应使用 `SlotMap`/handle，而不是扩大 ObjectPool 契约。
+- 当前尚未接入生产消费者；后续只有出现明确的高频同类型生命周期场景时才应采用，并以实际 benchmark 验证收益。
+
+---
+
 ## 2026-08-23 - AnimationSubsystem 骨骼拓扑求解修复
 
 ### Metadata
