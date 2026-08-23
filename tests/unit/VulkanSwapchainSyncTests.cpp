@@ -42,6 +42,18 @@ namespace
         Check(unique.size() == semaphores.size(), message);
     }
 
+    void TestAcquireResultClassification()
+    {
+        using ChikaEngine::Render::Detail::IsSwapchainAcquireUsable;
+        Check(IsSwapchainAcquireUsable(VK_SUCCESS), "successful acquire keeps the frame active");
+        Check(IsSwapchainAcquireUsable(VK_SUBOPTIMAL_KHR), "suboptimal acquire still provides a usable image");
+        Check(!IsSwapchainAcquireUsable(VK_ERROR_OUT_OF_DATE_KHR), "out-of-date acquire skips the frame");
+        Check(!IsSwapchainAcquireUsable(VK_ERROR_SURFACE_LOST_KHR), "surface-lost acquire skips the frame");
+        Check(!IsSwapchainAcquireUsable(VK_ERROR_DEVICE_LOST), "device-lost acquire skips the frame");
+        Check(!IsSwapchainAcquireUsable(VK_TIMEOUT), "timed-out acquire skips the frame");
+        Check(!IsSwapchainAcquireUsable(VK_NOT_READY), "not-ready acquire skips the frame");
+    }
+
     void TestImageCountTransitions()
     {
         std::vector<VkSemaphore> semaphores;
@@ -112,6 +124,7 @@ namespace
 
 int main()
 {
+    TestAcquireResultClassification();
     TestImageCountTransitions();
     TestCreationFailureRollsBack();
 

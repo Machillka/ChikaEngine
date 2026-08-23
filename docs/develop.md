@@ -14,6 +14,43 @@
 
 ---
 
+## 2026-08-23 - Vulkan acquire 失败帧隔离
+
+### Metadata
+
+- Area: RHI / Vulkan / Tests / Documentation
+- Status: Complete（最小安全修复）
+- Constraint: 未改变 swapchain 重建策略、公开 RHI API 或帧同步模型
+
+### Changes
+
+- 新增内部 `IsSwapchainAcquireUsable()` 结果分类：只有 `VK_SUCCESS` 与 `VK_SUBOPTIMAL_KHR` 能继续当前帧。
+- `VulkanRHIDevice::BeginFrame()` 在所有其他 acquire 结果上设置 `m_frameSkipped=true`；`Renderer` 因此不会执行 Pipeline、queue submit 或 present。
+- `VK_ERROR_OUT_OF_DATE_KHR` 保持原有安静跳帧行为；其他结果记录具体 `VkResult`，便于区分 surface/device failure。
+- 扩展 `ChikaVulkanSwapchainSyncTests`，覆盖 success、suboptimal、out-of-date、surface lost、device lost、timeout 和 not-ready。
+
+### Reason and Architecture
+
+- 原代码每帧先清除 `m_frameSkipped`，但只有 out-of-date 分支重新置位；一般 acquire 错误只记录日志并返回，导致 `IsFrameActive()` 仍为 true。
+- 真实进程注入 `VK_ERROR_SURFACE_LOST_KHR` 后，修复前明确观察到同一帧继续调用 queue submit 和 present；该路径会使用未成功 acquire 的 image index，并等待不保证 signal 的 image-available semaphore。
+- 本轮只修复帧有效性边界：RHI 判断是否真正取得可用图像，Renderer 继续复用已有 `m_frameActive` 门禁，不向上层泄漏 Vulkan 错误枚举。
+
+### Verification
+
+- `cmake --build build/debug --target ChikaRHI ChikaVulkanSwapchainSyncTests ChikaGame -j 4`：通过。
+- `ctest --test-dir build/debug -R '^Chika\.VulkanSwapchainSync$' --output-on-failure --no-tests=error`：1/1 通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：34/34 通过。
+- macOS DYLD 临时拦截器强制 acquire 返回 `VK_ERROR_SURFACE_LOST_KHR`：修复前记录到 submit/present；修复后只记录 acquire failure，不再进入 RenderPipeline、submit 或 present，进程正常 shutdown。临时探针未写入仓库且验证后已删除。
+- `clang-format` 与 `git diff --check`：通过。
+
+### Remaining Work
+
+- 最小修复只保证失败帧安全跳过；`VK_ERROR_DEVICE_LOST`、`VK_ERROR_SURFACE_LOST_KHR` 等致命状态尚未升级为 Engine 退出、设备恢复或 surface 重建状态机。
+- `VK_SUBOPTIMAL_KHR` 当前允许本帧继续，但不会主动请求重建；项目仍依赖窗口 resize 回调触发重建。
+- Windows/Linux WSI 仍需执行相同结果分类测试和真实 surface-loss/resize 验证。
+
+---
+
 ## 2026-08-23 - Vulkan swapchain semaphore 生命周期修复
 
 ### Metadata
