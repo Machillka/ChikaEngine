@@ -66,6 +66,12 @@ add_executable(ChikaAnimationLoaderTests
 )
 target_link_libraries(ChikaAnimationLoaderTests PRIVATE ChikaAsset)
 
+add_executable(ChikaAnimationHierarchyTests
+    unit/AnimationHierarchyTests.cpp
+)
+target_include_directories(ChikaAnimationHierarchyTests PRIVATE ${PROJECT_ROOT_DIR}/engine/Runtime/Framework/src)
+target_link_libraries(ChikaAnimationHierarchyTests PRIVATE ChikaFramework)
+
 add_executable(ChikaEnvironmentProjectionTests
     unit/EnvironmentProjectionTests.cpp
 )
@@ -172,6 +178,7 @@ add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.TextureLoader COMMAND ChikaTextureLoaderTests)
 add_test(NAME Chika.MeshLoader COMMAND ChikaMeshLoaderTests)
 add_test(NAME Chika.AnimationLoader COMMAND ChikaAnimationLoaderTests)
+add_test(NAME Chika.AnimationHierarchy COMMAND ChikaAnimationHierarchyTests)
 add_test(NAME Chika.EnvironmentProjection COMMAND ChikaEnvironmentProjectionTests)
 add_test(NAME Chika.AssetJobs COMMAND ChikaAssetJobIntegrationTests)
 add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
@@ -204,7 +211,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.Scripts Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.MeshLoader Chika.AnimationLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.VulkanSwapchainSync Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.JobSystem.IdleWake Chika.JobSystem.ShutdownCancel Chika.JobSystem.ShutdownDrain Chika.JobSystem.ShutdownRace Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.Scripts Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.MeshLoader Chika.AnimationLoader Chika.AnimationHierarchy Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.VulkanSwapchainSync Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.JobSystem.IdleWake Chika.JobSystem.ShutdownCancel Chika.JobSystem.ShutdownDrain Chika.JobSystem.ShutdownRace Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsContact Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion PROPERTIES LABELS "physics")

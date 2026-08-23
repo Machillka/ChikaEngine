@@ -2,8 +2,10 @@
 #include "ChikaEngine/AssetAnimation.hpp"
 #include "ChikaEngine/component/Animator.hpp"
 #include "ChikaEngine/component/MeshRenderer.h"
+#include "ChikaEngine/debug/log_macros.h"
 #include "ChikaEngine/scene/scene.hpp"
 #include "ChikaEngine/profiler/ProfilerMacros.hpp"
+#include "subsystem/AnimationHierarchy.hpp"
 namespace ChikaEngine::Framework
 {
     void AnimationSubsystem::Tick(float deltaTime)
@@ -67,21 +69,15 @@ namespace ChikaEngine::Framework
             }
 
             std::vector<Math::Mat4> globalTransforms(skeleton.joints.size());
+            const Detail::SkeletonHierarchyResult hierarchyResult = Detail::ComputeSkeletonGlobalTransforms(skeleton, localTransforms, globalTransforms);
+            if (hierarchyResult != Detail::SkeletonHierarchyResult::Success)
+            {
+                LOG_ERROR("AnimationSubsystem", "Cannot evaluate skeleton hierarchy: {}", Detail::ToString(hierarchyResult));
+                continue;
+            }
 
             for (size_t i = 0; i < skeleton.joints.size(); ++i)
             {
-                int parentIdx = skeleton.joints[i].parentIndex;
-
-                if (parentIdx == -1)
-                {
-                    globalTransforms[i] = localTransforms[i];
-                }
-                else
-                {
-                    // NOTE: Parent 一定是先被计算好的吗？？ 还是说写成一个递归
-                    globalTransforms[i] = globalTransforms[parentIdx] * localTransforms[i];
-                }
-
                 Math::Mat4 finalMat = globalTransforms[i] * skeleton.joints[i].inverseBindMat;
 
                 animator->finalMatrices[i] = finalMat;

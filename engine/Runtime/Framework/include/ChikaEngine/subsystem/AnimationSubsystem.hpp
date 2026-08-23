@@ -24,7 +24,6 @@ namespace ChikaEngine::Framework
         Math::Vector3 EvalPosition(float time, const std::vector<Asset::KeyFrame<Math::Vector3>>& keys);
         Math::Quaternion EvalRotation(float time, const std::vector<Asset::KeyFrame<Math::Quaternion>>& keys);
         Math::Vector3 EvalScale(float time, const std::vector<Asset::KeyFrame<Math::Vector3>>& keys);
-        void ComputeGlobalTransform(int i, const Asset::SkeletonData& skeleton, const std::vector<Math::Mat4>& locals, std::vector<Math::Mat4>& globals, std::vector<bool>& computed);
 
       private:
         Scene* _ownerScene = nullptr;

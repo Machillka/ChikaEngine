@@ -14,6 +14,43 @@
 
 ---
 
+## 2026-08-23 - AnimationSubsystem 骨骼拓扑求解修复
+
+### Metadata
+
+- Area: Framework / Animation / Tests / Documentation
+- Status: Complete（P0 closed）
+- Constraint: 未改变 Skeleton/Animator 公开数据结构、动画采样方式或资产格式
+
+### Changes
+
+- 新增 Framework 私有的 skeleton global-transform 求解器，使用 `Unvisited / Visiting / Complete` 三态 DFS；每个 joint 在父 global transform 完成后才计算自身，因此不依赖 joints 数组的拓扑顺序。
+- 求解前验证 local-transform 数量和所有 parent index；DFS 遇到 `Visiting` joint 时返回 cycle 错误。
+- 求解过程写入临时矩阵集合，只有完整成功才发布结果；`AnimationSubsystem` 遇到坏骨架时记录原因并跳过本帧，不再越界或写入部分 `Animator::finalMatrices`。
+- 删除头文件中从未定义、也未使用的旧递归 member 声明；新求解器保持在 Framework `src` 私有边界，不增加公开引擎 API。
+- 新增 `ChikaAnimationHierarchyTests`，覆盖父关节后置、多个 root、越界 parent、parent cycle，以及额外的 local-transform 数量不一致。
+
+### Reason and Architecture
+
+- `MeshLoader` 保留 glTF `skin.joints` 给出的顺序并另行建立 parent index；该顺序不保证父 joint 位于子 joint 前面。
+- 原 `AnimationSubsystem` 单次从 index 0 向后遍历，子 joint 直接读取 `globalTransforms[parentIndex]`。确定性 fixture 使用 `child index=0 / parent index=1` 后，修复前测试稳定失败于“child uses the later parent's global transform”。
+- 拓扑正确性属于 skeleton 求值边界，不应通过重新排列导入 joint 来掩盖：重新排列还会要求同步重写 inverse bind matrices、vertex joint indices、name map 和 animation track 映射。私有 DFS 保留现有 joint identity，并集中处理父链正确性。
+
+### Verification
+
+- 失败证明：旧顺序算法执行 `ctest --test-dir build/debug -R '^Chika\.AnimationHierarchy$' --output-on-failure --no-tests=error`，1/1 失败，唯一失败断言为后置父 joint 未参与 child global transform。
+- `cmake --build build/debug --target ChikaAnimationHierarchyTests ChikaFramework ChikaGame -j 4`：通过。
+- 修复后同一定向 CTest：1/1 通过。
+- `cmake --build build/debug -j 4`：全量构建通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：36/36 通过。
+
+### Remaining Work
+
+- 当前在运行时拒绝损坏骨架并保留 Animator 之前的完整矩阵；若未来要改善资产作者体验，可在 MeshLoader 导入阶段复用等价拓扑校验并将错误定位到具体 joint，但不影响本次 P0 正确性关闭。
+- 尚未增加真实非拓扑 glTF skinned asset 的端到端画面基准；生产求解函数已经由纯 CPU 单元测试确定性覆盖，画面 golden test 可作为后续验证增强。
+
+---
+
 ## 2026-08-23 - AnimationLoader glTF accessor 边界修复
 
 ### Metadata
