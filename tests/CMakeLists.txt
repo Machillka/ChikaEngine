@@ -3,6 +3,11 @@ add_executable(ChikaCoreBoundaryTests
 )
 target_link_libraries(ChikaCoreBoundaryTests PRIVATE ChikaFramework)
 
+add_executable(ChikaObjectPoolTests
+    unit/ObjectPoolTests.cpp
+)
+target_link_libraries(ChikaObjectPoolTests PRIVATE ChikaCore)
+
 add_executable(ChikaPhysicsContractTests
     unit/PhysicsContractTests.cpp
 )
@@ -60,6 +65,17 @@ add_executable(ChikaMeshLoaderTests
     unit/MeshLoaderTests.cpp
 )
 target_link_libraries(ChikaMeshLoaderTests PRIVATE ChikaAsset)
+
+add_executable(ChikaAnimationLoaderTests
+    unit/AnimationLoaderTests.cpp
+)
+target_link_libraries(ChikaAnimationLoaderTests PRIVATE ChikaAsset)
+
+add_executable(ChikaAnimationHierarchyTests
+    unit/AnimationHierarchyTests.cpp
+)
+target_include_directories(ChikaAnimationHierarchyTests PRIVATE ${PROJECT_ROOT_DIR}/engine/Runtime/Framework/src)
+target_link_libraries(ChikaAnimationHierarchyTests PRIVATE ChikaFramework)
 
 add_executable(ChikaEnvironmentProjectionTests
     unit/EnvironmentProjectionTests.cpp
@@ -155,6 +171,7 @@ if(CHIKA_BUILD_BENCHMARKS)
 endif()
 
 add_test(NAME Chika.CoreBoundary COMMAND ChikaCoreBoundaryTests)
+add_test(NAME Chika.ObjectPool COMMAND ChikaObjectPoolTests)
 add_test(NAME Chika.PhysicsContract COMMAND ChikaPhysicsContractTests)
 add_test(NAME Chika.PhysicsLifecycle COMMAND ChikaPhysicsLifecycleTests)
 add_test(NAME Chika.PhysicsContact COMMAND ChikaPhysicsContactTests)
@@ -166,6 +183,8 @@ add_test(NAME Chika.SceneIntegration COMMAND ChikaSceneIntegrationTests)
 add_test(NAME Chika.AssetPipeline COMMAND ChikaAssetPipelineTests)
 add_test(NAME Chika.TextureLoader COMMAND ChikaTextureLoaderTests)
 add_test(NAME Chika.MeshLoader COMMAND ChikaMeshLoaderTests)
+add_test(NAME Chika.AnimationLoader COMMAND ChikaAnimationLoaderTests)
+add_test(NAME Chika.AnimationHierarchy COMMAND ChikaAnimationHierarchyTests)
 add_test(NAME Chika.EnvironmentProjection COMMAND ChikaEnvironmentProjectionTests)
 add_test(NAME Chika.AssetJobs COMMAND ChikaAssetJobIntegrationTests)
 add_test(NAME Chika.RenderBaseline COMMAND ChikaRenderBaselineTests)
@@ -198,7 +217,7 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RuntimeBoundaryCheck.cmake
 )
 
-set_tests_properties(Chika.CoreBoundary Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.Scripts Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.MeshLoader Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.VulkanSwapchainSync Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.JobSystem.IdleWake Chika.JobSystem.ShutdownCancel Chika.JobSystem.ShutdownDrain Chika.JobSystem.ShutdownRace Chika.RuntimeBoundary PROPERTIES
+set_tests_properties(Chika.CoreBoundary Chika.ObjectPool Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsBroadcast Chika.Scripts Chika.ColliderAuthoring Chika.PhysicsMotion Chika.SceneIntegration Chika.AssetPipeline Chika.TextureLoader Chika.MeshLoader Chika.AnimationLoader Chika.AnimationHierarchy Chika.EnvironmentProjection Chika.AssetJobs Chika.RenderBaseline Chika.VulkanSwapchainSync Chika.RenderPhase3 Chika.RenderPhase4 Chika.EnvironmentResource Chika.RenderGraphSkyboxPass Chika.MaterialParameter Chika.ShaderInterface Chika.ProjectDescriptor Chika.Profiler Chika.ProfilerTimelineModel Chika.HierarchyAction Chika.JobSystem Chika.JobSystem.IdleWake Chika.JobSystem.ShutdownCancel Chika.JobSystem.ShutdownDrain Chika.JobSystem.ShutdownRace Chika.RuntimeBoundary PROPERTIES
     WORKING_DIRECTORY "${PROJECT_ROOT_DIR}"
 )
 set_tests_properties(Chika.PhysicsContract Chika.PhysicsLifecycle Chika.PhysicsContact Chika.PhysicsBroadcast Chika.ColliderAuthoring Chika.PhysicsMotion PROPERTIES LABELS "physics")

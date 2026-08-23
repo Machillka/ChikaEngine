@@ -14,6 +14,120 @@
 
 ---
 
+## 2026-08-23 - Core ObjectPool 基础实现
+
+### Metadata
+
+- Area: Core / Containers / Tests / Documentation
+- Status: Complete（基础单线程对象池）
+- Constraint: 未引入锁、句柄代际、跨线程回收或自定义 allocator
+
+### Changes
+
+- `ObjectPool<T>` 现在真正使用初始容量；零容量实例会在第一次获取时建立一个槽位，耗尽后按当前容量倍增。
+- 底层改为 `deque<Slot>` 稳定存储，slot 使用 `optional<T>` 按需构造和销毁；扩容不移动已借出的对象，也支持不可复制、不可移动但可原位构造的类型。
+- 保留 `Get()` 默认构造入口并增加 `Emplace(args...)`；`Release()` 返回成功状态，拒绝 null、外部指针和未复用前的重复释放。
+- 增加 `Clear()`、`IsAcquired()`、`Capacity()`、`InUseCount()` 与 `AvailableCount()` 基础观察接口；pool 析构会销毁仍处于 active 状态的对象。
+- 构造对象或 active-index 注册抛出异常时会销毁半构造状态并把槽位放回 free list；对象池之后仍可继续使用。
+- 新增 `ChikaObjectPoolTests`，覆盖初始/零容量、自动扩容和地址稳定性、带参数构造、非 movable 对象、释放校验、槽位复用、clear/destruction 与构造异常回滚。
+
+### Reason and Architecture
+
+- 原构造函数忽略 `initializedSize`；首次 `Get()` 以当前 size `0` 扩容，随后对空 free stack 调用 `top()`，首次使用即产生未定义行为。
+- 即使只补初始容量，原 `vector<T>` 扩容仍会移动元素并使所有已返回 `T*` 失效，因此修复必须同时解决地址稳定性。
+- 本实现保持 raw-pointer 获取方式以维持现有窄 API，并用 active pointer-to-slot map 提供 O(1) release 校验；它是 Core 内单线程拥有者容器，不承担跨线程生命周期同步。
+
+### Verification
+
+- `cmake --build build/debug --target ChikaObjectPoolTests ChikaCore -j 4`：通过，无新增编译告警。
+- `ctest --test-dir build/debug -R '^Chika\.ObjectPool$' --output-on-failure --no-tests=error`：1/1 通过。
+- `cmake --build build/debug -j 4`：全量构建通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：37/37 通过。
+
+### Remaining Work
+
+- ObjectPool 明确不是线程安全容器；若未来由 Job worker 共享，调用方必须外部同步或另行设计并发池，不能把锁隐式塞进当前基础类型。
+- raw pointer 在 `Release()` 后立即失效；若同一地址已被新对象复用，旧指针无法表达 generation。需要 stale-reference 检测的消费者应使用 `SlotMap`/handle，而不是扩大 ObjectPool 契约。
+- 当前尚未接入生产消费者；后续只有出现明确的高频同类型生命周期场景时才应采用，并以实际 benchmark 验证收益。
+
+---
+
+## 2026-08-23 - AnimationSubsystem 骨骼拓扑求解修复
+
+### Metadata
+
+- Area: Framework / Animation / Tests / Documentation
+- Status: Complete（P0 closed）
+- Constraint: 未改变 Skeleton/Animator 公开数据结构、动画采样方式或资产格式
+
+### Changes
+
+- 新增 Framework 私有的 skeleton global-transform 求解器，使用 `Unvisited / Visiting / Complete` 三态 DFS；每个 joint 在父 global transform 完成后才计算自身，因此不依赖 joints 数组的拓扑顺序。
+- 求解前验证 local-transform 数量和所有 parent index；DFS 遇到 `Visiting` joint 时返回 cycle 错误。
+- 求解过程写入临时矩阵集合，只有完整成功才发布结果；`AnimationSubsystem` 遇到坏骨架时记录原因并跳过本帧，不再越界或写入部分 `Animator::finalMatrices`。
+- 删除头文件中从未定义、也未使用的旧递归 member 声明；新求解器保持在 Framework `src` 私有边界，不增加公开引擎 API。
+- 新增 `ChikaAnimationHierarchyTests`，覆盖父关节后置、多个 root、越界 parent、parent cycle，以及额外的 local-transform 数量不一致。
+
+### Reason and Architecture
+
+- `MeshLoader` 保留 glTF `skin.joints` 给出的顺序并另行建立 parent index；该顺序不保证父 joint 位于子 joint 前面。
+- 原 `AnimationSubsystem` 单次从 index 0 向后遍历，子 joint 直接读取 `globalTransforms[parentIndex]`。确定性 fixture 使用 `child index=0 / parent index=1` 后，修复前测试稳定失败于“child uses the later parent's global transform”。
+- 拓扑正确性属于 skeleton 求值边界，不应通过重新排列导入 joint 来掩盖：重新排列还会要求同步重写 inverse bind matrices、vertex joint indices、name map 和 animation track 映射。私有 DFS 保留现有 joint identity，并集中处理父链正确性。
+
+### Verification
+
+- 失败证明：旧顺序算法执行 `ctest --test-dir build/debug -R '^Chika\.AnimationHierarchy$' --output-on-failure --no-tests=error`，1/1 失败，唯一失败断言为后置父 joint 未参与 child global transform。
+- `cmake --build build/debug --target ChikaAnimationHierarchyTests ChikaFramework ChikaGame -j 4`：通过。
+- 修复后同一定向 CTest：1/1 通过。
+- `cmake --build build/debug -j 4`：全量构建通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：36/36 通过。
+
+### Remaining Work
+
+- 当前在运行时拒绝损坏骨架并保留 Animator 之前的完整矩阵；若未来要改善资产作者体验，可在 MeshLoader 导入阶段复用等价拓扑校验并将错误定位到具体 joint，但不影响本次 P0 正确性关闭。
+- 尚未增加真实非拓扑 glTF skinned asset 的端到端画面基准；生产求解函数已经由纯 CPU 单元测试确定性覆盖，画面 golden test 可作为后续验证增强。
+
+---
+
+## 2026-08-23 - AnimationLoader glTF accessor 边界修复
+
+### Metadata
+
+- Area: Asset / Animation / Tests / Documentation
+- Status: Complete（最小安全修复）
+- Constraint: 未新增动画格式、插值模式、公开 API 或第三方依赖
+
+### Changes
+
+- `AnimationLoader` 在 glTF/GLB 解析失败时立即返回空结果，不再继续读取空模型。
+- animation channel 现在验证 target node、sampler、input/output accessor 与 buffer view/buffer 索引，非法引用稳定返回空结果，避免越界访问。
+- 新增 loader 内部的 float accessor 读取边界：按 `byteStride` 定位元素，检查 offset、element size、buffer view 与实际 buffer 范围，并用 `memcpy` 读取，避免未对齐访问。
+- 明确收束现阶段能力为 float、`LINEAR`、translation/rotation/scale；拒绝 sparse accessor、非有限数值、不严格递增的时间、数量不匹配以及尚未实现的 target/interpolation。
+- 新增 `ChikaAnimationLoaderTests`，覆盖带 padding 的 interleaved time accessor、越界 target node 与不存在文件。
+
+### Reason and Architecture
+
+- 原实现取得 accessor 起始地址后直接使用 `times[i]` 与 `values[i * componentCount]`，没有使用 buffer view 的 `byteStride`。在合法的 stride=8 测试资产中，规范时间为 `0, 1`，修复前实际读取为 `0, 1234`，并把 clip duration 错算为 `1234`。
+- 原实现也直接以 glTF 文件中的索引调用 `model.nodes[nodeIdx]`、`gltfAnim.samplers[channel.sampler]` 和 `model.accessors[...]`；损坏或恶意资产可触发未定义行为。
+- 修复保持在 Asset loader 私有边界内：加载器负责把不可信文件数据验证为引擎可用的 AnimationClip，Animation 数据结构、运行时采样接口和 TinyGLTF 均不改变。
+
+### Verification
+
+- `cmake --build build/debug --target ChikaAnimationLoaderTests ChikaAsset ChikaGame -j 4`：通过。
+- `ctest --test-dir build/debug -R '^Chika\.AnimationLoader$' --output-on-failure --no-tests=error`：1/1 通过。
+- `cmake --build build/debug -j 4`：全量构建通过。
+- `ctest --test-dir build/debug --output-on-failure --no-tests=error`：35/35 通过。
+- 合法 interleaved fixture 确认第二个 key time 与 duration 均为 `1`；越界 node 与缺失文件均返回空结果。
+- `clang-format --dry-run --Werror engine/Runtime/Asset/src/AnimationLoader.cpp tests/unit/AnimationLoaderTests.cpp` 与 `git diff --check`：通过。
+
+### Remaining Work
+
+- `STEP`、`CUBICSPLINE`、weights、sparse accessor 与非 float component 仍未实现；当前会明确拒绝，不能宣称完整 glTF animation 支持。
+- 当前仍只读取文件中的第一段 animation；多 clip 导入应作为独立功能设计，不纳入本次安全修复。
+- quaternion 归一化及 skeleton/joint 语义一致性尚未在 loader 层验证，后续应结合动画运行时契约单独审查。
+
+---
+
 ## 2026-08-23 - Vulkan acquire 失败帧隔离
 
 ### Metadata
