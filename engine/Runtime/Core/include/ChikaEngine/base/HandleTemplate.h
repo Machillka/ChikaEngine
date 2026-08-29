@@ -21,7 +21,7 @@ namespace ChikaEngine::Core
         THandle() : raw_value(INVALID_RAW) {}
         explicit THandle(std::uint32_t in_raw) : raw_value(in_raw) {}
 
-        static THandle FromParts(std::uint32_t index, std::uint32_t gen)
+        static THandle FromParts(std::uint32_t index, std::uint32_t gen) noexcept
         {
             return THandle((index & INDEX_MASK) | (gen << GEN_SHIFT));
         }
