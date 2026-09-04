@@ -31,6 +31,16 @@ namespace ChikaEngine::Framework
         bool useEditorView = true;
     };
 
+    struct PhysicsTimingStatistics
+    {
+        float fixedDeltaTime = 0.0f;
+        float interpolationAlpha = 0.0f;
+        float lastDroppedTime = 0.0f;
+        float totalDroppedTime = 0.0f;
+        uint32_t lastStepCount = 0;
+        uint32_t maxStepsPerFrame = 0;
+    };
+
     class Scene
     {
         friend class Prefab;
@@ -83,6 +93,9 @@ namespace ChikaEngine::Framework
 
         RenderSubsystem* GetRenderSubsystem();
         Physics::PhysicsScene* GetPhysicsSubsystem();
+        [[nodiscard]] PhysicsTimingStatistics GetPhysicsTimingStatistics() const;
+        /** @brief Returns the render-facing world matrix without changing gameplay Transform state. */
+        [[nodiscard]] Math::Mat4 GetRenderWorldMatrix(const Transform& transform) const;
         Asset::AssetManager* GetAssetManager() const
         {
             return _assetManager;

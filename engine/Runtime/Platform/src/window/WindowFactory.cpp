@@ -7,7 +7,8 @@ namespace ChikaEngine::Platform
     std::unique_ptr<IWindow> WindowFactory::Create(const WindowDesc& desc)
     {
         auto window = std::make_unique<GlfwWindow>();
-        window->Initialize(desc);
+        if (!window->Initialize(desc))
+            return nullptr;
         return window;
     }
 } // namespace ChikaEngine::Platform

@@ -68,7 +68,7 @@ namespace ChikaEngine::Render
 
         // 提供绑定指令
         virtual void CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size) = 0;
-        virtual void CopyBufferToTexture(BufferHandle src, TextureHandle dst, uint32_t width, uint32_t height) = 0;
+        virtual void CopyBufferToTexture(BufferHandle src, TextureHandle dst, uint32_t width, uint32_t height, uint32_t arrayLayers = 1) = 0;
 
         // 绘制命令
         virtual void Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex = 0, uint32_t firstInstance = 0) = 0;

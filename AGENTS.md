@@ -29,6 +29,7 @@ ChikaEngine is a C++20 game engine project. The goal is to build a usable, learn
 - Prefer small commits and focused changes.
 - For risky refactors, first create a design note in `docs/`.
 - After modifying C++ or CMake files, run configure/build commands when possible.
+- Any task that modifies repository files must add or update a dated entry in `docs/develop.md`, including the changes, reasons, architecture impact, verification, and remaining work.
 - When build errors occur, fix the root cause instead of hiding warnings.
 - Avoid broad rewrites unless the user explicitly asks.
 

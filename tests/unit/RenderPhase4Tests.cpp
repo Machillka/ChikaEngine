@@ -49,7 +49,7 @@ namespace
         void BindIndexBuffer(Render::BufferHandle, uint64_t, bool) override {}
         void PushConstants(std::string_view, const void*, uint32_t) override {}
         void CopyBuffer(Render::BufferHandle, Render::BufferHandle, uint64_t) override {}
-        void CopyBufferToTexture(Render::BufferHandle, Render::TextureHandle, uint32_t, uint32_t) override {}
+        void CopyBufferToTexture(Render::BufferHandle, Render::TextureHandle, uint32_t, uint32_t, uint32_t) override {}
         void Draw(uint32_t, uint32_t, uint32_t, uint32_t) override {}
         void DrawIndexed(uint32_t, uint32_t, uint32_t, int32_t, uint32_t) override {}
         void DrawIndirect(Render::BufferHandle, uint64_t, uint32_t, uint32_t) override {}
@@ -254,6 +254,50 @@ namespace
         Check(first.indirectHash == reordered.indirectHash, "GPU-driven indirect hash is source-order independent");
     }
 
+    /** @brief Verifies GPU-driven shared-state grouping matches CPU batch key semantics. */
+    void TestGpuDrivenSharedStateGroupParity()
+    {
+        auto snapshot = std::make_shared<Render::RenderWorldSnapshot>();
+        snapshot->objects.reserve(10);
+        for (uint32_t index = 0; index < 10; ++index)
+        {
+            Render::RenderObjectProxy proxy;
+            proxy.mesh = Resource::MeshHandle::FromParts(0, 1);
+            proxy.material = Resource::MaterialHandle::FromParts(1, 1);
+            proxy.flags = Render::RenderObjectFlags::Visible | Render::RenderObjectFlags::CastShadow;
+            proxy.layerMask = 0xFFFFFFFFu;
+            proxy.bounds.valid = false;
+            snapshot->objects.push_back({
+                .handle = Render::RenderObjectHandle::FromParts(index + 100u, 1),
+                .proxy = proxy,
+            });
+        }
+
+        const Render::RenderSceneView scene = Render::RenderSceneView::Build(snapshot);
+        const Render::RenderView view{ .layerMask = 0xFFFFFFFFu, .primary = true };
+        const Render::RenderResourceView resources = BuildResourceView();
+        const Render::RenderMaterialMetadata* material = resources.FindMaterial(Resource::MaterialHandle::FromParts(1, 1));
+        Check(material != nullptr, "shared-state parity material metadata exists");
+
+        const Render::GpuDrivenFrameData forward = Render::BuildGpuDrivenFrameData(scene, view, resources, { .pass = Render::RenderPassClass::ForwardOpaque });
+        Check(forward.inputStaticOpaqueCount == 10, "GPU-driven parity input keeps all shared static opaque objects");
+        Check(forward.cpuVisibleCount == 10 && forward.cpuCulledCount == 0, "GPU-driven parity keeps all shared objects visible");
+        Check(forward.drawGroups.size() == 1, "GPU-driven shared state forms one draw group");
+        Check(forward.indirectCommands.size() == 1, "GPU-driven shared state forms one indirect command");
+        if (!forward.drawGroups.empty() && !forward.indirectCommands.empty())
+        {
+            Check(forward.drawGroups.front().instanceCount == 10, "GPU-driven shared draw group owns all instances");
+            Check(forward.drawGroups.front().visibleCount == 10, "GPU-driven shared draw group exposes all visible instances");
+            Check(forward.indirectCommands.front().instanceCount == 10, "GPU-driven shared indirect command submits all visible instances");
+            Check(!material || forward.drawGroups.front().pipelineId == material->forwardPipeline.raw_value, "GPU-driven forward group uses forward pipeline identity");
+        }
+
+        const Render::GpuDrivenFrameData gbuffer = Render::BuildGpuDrivenFrameData(scene, view, resources, { .pass = Render::RenderPassClass::GBufferOpaque });
+        Check(gbuffer.drawGroups.size() == 1, "GPU-driven gbuffer pass also keeps one shared draw group");
+        if (!gbuffer.drawGroups.empty())
+            Check(!material || gbuffer.drawGroups.front().pipelineId == material->gbufferPipeline.raw_value, "GPU-driven gbuffer group uses gbuffer pipeline identity");
+    }
+
     /** @brief Verifies GPU-driven RenderGraph pass order and optional consumer culling behavior. */
     void TestRenderGraphFlow()
     {
@@ -334,6 +378,7 @@ int main()
 {
     TestCapabilityFallback();
     TestGpuDrivenLayoutAndBuild();
+    TestGpuDrivenSharedStateGroupParity();
     TestRenderGraphFlow();
     TestValidationDiff();
     TestIndirectSubmission();

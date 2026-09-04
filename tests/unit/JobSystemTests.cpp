@@ -4,10 +4,14 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstdlib>
 #include <iostream>
 #include <mutex>
 #include <numeric>
+#include <span>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -15,6 +19,7 @@ namespace
 {
     using namespace ChikaEngine::Jobs;
     std::atomic<int> g_failures = 0;
+    std::atomic<unsigned long> g_repetition = 1;
 
     void Check(bool condition, const char* message)
     {
@@ -23,6 +28,38 @@ namespace
             std::cerr << "FAILED: " << message << '\n';
             g_failures.fetch_add(1, std::memory_order_relaxed);
         }
+    }
+
+    struct TestCase
+    {
+        std::string_view name;
+        void (*function)();
+    };
+
+    /** @brief Fails fast with scheduler counters instead of leaving CI blocked on a shutdown deadlock. */
+    void ShutdownWithWatchdog(JobSystem& jobs, JobShutdownPolicy policy, std::chrono::seconds deadline, const char* context)
+    {
+        std::mutex watchdogMutex;
+        std::condition_variable watchdogCondition;
+        bool shutdownComplete = false;
+        std::thread watchdog(
+            [&]
+            {
+                std::unique_lock lock(watchdogMutex);
+                if (watchdogCondition.wait_for(lock, deadline, [&] { return shutdownComplete; }))
+                    return;
+                const JobSystemStatistics statistics = jobs.GetStatistics();
+                std::cerr << "FAILED: " << context << " exceeded " << deadline.count() << " s"
+                          << "; repetition=" << g_repetition.load(std::memory_order_relaxed) << "; submitted=" << statistics.submittedJobs << "; completed=" << statistics.completedJobs << "; failed=" << statistics.failedJobs << "; cancelled=" << statistics.cancelledJobs << "; queued=" << statistics.queuedJobs << "; active=" << statistics.activeWorkers << std::endl;
+                std::abort();
+            });
+        jobs.Shutdown(policy);
+        {
+            std::lock_guard lock(watchdogMutex);
+            shutdownComplete = true;
+        }
+        watchdogCondition.notify_one();
+        watchdog.join();
     }
 
     /** @brief Verifies worker startup, exact-once execution, restart, and startup rollback. */
@@ -50,6 +87,40 @@ namespace
         JobSystem failed;
         Check(!failed.Initialize({ .workerCount = 4, .failWorkerStartAt = 1 }), "injected worker startup failure must roll back initialization");
         failed.Shutdown();
+    }
+
+    /** @brief Verifies that a fully sleeping worker observes every ready-job notification without wait-help. */
+    void TestIdleWorkerWakeup()
+    {
+        JobSystem jobs;
+        Check(jobs.Initialize({ .workerCount = 1, .jobCapacity = 2'048 }), "idle-wakeup scheduler must initialize");
+        for (uint32_t iteration = 0; iteration < 1'000; ++iteration)
+        {
+            const auto sleepDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+            while (jobs.GetStatistics().sleepingWorkers != 1 && std::chrono::steady_clock::now() < sleepDeadline)
+                std::this_thread::yield();
+            Check(jobs.GetStatistics().sleepingWorkers == 1, "worker must reach the sleeping state before wakeup test submission");
+
+            std::atomic<bool> executed = false;
+            const JobHandle handle = jobs.Schedule("Test.IdleWake", [&] { executed.store(true, std::memory_order_release); });
+            Check(handle.IsValid(), "idle-wakeup test job must be accepted");
+            if (!handle.IsValid())
+                break;
+
+            const auto executionDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+            while (!jobs.IsComplete(handle) && std::chrono::steady_clock::now() < executionDeadline)
+                std::this_thread::yield();
+            const bool completedWithoutHelp = jobs.IsComplete(handle);
+            Check(completedWithoutHelp, "sleeping worker must execute a notified job without main-thread wait-help");
+            if (!completedWithoutHelp)
+            {
+                ShutdownWithWatchdog(jobs, JobShutdownPolicy::Drain, std::chrono::seconds(5), "idle-wakeup recovery shutdown");
+                return;
+            }
+            Check(executed.load(std::memory_order_acquire), "idle-wakeup job completion must publish callable writes");
+            jobs.Release(handle);
+        }
+        ShutdownWithWatchdog(jobs, JobShutdownPolicy::Drain, std::chrono::seconds(5), "idle-wakeup shutdown");
     }
 
     /** @brief Verifies bounded storage, stale generation rejection, and exception transport. */
@@ -320,8 +391,8 @@ namespace
         nestedJobs.Shutdown();
     }
 
-    /** @brief Verifies cancel wakeup, drain completion, and submission rejection during shutdown. */
-    void TestShutdownCancellation()
+    /** @brief Verifies that cancellation wakes waiters and skips queued callables. */
+    void TestCancelPendingShutdown()
     {
         JobSystem jobs;
         Check(jobs.Initialize({ .workerCount = 1, .jobCapacity = 256 }), "cancellation scheduler must initialize");
@@ -364,22 +435,30 @@ namespace
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
                 releaseBlocker.store(true, std::memory_order_release);
             });
-        jobs.Shutdown(JobShutdownPolicy::CancelPending);
+        ShutdownWithWatchdog(jobs, JobShutdownPolicy::CancelPending, std::chrono::seconds(5), "cancel-pending shutdown");
         waiter.join();
         unblocker.join();
         Check(waiterCancelled.load(), "cancel shutdown must wake external waiters with cancellation");
         Check(pendingExecutions.load() == 0, "cancel shutdown must not execute queued callables");
         Check(!jobs.IsAcceptingJobs(), "shutdown must reject new jobs");
         (void)blocker;
+    }
 
+    /** @brief Verifies that drain shutdown completes every accepted detached job. */
+    void TestDrainShutdown()
+    {
         JobSystem drainJobs;
         drainJobs.Initialize({ .workerCount = 4, .jobCapacity = 2'048 });
         std::atomic<uint32_t> drained = 0;
         for (uint32_t index = 0; index < 1'000; ++index)
             drainJobs.Detach(drainJobs.Schedule("Test.Drain", [&] { drained.fetch_add(1, std::memory_order_relaxed); }));
-        drainJobs.Shutdown(JobShutdownPolicy::Drain);
+        ShutdownWithWatchdog(drainJobs, JobShutdownPolicy::Drain, std::chrono::seconds(5), "drain shutdown");
         Check(drained.load() == 1'000, "drain shutdown must complete every accepted job");
+    }
 
+    /** @brief Verifies that submissions racing shutdown receive a stable rejection. */
+    void TestShutdownSubmissionRace()
+    {
         JobSystem raceJobs;
         raceJobs.Initialize({ .workerCount = 2, .jobCapacity = 16'384 });
         std::atomic<bool> rejected = false;
@@ -398,7 +477,7 @@ namespace
             });
         while (raceJobs.GetStatistics().submittedJobs < 100)
             std::this_thread::yield();
-        raceJobs.Shutdown(JobShutdownPolicy::Drain);
+        ShutdownWithWatchdog(raceJobs, JobShutdownPolicy::Drain, std::chrono::seconds(5), "submission-race drain shutdown");
         submitter.join();
         Check(rejected.load(std::memory_order_acquire), "submissions racing shutdown must receive a stable rejection");
     }
@@ -457,13 +536,37 @@ namespace
     }
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
-    TestLifecycleAndSimpleExecution();
-    TestGenerationAndExceptions();
-    TestDependenciesAndParentChild();
-    TestParallelForAndStealing();
-    TestShutdownCancellation();
-    TestProfilerEvents();
+    const TestCase testCases[] = {
+        { "lifecycle", TestLifecycleAndSimpleExecution }, { "idle-wake", TestIdleWorkerWakeup }, { "generation", TestGenerationAndExceptions }, { "dependencies", TestDependenciesAndParentChild }, { "parallel", TestParallelForAndStealing }, { "shutdown-cancel", TestCancelPendingShutdown }, { "shutdown-drain", TestDrainShutdown }, { "shutdown-race", TestShutdownSubmissionRace }, { "profiler", TestProfilerEvents },
+    };
+    const std::span<const TestCase> selectedTests = testCases;
+    const std::string_view requestedTest = argc > 1 ? argv[1] : "all";
+    const unsigned long requestedRepetitions = argc > 2 ? std::strtoul(argv[2], nullptr, 10) : 1;
+    if (requestedRepetitions == 0)
+    {
+        std::cerr << "JobSystem test repetition count must be greater than zero\n";
+        return 2;
+    }
+    bool foundRequestedTest = requestedTest == "all";
+    for (const TestCase& testCase : selectedTests)
+    {
+        if (requestedTest != "all" && requestedTest != testCase.name)
+            continue;
+        foundRequestedTest = true;
+        std::cout << "[ RUN      ] JobSystem." << testCase.name << std::endl;
+        for (unsigned long repetition = 0; repetition < requestedRepetitions; ++repetition)
+        {
+            g_repetition.store(repetition + 1, std::memory_order_relaxed);
+            testCase.function();
+        }
+        std::cout << "[     DONE ] JobSystem." << testCase.name << std::endl;
+    }
+    if (!foundRequestedTest)
+    {
+        std::cerr << "Unknown JobSystem test case: " << requestedTest << '\n';
+        return 2;
+    }
     return g_failures.load(std::memory_order_relaxed) == 0 ? 0 : 1;
 }

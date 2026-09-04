@@ -83,8 +83,13 @@ namespace ChikaEngine::Asset
             return 0;
         m_nextHotReloadPoll = now + std::chrono::milliseconds(500);
 
+        m_forcedReloadPaths.clear();
         for (const AssetGuid& guid : m_database.PollChangedAssets())
+        {
             m_importers.Import(m_database, guid);
+            if (const AssetRecord* record = m_database.FindByGuid(guid))
+                m_forcedReloadPaths.insert(record->sourcePath.generic_string());
+        }
 
         size_t count = 0;
         count += ReloadChanged(m_meshPathCache, m_meshes, MeshLoader::Load);
@@ -93,6 +98,7 @@ namespace ChikaEngine::Asset
         count += ReloadChanged(m_materialPathCache, m_materials, MaterialLoader::Load);
         count += ReloadChanged(m_shaderTemplatePathCache, m_shaderTemplates, ShaderTemplateLoader::Load);
         count += ReloadChanged(m_animationClipPathCache, m_animationClips, AnimationLoader::Load);
+        m_forcedReloadPaths.clear();
         return count;
     }
 
@@ -117,7 +123,30 @@ namespace ChikaEngine::Asset
 
     TextureHandle AssetManager::LoadTexture(const std::string& path)
     {
-        return LoadCachedAsset(path, m_textures, m_texturePathCache, TextureLoader::Load);
+        std::string cachePath;
+        std::string loadPath;
+        {
+            std::lock_guard lock(m_assetMutex);
+            cachePath = NormalizeCachePath(path);
+            if (const auto cached = m_texturePathCache.find(cachePath); cached != m_texturePathCache.end())
+            {
+                m_textureLoadStatuses[cachePath] = TextureLoadStatus::Success;
+                return cached->second;
+            }
+            loadPath = ResolveImportedPath(path);
+        }
+
+        TextureLoadResult result = TextureLoader::LoadWithStatus(loadPath);
+        std::lock_guard lock(m_assetMutex);
+        m_textureLoadStatuses[cachePath] = result.status;
+        if (!result)
+            return TextureHandle::Invalid();
+        if (const auto cached = m_texturePathCache.find(cachePath); cached != m_texturePathCache.end())
+            return cached->second;
+        const TextureHandle handle = m_textures.Create(*result.texture);
+        m_texturePathCache[cachePath] = handle;
+        TrackLoadedFile(cachePath, loadPath);
+        return handle;
     }
 
     ShaderHandle AssetManager::LoadShader(const std::string& path)
@@ -349,12 +378,14 @@ namespace ChikaEngine::Asset
     {
         std::lock_guard lock(m_assetMutex);
         m_texturePathCache.clear();
+        m_textureLoadStatuses.clear();
         m_meshPathCache.clear();
         m_shaderPathCache.clear();
         m_materialPathCache.clear();
         m_shaderTemplatePathCache.clear();
         m_animationClipPathCache.clear();
         m_loadedWriteTimes.clear();
+        m_forcedReloadPaths.clear();
         m_textures.Clear();
         m_meshes.Clear();
         m_shaders.Clear();
@@ -373,6 +404,19 @@ namespace ChikaEngine::Asset
     {
         std::lock_guard lock(m_assetMutex);
         return m_textures.Get(handle);
+    }
+
+    TextureLoadStatus AssetManager::GetTextureLoadStatus(const std::string& path) const
+    {
+        std::lock_guard lock(m_assetMutex);
+        const auto status = m_textureLoadStatuses.find(NormalizeCachePath(path));
+        return status == m_textureLoadStatuses.end() ? TextureLoadStatus::DecodeFailed : status->second;
+    }
+
+    TextureLoadStatus AssetManager::GetTextureLoadStatus(const AssetReference& reference) const
+    {
+        const AssetRecord* record = ResolveReference(reference, AssetType::Texture, "Texture status");
+        return record ? GetTextureLoadStatus(record->sourcePath.string()) : TextureLoadStatus::DecodeFailed;
     }
 
     const ShaderData* AssetManager::GetShader(ShaderHandle handle) const

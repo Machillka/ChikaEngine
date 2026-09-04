@@ -82,7 +82,7 @@ void main() {
     uint gpuInstanceIndex = pc.useGpuDriven == 1 ? gpuVisibleInstances.visibleInstanceIndices[gl_InstanceIndex] : gl_InstanceIndex;
     mat4 model = pc.useGpuDriven == 1 ? gpuInstances.gpuInstances[gpuInstanceIndex].model : (pc.useInstancing == 1 ? instances.models[gl_InstanceIndex] : pc.model);
     vec4 worldPos = model * localPos;
-    vec3 worldNormal = normalize(mat3(model) * localNormal);
+    vec3 worldNormal = normalize(transpose(inverse(mat3(model))) * localNormal);
 
     if (pc.isShadowPass == 1) {
         gl_Position = scene.lightVP * worldPos;

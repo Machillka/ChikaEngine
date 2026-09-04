@@ -102,13 +102,15 @@ float ShadowCalculation(vec3 worldPos, vec3 normal, vec3 lightDirection)
 
     float nDotL = max(dot(normal, lightDirection), 0.0);
     float bias = max(scene.frameOptions.z, scene.frameOptions.w * (1.0 - nDotL));
-    int radius = int(scene.shadowOptions.z + 0.5);
+    vec2 shadowTexel = max(scene.shadowOptions.xy, 1.0 / vec2(textureSize(shadowMap, 0)));
+    float compareSoftness = max(max(shadowTexel.x, shadowTexel.y), scene.frameOptions.z * 2.0);
+    int radius = max(int(scene.shadowOptions.z + 0.5), 0);
     float shadow = 0.0;
     float samples = 0.0;
     for (int x = -radius; x <= radius; ++x) {
         for (int y = -radius; y <= radius; ++y) {
-            float closestDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * scene.shadowOptions.xy).r;
-            shadow += projCoords.z - bias > closestDepth ? 1.0 : 0.0;
+            float closestDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * shadowTexel).r;
+            shadow += smoothstep(0.0, compareSoftness, projCoords.z - bias - closestDepth);
             samples += 1.0;
         }
     }
@@ -121,7 +123,7 @@ float ShadowCalculation(vec3 worldPos, vec3 normal, vec3 lightDirection)
 vec3 EvaluateLight(LightData light, vec3 worldPos, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0, int lightIndex)
 {
     int type = int(light.directionType.w + 0.5);
-    vec3 L = normalize(light.directionType.xyz);
+    vec3 L = type == 0 ? normalize(-light.directionType.xyz) : normalize(light.directionType.xyz);
     float attenuation = 1.0;
     if (type != 0) {
         vec3 toLight = light.positionRange.xyz - worldPos;
@@ -170,10 +172,7 @@ void main()
     for (int index = 0; index < lightCount; ++index)
         color += EvaluateLight(lights.values[index], inWorldPos, N, V, albedo, metallic, roughness, F0, index);
 
-    // Environment fallback keeps the IBL boundary explicit until cubemap prefilter assets are available.
-    vec3 diffuseEnvironment = albedo * (1.0 - metallic) * scene.frameOptions.x;
-    vec3 specularEnvironment = F0 * (1.0 - roughness) * scene.frameOptions.x;
-    color += (diffuseEnvironment + specularEnvironment) * material.OcclusionStrength;
+    color += albedo * (1.0 - metallic) * scene.frameOptions.x * material.OcclusionStrength;
     color += material.Emissive.rgb;
     outColor = vec4(color, sampledBaseColor.a);
 }

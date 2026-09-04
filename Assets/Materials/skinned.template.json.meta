@@ -1,4 +1,5 @@
 {
+  "dependencies": [],
   "guid": "2fb6dceabfaf018efe2ae213b931953a",
   "imported": "Materials/skinned.template.json",
   "importer": "passthrough",

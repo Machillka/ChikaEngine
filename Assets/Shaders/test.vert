@@ -57,7 +57,7 @@ void main()
     vec4 worldPos = model * vec4(inPos, 1.0);
     outWorldPos = worldPos.xyz;
 
-    outNormal = mat3(model) * inNormal;
+    outNormal = normalize(transpose(inverse(mat3(model))) * inNormal);
     outUV = inUV;
 
     if (pc.isShadowPass == 1) {

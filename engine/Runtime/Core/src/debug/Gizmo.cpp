@@ -1,4 +1,5 @@
 #include "ChikaEngine/debug/Gizmo.hpp"
+#include "ChikaEngine/math/ChikaMath.h"
 
 #include <array>
 #include <cmath>
@@ -17,6 +18,21 @@ namespace ChikaEngine::Debug
             for (const auto& edge : BoxEdges)
                 Gizmo::DrawLine(corners[edge[0]], corners[edge[1]], color);
         }
+
+        constexpr size_t CircleSegments = 32;
+
+        void DrawArc(const Math::Vector3& center, float radius, const Math::Quaternion& rotation, const Math::Vector3& axisA, const Math::Vector3& axisB, float startAngle, float endAngle, const Math::Vector4& color)
+        {
+            Math::Vector3 previous = center + rotation.Rotate(axisA * (radius * std::cos(startAngle)) + axisB * (radius * std::sin(startAngle)));
+            for (size_t index = 1; index <= CircleSegments; ++index)
+            {
+                const float t = static_cast<float>(index) / static_cast<float>(CircleSegments);
+                const float angle = startAngle + (endAngle - startAngle) * t;
+                const Math::Vector3 current = center + rotation.Rotate(axisA * (radius * std::cos(angle)) + axisB * (radius * std::sin(angle)));
+                Gizmo::DrawLine(previous, current, color);
+                previous = current;
+            }
+        }
     } // namespace
 
     void Gizmo::DrawWireBox(const Math::Vector3& center, const Math::Vector3& halfExtents, const Math::Quaternion& rotation, const Math::Vector4& color)
@@ -34,6 +50,33 @@ namespace ChikaEngine::Debug
     void Gizmo::DrawWireAABB(const Math::Vector3& center, const Math::Vector3& halfExtents, const Math::Vector4& color)
     {
         DrawWireBox(center, halfExtents, Math::Quaternion::Identity(), color);
+    }
+
+    void Gizmo::DrawWireSphere(const Math::Vector3& center, float radius, const Math::Quaternion& rotation, const Math::Vector4& color)
+    {
+        constexpr float TwoPi = 2.0f * Math::PI;
+        DrawArc(center, radius, rotation, Math::Vector3::right, Math::Vector3::up, 0.0f, TwoPi, color);
+        DrawArc(center, radius, rotation, Math::Vector3::right, Math::Vector3::forward, 0.0f, TwoPi, color);
+        DrawArc(center, radius, rotation, Math::Vector3::up, Math::Vector3::forward, 0.0f, TwoPi, color);
+    }
+
+    void Gizmo::DrawWireCapsule(const Math::Vector3& center, float radius, float height, const Math::Quaternion& rotation, const Math::Vector4& color)
+    {
+        constexpr float TwoPi = 2.0f * Math::PI;
+        const Math::Vector3 localTop = Math::Vector3::up * (height * 0.5f);
+        const Math::Vector3 localBottom = Math::Vector3::down * (height * 0.5f);
+        const Math::Vector3 top = center + rotation.Rotate(localTop);
+        const Math::Vector3 bottom = center + rotation.Rotate(localBottom);
+
+        DrawArc(top, radius, rotation, Math::Vector3::right, Math::Vector3::forward, 0.0f, TwoPi, color);
+        DrawArc(bottom, radius, rotation, Math::Vector3::right, Math::Vector3::forward, 0.0f, TwoPi, color);
+        DrawArc(top, radius, rotation, Math::Vector3::right, Math::Vector3::up, 0.0f, Math::PI, color);
+        DrawArc(bottom, radius, rotation, Math::Vector3::right, Math::Vector3::up, Math::PI, TwoPi, color);
+        DrawArc(top, radius, rotation, Math::Vector3::forward, Math::Vector3::up, 0.0f, Math::PI, color);
+        DrawArc(bottom, radius, rotation, Math::Vector3::forward, Math::Vector3::up, Math::PI, TwoPi, color);
+
+        for (const Math::Vector3 radial : { Math::Vector3::right, Math::Vector3::left, Math::Vector3::forward, Math::Vector3::back })
+            DrawLine(top + rotation.Rotate(radial * radius), bottom + rotation.Rotate(radial * radius), color);
     }
 
     void Gizmo::DrawFrustum(const Math::Mat4& viewProjection, const Math::Vector4& color)

@@ -8,3 +8,15 @@ temp.*
 
 .venv/
 .vscode/
+!.vscode/
+.vscode/*
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# Local analysis notes (not part of the engine source tree).
+notes/
+
+# Local development plans and audit notes.
+docs/dev/

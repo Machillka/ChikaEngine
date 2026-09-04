@@ -133,6 +133,15 @@ namespace ChikaEngine::Serialization
             _stack.pop();
         }
 
+        /** @brief Checks for a field without mutating the JSON tree; used by version migrations. */
+        [[nodiscard]] bool Contains(const char* name) const
+        {
+            if (!name || _stack.empty())
+                return false;
+            const json* node = _stack.top().node;
+            return node && node->is_object() && node->contains(name);
+        }
+
         // 读取具体数值
         template <typename T> void ProcessValue(const char* name, T& val)
         {

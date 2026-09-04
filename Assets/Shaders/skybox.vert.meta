@@ -1,0 +1,8 @@
+{
+  "dependencies": [],
+  "guid": "4d00ae1c22594fd3b3a10f2683638a04",
+  "imported": "Shaders/skybox.vert.spv",
+  "importer": "shader",
+  "type": "shader_source",
+  "version": 1
+}

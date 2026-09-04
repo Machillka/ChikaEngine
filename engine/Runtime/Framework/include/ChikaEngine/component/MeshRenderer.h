@@ -3,6 +3,7 @@
 #include "ChikaEngine/AssetHandle.hpp"
 #include "ChikaEngine/AssetManager.hpp"
 #include "ChikaEngine/AssetReference.hpp"
+#include "ChikaEngine/ResourceHandle.hpp"
 #include "ChikaEngine/component/Component.h"
 #include "ChikaEngine/reflection/ReflectionMacros.h"
 #include <string>
@@ -40,6 +41,7 @@ namespace ChikaEngine::Framework
         void SetMaterialReference(Asset::AssetReference reference)
         {
             _materialReference = std::move(reference);
+            ClearRuntimeMaterialOverride();
             OnDirty();
         }
 
@@ -70,6 +72,22 @@ namespace ChikaEngine::Framework
         {
             return _materialAsset;
         }
+        Resource::MaterialHandle GetRuntimeMaterialOverride() const
+        {
+            return _runtimeMaterialOverride;
+        }
+        bool HasRuntimeMaterialOverride() const
+        {
+            return _runtimeMaterialOverride.IsValid();
+        }
+        void SetRuntimeMaterialOverride(Resource::MaterialHandle material)
+        {
+            _runtimeMaterialOverride = material;
+        }
+        void ClearRuntimeMaterialOverride()
+        {
+            _runtimeMaterialOverride = Resource::MaterialHandle::Invalid();
+        }
 
         bool NeedsAssetResolve() const
         {
@@ -87,6 +105,7 @@ namespace ChikaEngine::Framework
 
         Asset::MeshHandle _meshAsset{};
         Asset::MaterialHandle _materialAsset{};
+        Resource::MaterialHandle _runtimeMaterialOverride{};
 
         bool _dirty = true;
     };

@@ -51,7 +51,7 @@ namespace ChikaEngine::Render
         void Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) override;
 
         void CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size) override;
-        void CopyBufferToTexture(BufferHandle src, TextureHandle dst, uint32_t width, uint32_t height) override;
+        void CopyBufferToTexture(BufferHandle src, TextureHandle dst, uint32_t width, uint32_t height, uint32_t arrayLayers = 1) override;
 
         VkCommandBuffer GetVkCmdRaw() const
         {

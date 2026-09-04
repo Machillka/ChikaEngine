@@ -14,6 +14,14 @@
 namespace py = pybind11;
 namespace ChikaEngine::Scripts
 {
+    struct ScriptRuntimeConfig
+    {
+        /** @brief 当前 Project 的绝对脚本目录；不存在时允许 VM 启动，但不会隐式按工作目录补全。 */
+        std::filesystem::path scriptRoot;
+        /** @brief 当前 Project 开发期 `.venv` 的绝对根目录。 */
+        std::filesystem::path virtualEnvironmentRoot;
+    };
+
     class ScriptsSystem
     {
       public:
@@ -24,8 +32,8 @@ namespace ChikaEngine::Scripts
             return instance;
         }
 
-        /** @brief 初始化脚本 VM，并将当前 Project 的脚本目录加入模块搜索路径。 */
-        bool Init(const std::filesystem::path& scriptRoot = "Assets/Scripts");
+        /** @brief 使用当前 Project 的开发期虚拟环境初始化脚本 VM；两个路径都必须为绝对路径。 */
+        bool Init(const ScriptRuntimeConfig& config);
         void Shutdown();
         bool IsInitialized() const
         {

@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <deque>
+#include <ranges>
+#include <utility>
 #include <vector>
 namespace ChikaEngine::Core
 {
@@ -13,8 +15,6 @@ namespace ChikaEngine::Core
 
         Handle Create(const T& value)
         {
-            m_aliveCount++;
-
             uint32_t index;
 
             if (!m_freeList.empty())
@@ -29,10 +29,40 @@ namespace ChikaEngine::Core
             }
 
             Entry& e = m_entries[index];
-            e.value = value;
+            e.value = value; // 假设此处不会抛出异常
             e.alive = true;
 
             Handle h = Handle::FromParts(index, e.generation);
+
+            m_aliveCount++;
+
+            return h;
+        }
+
+        // 对于右值引用的传入, 使用移动进行构造
+        Handle Create(T&& value)
+        {
+            uint32_t index;
+
+            if (!m_freeList.empty())
+            {
+                index = m_freeList.back();
+                Entry& e = m_entries[index];
+                e.value = std::move(value);
+                e.alive = true;
+                m_freeList.pop_back();
+            }
+            else
+            {
+                index = static_cast<uint32_t>(m_entries.size());
+                m_entries.emplace_back(Entry{ .value = std::move(value), .alive = true });
+            }
+
+            Entry& e = m_entries[index];
+
+            Handle h = Handle::FromParts(index, e.generation);
+
+            m_aliveCount++;
 
             return h;
         }
@@ -47,6 +77,9 @@ namespace ChikaEngine::Core
             if (!e.alive || e.generation != h.GetGen())
                 return;
 
+            // 放入 free list
+            m_freeList.push_back(index);
+
             m_aliveCount--;
 
             // 标记死亡
@@ -54,9 +87,6 @@ namespace ChikaEngine::Core
 
             // generation++
             e.generation++;
-
-            // 放入 free list
-            m_freeList.push_back(index);
         }
 
         T* Get(Handle h)

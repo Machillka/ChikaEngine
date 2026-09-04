@@ -25,6 +25,7 @@ namespace ChikaEngine::Render
                                                            count,
                                                            safeGrain,
                                                            "Renderer.Visibility.Chunk",
+                                                           // 说明针对每一个 Range 我们需要执行什么操作
                                                            [&](Jobs::ParallelForRange range)
                                                            {
                                                                VisibilityResult& output = chunks[range.chunkIndex];

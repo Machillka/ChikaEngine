@@ -40,3 +40,6 @@
 [submodule "engine/ThirdParty/SPIRVReflect"]
 	path = engine/ThirdParty/SPIRVReflect
 	url = https://github.com/KhronosGroup/SPIRV-Reflect
+[submodule "engine/ThirdParty/tinyexr"]
+	path = engine/ThirdParty/tinyexr
+	url = https://github.com/syoyo/tinyexr.git

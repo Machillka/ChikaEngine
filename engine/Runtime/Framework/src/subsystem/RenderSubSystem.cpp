@@ -214,21 +214,44 @@ namespace ChikaEngine::Framework
             return;
         }
 
-        if (entry.resourcesDirty || entry.meshAsset != meshAsset || entry.materialAsset != materialAsset)
+        const bool resourcesDirty = entry.resourcesDirty;
+        const bool meshChanged = entry.meshAsset != meshAsset;
+        const bool materialAssetChanged = entry.materialAsset != materialAsset;
+
+        if (resourcesDirty || meshChanged)
         {
             entry.meshAsset = meshAsset;
-            entry.materialAsset = materialAsset;
             entry.meshResource = _resourceMgr->UploadMesh(meshAsset);
-            entry.materialResource = _resourceMgr->UploadMaterial(materialAsset);
-            entry.resourcesDirty = false;
         }
+        entry.materialAsset = materialAsset;
+        entry.resourcesDirty = false;
+
+        Resource::MaterialHandle materialResource = entry.component->GetRuntimeMaterialOverride();
+        if (materialResource.IsValid() && !_resourceMgr->TryGetMaterial(materialResource))
+        {
+            entry.component->ClearRuntimeMaterialOverride();
+            materialResource = Resource::MaterialHandle::Invalid();
+        }
+
+        if (!materialResource.IsValid())
+        {
+            if (resourcesDirty || materialAssetChanged || !entry.materialResource.IsValid())
+                entry.materialResource = _resourceMgr->UploadMaterial(materialAsset);
+            materialResource = entry.materialResource;
+        }
+        else
+        {
+            entry.materialAsset = materialAsset;
+            entry.materialResource = materialResource;
+        }
+
         if (!entry.meshResource.IsValid() || !entry.materialResource.IsValid())
         {
             DeactivateEntry(entry);
             return;
         }
 
-        const Math::Mat4 worldTransform = owner->transform ? owner->transform->GetWorldMat() : Math::Mat4::Identity();
+        const Math::Mat4 worldTransform = owner->transform ? _ownerScene->GetRenderWorldMatrix(*owner->transform) : Math::Mat4::Identity();
         Render::RenderObjectProxy proxy{
             .transform = worldTransform,
             .mesh = entry.meshResource,
@@ -275,7 +298,7 @@ namespace ChikaEngine::Framework
                 continue;
             }
 
-            const Render::RenderView view = entry.component->BuildRenderView(aspectRatio);
+            const Render::RenderView view = entry.component->BuildRenderView(aspectRatio, _ownerScene->GetRenderWorldMatrix(*owner->transform));
             if (!entry.renderView.IsValid())
             {
                 entry.renderView = _renderWorld.CreateView(view);
@@ -297,7 +320,7 @@ namespace ChikaEngine::Framework
                 continue;
             }
 
-            const Render::RenderLightProxy light = entry.component->BuildRenderLightProxy();
+            const Render::RenderLightProxy light = entry.component->BuildRenderLightProxy(_ownerScene->GetRenderWorldMatrix(*owner->transform));
             if (!entry.renderLight.IsValid())
             {
                 entry.renderLight = _renderWorld.CreateLight(light);

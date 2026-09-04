@@ -22,7 +22,7 @@ namespace ChikaEngine::Game
     class GameApplication final : public Engine::Application
     {
       public:
-        GameApplication(Project::RuntimeBootConfig bootConfig, uint32_t smokeFrameCount) : m_bootConfig(std::move(bootConfig)), m_smokeFrameCount(smokeFrameCount) {}
+        GameApplication(Project::RuntimeBootConfig bootConfig, std::filesystem::path pythonEnvironmentRoot, uint32_t smokeFrameCount) : m_bootConfig(std::move(bootConfig)), m_pythonEnvironmentRoot(std::move(pythonEnvironmentRoot)), m_smokeFrameCount(smokeFrameCount) {}
 
       protected:
         /**
@@ -34,6 +34,7 @@ namespace ChikaEngine::Game
             createInfo.window = m_bootConfig.window;
             createInfo.runtimeMode = m_bootConfig.mode;
             createInfo.contentRoot = m_bootConfig.contentRoot;
+            createInfo.pythonEnvironmentRoot = m_pythonEnvironmentRoot;
             createInfo.createContentRoot = m_bootConfig.createContentRoot;
             createInfo.scanAssets = m_bootConfig.scanAssets;
             createInfo.createMissingMeta = m_bootConfig.createMissingMeta;
@@ -56,6 +57,7 @@ namespace ChikaEngine::Game
         void OnInitialize() override
         {
             auto& context = GetEngineContext();
+            context.GetRenderer()->SetEnvironmentSettings(m_bootConfig.runtime.environment);
             Framework::Scene* scene = context.GetSceneManager()->LoadScene(m_bootConfig.startupScene.GetGuid(), true);
             if (!scene)
                 throw std::runtime_error("Failed to load startup Scene GUID: " + m_bootConfig.startupScene.guid);
@@ -78,6 +80,7 @@ namespace ChikaEngine::Game
 
       private:
         Project::RuntimeBootConfig m_bootConfig;
+        std::filesystem::path m_pythonEnvironmentRoot;
         uint32_t m_smokeFrameCount = 0;
         uint32_t m_frameCount = 0;
     };
@@ -144,6 +147,6 @@ int main(int argc, char** argv)
         return 3;
     }
 
-    ChikaEngine::Game::GameApplication application(std::move(bootConfig), ChikaEngine::Game::ParseSmokeFrameCount(argc, argv));
+    ChikaEngine::Game::GameApplication application(std::move(bootConfig), descriptor.projectRoot / ".venv", ChikaEngine::Game::ParseSmokeFrameCount(argc, argv));
     return application.Run();
 }

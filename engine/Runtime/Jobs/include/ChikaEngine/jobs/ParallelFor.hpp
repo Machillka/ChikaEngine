@@ -64,6 +64,7 @@ namespace ChikaEngine::Jobs
             const uint32_t end = std::min(count, begin + effectiveGrain);
             if (begin >= end)
                 break;
+            // 拆任务成 一个 functor -> 一个 chunk 的数据
             JobHandle chunk = jobs.Schedule(name, [sharedFunction, begin, end, chunkIndex]() { (*sharedFunction)(ParallelForRange{ begin, end, chunkIndex }); });
             if (!chunk.IsValid())
             {

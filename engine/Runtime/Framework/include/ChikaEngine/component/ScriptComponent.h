@@ -36,10 +36,17 @@ namespace ChikaEngine::Framework
         void OnEnable() override;
         void OnDisable() override;
         void OnDestroy() override;
+        void OnCollisionEnter(const PhysicsContactEvent& event) override;
+        void OnCollisionStay(const PhysicsContactEvent& event) override;
+        void OnCollisionExit(const PhysicsContactEvent& event) override;
+        void OnTriggerEnter(const PhysicsContactEvent& event) override;
+        void OnTriggerStay(const PhysicsContactEvent& event) override;
+        void OnTriggerExit(const PhysicsContactEvent& event) override;
 
       private:
         void Invoke(const char* functionName);
         void Invoke(const char* functionName, float value);
+        void InvokePhysics(const char* functionName, const PhysicsContactEvent& event);
 
         pybind11::object _pythonInstance;
         bool _isLoaded = false;

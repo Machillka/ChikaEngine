@@ -38,7 +38,7 @@ message(STATUS "[ChikaEngine] Bootstrapping isolated Python environment via uv..
 # 查找本地 uv 环境
 find_program(UV_EXECUTABLE uv REQUIRED)
 execute_process(
-    COMMAND ${UV_EXECUTABLE} sync
+    COMMAND ${UV_EXECUTABLE} sync --locked
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     RESULT_VARIABLE UV_SYNC_RESULT
 )
@@ -61,8 +61,6 @@ find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
 
 message(STATUS "[ChikaEngine] Found Python Include: ${Python3_INCLUDE_DIRS}")
 message(STATUS "[ChikaEngine] Found Python Libraries: ${Python3_LIBRARIES}")
-get_filename_component(CHIKA_PYTHON_HOME "${Python3_STDLIB}" DIRECTORY)
-message(STATUS "[ChikaEngine] Python Runtime Home: ${CHIKA_PYTHON_HOME}")
 
 if(CMAKE_HOST_WIN32)
     message(STATUS "[ChikaEngine] Resolving Python Runtime DLL for Windows deployment...")

@@ -4,7 +4,12 @@
   "contentRoot": "Assets",
   "cookedContentRoot": "Content",
   "startupScene": "70a1e96c29ca4c9ab61d65d9f127c143",
-  "alwaysCook": [],
+  "alwaysCook": [
+    {
+      "guid": "4e5a4cb0d97f4e9d91f2d7bb0bd1ad12",
+      "path": "Assets/Textures/Skybox/NightSkyHDRI008_2K_HDR.texture"
+    }
+  ],
   "window": {
     "title": "Chika Sample Game",
     "width": 1280,
@@ -13,6 +18,16 @@
   },
   "runtime": {
     "renderPipeline": "forward",
+    "environment": {
+      "enabled": true,
+      "skybox": {
+        "guid": "4e5a4cb0d97f4e9d91f2d7bb0bd1ad12",
+        "path": "Assets/Textures/Skybox/NightSkyHDRI008_2K_HDR.texture"
+      },
+      "intensity": 1.0,
+      "useFallback": true,
+      "fallbackColor": [0.1, 0.2, 0.3, 1.0]
+    },
     "fixedDeltaTime": 0.016666667,
     "maxPhysicsStepsPerFrame": 4,
     "enableScripting": true

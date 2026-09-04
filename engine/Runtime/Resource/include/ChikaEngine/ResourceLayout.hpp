@@ -11,10 +11,15 @@
 
 #pragma once
 
+#include "ChikaEngine/AssetLayouts.hpp"
+#include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/ResourceBinder.hpp"
 #include "ChikaEngine/math/Bounds.hpp"
 #include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace ChikaEngine::Resource
 {
@@ -32,6 +37,17 @@ namespace ChikaEngine::Resource
     struct TextureGPU
     {
         Render::TextureHandle texture;
+        Render::TextureViewHandle defaultView;
+        Render::SamplerHandle sampler;
+        std::vector<Render::TextureViewHandle> mipViews;
+        std::vector<Render::TextureViewHandle> faceViews;
+        Render::TextureDimension dimension = Render::TextureDimension::Texture2D;
+        Render::RHI_Format format = Render::RHI_Format::RGBA8_UNorm;
+        Asset::TextureAssetUsage usage = Asset::TextureAssetUsage::Color;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t mipLevels = 1;
+        uint32_t arrayLayers = 1;
     };
 
     /**
@@ -50,6 +66,40 @@ namespace ChikaEngine::Resource
         Render::ResourceBindingHandle lights;
     };
 
+    enum class MaterialParameterType
+    {
+        Float,
+        Vec2,
+        Vec3,
+        Vec4,
+        Bool,
+    };
+
+    struct MaterialParameterInfo
+    {
+        std::string name;
+        MaterialParameterType type = MaterialParameterType::Float;
+        uint32_t componentCount = 1;
+        std::vector<float> value;
+        std::vector<float> defaultValue;
+    };
+
+    struct MaterialParameterValue
+    {
+        MaterialParameterType type = MaterialParameterType::Float;
+        std::vector<float> value;
+    };
+
+    struct MaterialParameterRuntime
+    {
+        MaterialParameterType type = MaterialParameterType::Float;
+        uint32_t componentCount = 1;
+        uint32_t offset = 0;
+        uint32_t size = 0;
+        std::vector<float> value;
+        std::vector<float> defaultValue;
+    };
+
     struct MaterialGPU
     {
         Render::PipelineHandle pipeline;
@@ -60,6 +110,9 @@ namespace ChikaEngine::Resource
         Render::ShaderHandle fragmentShader;
         Render::ShaderHandle gbufferFragmentShader;
         Render::BufferHandle uboBuffer;
+        uint64_t parameterBufferSize = 0;
+        std::vector<uint8_t> parameterData;
+        std::unordered_map<std::string, MaterialParameterRuntime> parameters;
         MaterialDrawBindings forwardDrawBindings;
         MaterialDrawBindings gbufferDrawBindings;
         MaterialDrawBindings shadowDrawBindings;
@@ -67,6 +120,8 @@ namespace ChikaEngine::Resource
         std::vector<Render::ResourceBindingGroup> shadowBindings;
         bool transparent = false;
         bool masked = false;
+        bool ownsPipelineResources = true;
+        bool runtimeInstance = false;
     };
 
 } // namespace ChikaEngine::Resource

@@ -6,6 +6,7 @@
 #include "ChikaEngine/ShaderReflection.hpp"
 #include "ChikaEngine/ShaderTemplateLoader.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -45,7 +46,9 @@ int main()
     const auto generatedShaderBinary = root / "generated.vert.spv";
     const auto compiledShaderSource = root / "compiled.vert";
     const auto sceneSource = root / "startup.scene";
-    if (!WriteBytes(source, { 1, 2, 3 }) || !WriteBytes(generatedShaderSource, { 1 }) || !WriteBytes(generatedShaderBinary, { 1, 2, 3, 4 }) || !WriteText(compiledShaderSource, "#version 450\nvoid main() { gl_Position = vec4(0.0); }\n") || !WriteText(sceneSource, R"({"Scene":{"GameObjects":[]}})"))
+    const auto environmentSource = root / "environment.hdr";
+    const auto environmentDescriptor = root / "environment.texture";
+    if (!WriteBytes(source, { 1, 2, 3 }) || !WriteBytes(generatedShaderSource, { 1 }) || !WriteBytes(generatedShaderBinary, { 1, 2, 3, 4 }) || !WriteText(compiledShaderSource, "#version 450\nvoid main() { gl_Position = vec4(0.0); }\n") || !WriteText(sceneSource, R"({"Scene":{"GameObjects":[]}})") || !WriteText(environmentSource, "fixture") || !WriteText(environmentDescriptor, R"({"source":"environment.hdr","projection":"equirectangular"})"))
         return 2;
 
     Asset::AssetDatabase database;
@@ -59,6 +62,14 @@ int main()
     const Asset::AssetRecord* sceneRecord = database.FindByPath(sceneSource);
     if (!sceneRecord || sceneRecord->type != Asset::AssetType::Scene || sceneRecord->importer != "scene")
         return 18;
+    const Asset::AssetRecord* environmentRecord = database.FindByPath(environmentDescriptor);
+    if (!environmentRecord || environmentRecord->dependencies.size() != 1 || environmentRecord->dependencies.front() != Asset::AssetDatabase::NormalizePath(environmentSource))
+        return 26;
+    const Asset::AssetGuid environmentGuid = environmentRecord->guid;
+    std::filesystem::last_write_time(environmentSource, std::filesystem::file_time_type::clock::now() + std::chrono::seconds(2), error);
+    const std::vector<Asset::AssetGuid> dependencyChanges = database.PollChangedAssets();
+    if (error || std::ranges::find(dependencyChanges, environmentGuid) == dependencyChanges.end())
+        return 27;
     const std::string stableGuid = firstRecord->guid.value;
 
     database.Shutdown();

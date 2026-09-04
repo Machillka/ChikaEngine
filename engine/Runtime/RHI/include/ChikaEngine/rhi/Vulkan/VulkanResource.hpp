@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "ChikaEngine/RHIDesc.hpp"
 #include "ChikaEngine/RHIResourceHandle.hpp"
 #include "ChikaEngine/shader/ShaderInterface.hpp"
 
@@ -60,6 +61,8 @@ namespace ChikaEngine::Render
         uint32_t height = 0;
         uint32_t mipLevels = 1;
         uint32_t arrayLayers = 1;
+        uint32_t sampleCount = 1;
+        TextureDimension dimension = TextureDimension::Texture2D;
     };
 
     struct VulkanTextureView

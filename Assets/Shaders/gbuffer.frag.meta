@@ -1,4 +1,5 @@
 {
+  "dependencies": [],
   "guid": "fc9ad388b48bd668bf13f4dbdfd52d53",
   "imported": "Shaders/gbuffer.frag.spv",
   "importer": "shader",

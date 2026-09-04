@@ -53,13 +53,14 @@ namespace ChikaEngine::Render
 
         struct DrawGroupKey
         {
+            uint32_t pass = 0;
             uint32_t pipeline = 0;
             uint32_t material = 0;
             uint32_t mesh = 0;
 
             bool operator<(const DrawGroupKey& other) const
             {
-                return std::tie(pipeline, material, mesh) < std::tie(other.pipeline, other.material, other.mesh);
+                return std::tie(pass, pipeline, material, mesh) < std::tie(other.pass, other.pipeline, other.material, other.mesh);
             }
         };
 
@@ -156,6 +157,7 @@ namespace ChikaEngine::Render
             }
 
             DrawGroupKey key{
+                .pass = static_cast<uint32_t>(config.pass),
                 .pipeline = pipeline.raw_value,
                 .material = material->handle.raw_value,
                 .mesh = mesh->handle.raw_value,

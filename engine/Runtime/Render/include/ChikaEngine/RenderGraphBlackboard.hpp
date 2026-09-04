@@ -60,6 +60,10 @@ namespace ChikaEngine::Render
         inline constexpr std::string_view SceneDepth = "SceneDepth";
         inline constexpr std::string_view ShadowDepth = "ShadowDepth";
         inline constexpr std::string_view Swapchain = "Swapchain";
+        inline constexpr std::string_view EnvironmentSkybox = "Environment.Skybox";
+        inline constexpr std::string_view EnvironmentIrradiance = "Environment.Irradiance";
+        inline constexpr std::string_view EnvironmentPrefiltered = "Environment.Prefiltered";
+        inline constexpr std::string_view EnvironmentBRDFLut = "Environment.BRDFLut";
         inline constexpr std::string_view GBufferAlbedo = "GBuffer.Albedo";
         inline constexpr std::string_view GBufferNormal = "GBuffer.Normal";
         inline constexpr std::string_view GBufferMaterial = "GBuffer.Material";

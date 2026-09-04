@@ -1,0 +1,10 @@
+{
+  "usage": "environment",
+  "source": "NightSkyHDRI008_2K_HDR.exr",
+  "projection": "equirectangular",
+  "outputFaceSize": 512,
+  "format": "rgba16f",
+  "srgb": false,
+  "generateMips": false,
+  "mipLevels": 1
+}

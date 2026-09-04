@@ -49,6 +49,8 @@ namespace ChikaEngine::Engine
         uint32_t reservedJobThreads = 2;
         Project::RuntimeMode runtimeMode = Project::RuntimeMode::Editor;
         std::filesystem::path contentRoot = "Assets";
+        /** @brief scripting 启用时必须提供的 Project `.venv` 绝对路径。 */
+        std::filesystem::path pythonEnvironmentRoot;
         bool createContentRoot = true;
         bool scanAssets = true;
         bool createMissingMeta = true;

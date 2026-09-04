@@ -12,7 +12,8 @@ namespace ChikaEngine::Platform
         virtual ~IWindow() = default;
 
         // 生命周期
-        virtual void Initialize(const WindowDesc& desc) = 0;
+        /** @brief 创建平台窗口；仅在原生句柄完整可用时返回 true，失败后仍可安全调用 Shutdown。 */
+        [[nodiscard]] virtual bool Initialize(const WindowDesc& desc) = 0;
         virtual void Shutdown() = 0;
         virtual void Tick() = 0; // 处理操作系统消息分发
 

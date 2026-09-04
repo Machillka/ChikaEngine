@@ -1,5 +1,8 @@
 #pragma once
 
+#include "ChikaEngine/AssetReference.hpp"
+
+#include <array>
 #include <cstdint>
 
 namespace ChikaEngine::Render
@@ -61,6 +64,18 @@ namespace ChikaEngine::Render
     };
 
     /**
+     * @brief 保存环境贴图资源的启用策略；实际 Skybox/IBL pass 在后续步骤接入。
+     */
+    struct EnvironmentSettings
+    {
+        bool enabled = false;
+        bool useFallback = true;
+        float intensity = 1.0f;
+        Asset::AssetReference skybox;
+        std::array<float, 4> fallbackColor{ 0.1f, 0.2f, 0.3f, 1.0f };
+    };
+
+    /**
      * @brief 保存 Renderer 可配置策略，避免 Pass 业务常量散落在 Facade。
      */
     struct RenderSettings
@@ -77,6 +92,7 @@ namespace ChikaEngine::Render
         float ambientIntensity = 0.12f;
         PostProcessSettings postProcess;
         ShadowSettings shadows;
+        EnvironmentSettings environment;
         bool debugDrawAABBs = false;
         bool debugDrawFrustums = false;
     };

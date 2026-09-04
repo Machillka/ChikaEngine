@@ -71,7 +71,10 @@ namespace ChikaEngine::Jobs
             catch (...)
             {
                 m_accepting.store(false, std::memory_order_release);
-                m_stopRequested.store(true, std::memory_order_release);
+                {
+                    std::lock_guard wakeLock(m_wakeMutex);
+                    m_stopRequested.store(true, std::memory_order_release);
+                }
                 m_wakeCondition.notify_all();
                 for (std::thread& worker : m_workers)
                 {
@@ -129,7 +132,10 @@ namespace ChikaEngine::Jobs
                 m_completionCondition.wait(lock, [this] { return m_activeWaiters.load(std::memory_order_acquire) == 0; });
             }
 
-            m_stopRequested.store(true, std::memory_order_release);
+            {
+                std::lock_guard wakeLock(m_wakeMutex);
+                m_stopRequested.store(true, std::memory_order_release);
+            }
             m_wakeCondition.notify_all();
             for (std::thread& worker : m_workers)
             {
@@ -150,6 +156,7 @@ namespace ChikaEngine::Jobs
         JobHandle ScheduleAfter(std::span<const JobHandle> dependencies, JobDesc desc)
         {
             std::shared_lock lifecycleLock(m_lifecycleMutex);
+            // 对 dependency 进行判断, 如果有无效的 job 则直接抛
             for (JobHandle dependency : dependencies)
             {
                 if (!m_storage || !m_storage->IsValid(dependency))
@@ -327,6 +334,7 @@ namespace ChikaEngine::Jobs
         /** @brief Claims a slot and registers dependencies before making the job runnable. */
         JobHandle ScheduleInternal(std::span<const JobHandle> dependencies, JobHandle parent, JobDesc desc)
         {
+            // 当前线程, 并且当前线程正在执行一个合法任务 -> 当前任务是由“自己人”发起的
             const bool internalSubmission = g_scheduler == this && g_currentJob.IsValid();
             if ((!m_accepting.load(std::memory_order_acquire) && !(internalSubmission && m_acceptingWorkerSubmissions.load(std::memory_order_acquire))) || !m_storage)
                 return JobHandle::Invalid();
@@ -334,11 +342,13 @@ namespace ChikaEngine::Jobs
             if (!handle.IsValid())
                 return handle;
             Detail::JobSlot* slot = m_storage->Resolve(handle);
+            // 仅能保证当前语句时刻 slot 存活?
             slot->parent = parent;
             slot->remainingDependencies.store(static_cast<uint32_t>(dependencies.size()), std::memory_order_relaxed);
             m_outstandingJobs.fetch_add(1, std::memory_order_relaxed);
             m_submitted.fetch_add(1, std::memory_order_relaxed);
 
+            // 建立依赖图
             for (JobHandle dependency : dependencies)
             {
                 Detail::JobSlot* dependencySlot = m_storage->Resolve(dependency);
@@ -366,6 +376,7 @@ namespace ChikaEngine::Jobs
             }
 
             slot->setupComplete.store(true, std::memory_order_release);
+            // 如果当前任务没有前置依赖, 那么 ——
             if (slot->remainingDependencies.load(std::memory_order_acquire) == 0)
                 MakeReadyOrPropagate(handle, *slot);
             return handle;
@@ -404,7 +415,10 @@ namespace ChikaEngine::Jobs
 
             if (slot.target == JobTarget::AnyWorker)
             {
-                m_readyJobs.fetch_add(1, std::memory_order_relaxed);
+                {
+                    std::lock_guard wakeLock(m_wakeMutex);
+                    m_readyJobs.fetch_add(1, std::memory_order_relaxed);
+                }
                 m_wakeCondition.notify_one();
             }
             JobProfiler::Enqueued(handle);
@@ -461,12 +475,14 @@ namespace ChikaEngine::Jobs
             while (!m_stopRequested.load(std::memory_order_acquire))
             {
                 JobHandle handle;
+                // 如果没偷到任务
                 if (TryTakeJob(workerIndex, handle))
                 {
                     Execute(handle);
                     continue;
                 }
 
+                // 就进入睡眠
                 m_sleepCount.fetch_add(1, std::memory_order_relaxed);
                 const uint32_t sleeping = m_sleepingWorkers.fetch_add(1, std::memory_order_relaxed) + 1u;
                 JobProfiler::SleepingWorkers(sleeping);
@@ -490,6 +506,8 @@ namespace ChikaEngine::Jobs
             if (!slot->state.compare_exchange_strong(expected, JobState::Running, std::memory_order_acq_rel))
                 return;
 
+            // 利用 CAS 说明此时 state 是 queued 的时候, 设置成 running 然后开始执行之后代码.
+
             const uint64_t startNs = Profiler::ProfilerClock::NowNanoseconds();
             const uint64_t queueWait = startNs >= slot->enqueueTimestampNs ? startNs - slot->enqueueTimestampNs : 0;
             m_queueWaitNs.fetch_add(queueWait, std::memory_order_relaxed);
@@ -498,6 +516,7 @@ namespace ChikaEngine::Jobs
             JobProfiler::ActiveWorkers(active);
             JobProfiler::Started(handle);
             const bool profileZone = Profiler::ProfilerSession::Get().BeginZone(slot->nameId);
+            // 利用 void* 做类型擦除, 记录当前的 scheduler
             void* previousScheduler = g_scheduler;
             const uint32_t previousWorkerIndex = g_workerIndex;
             const JobHandle previousJob = g_currentJob;
@@ -512,6 +531,7 @@ namespace ChikaEngine::Jobs
             std::exception_ptr exception;
             try
             {
+                // 执行 callable
                 if (slot->function)
                     slot->function();
             }
@@ -521,6 +541,7 @@ namespace ChikaEngine::Jobs
                 exception = std::current_exception();
             }
 
+            // 恢复 TLS
             g_currentJob = previousJob;
             g_workerIndex = previousWorkerIndex;
             g_scheduler = previousScheduler;
@@ -626,12 +647,14 @@ namespace ChikaEngine::Jobs
         /** @brief Converts dependency outcome and failure policy into runnable or terminal state. */
         void MakeReadyOrPropagate(JobHandle handle, Detail::JobSlot& slot)
         {
+            // 对于依赖全部执行完毕, 或者说不管它直接运行的任务, 入队准备执行
             if (!slot.dependencyFailed.load(std::memory_order_acquire) || slot.failurePolicy == JobFailurePolicy::RunAnyway)
             {
                 Enqueue(handle, slot);
                 return;
             }
             const JobState terminal = slot.failurePolicy == JobFailurePolicy::Propagate ? JobState::Failed : JobState::Cancelled;
+            // 传播失败结果
             Cancel(handle, terminal, slot.exception);
         }
 

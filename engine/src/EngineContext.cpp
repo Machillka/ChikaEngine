@@ -59,7 +59,10 @@ namespace ChikaEngine::Engine
 
             if (createInfo.enableScripting)
             {
-                m_scriptsInitialized = Scripts::ScriptsSystem::Instance().Init(createInfo.contentRoot / "Scripts");
+                m_scriptsInitialized = Scripts::ScriptsSystem::Instance().Init({
+                    .scriptRoot = createInfo.contentRoot / "Scripts",
+                    .virtualEnvironmentRoot = createInfo.pythonEnvironmentRoot,
+                });
                 if (!m_scriptsInitialized)
                 {
                     LOG_ERROR("EngineContext", "Failed to initialize scripting");

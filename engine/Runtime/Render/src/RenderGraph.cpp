@@ -660,10 +660,15 @@ namespace ChikaEngine::Render
         m_debugSnapshot.resources.clear();
         m_debugSnapshot.compileErrors = m_compileErrors;
         std::unordered_map<uint32_t, std::string> passNames;
+        std::unordered_map<uint32_t, std::string> textureNames;
         std::unordered_map<std::string, double> gpuTimes;
-        for (const RenderPassGpuTiming& timing : m_device->GetPassGpuTimings())
-            gpuTimes[timing.name] = timing.gpuTimeMs;
+        if (m_device)
+        {
+            for (const RenderPassGpuTiming& timing : m_device->GetPassGpuTimings())
+                gpuTimes[timing.name] = timing.gpuTimeMs;
+        }
         m_passes.ForEach([&](RGPassHandle handle, const RGPass& pass) { passNames[handle.raw_value] = pass.name; });
+        m_textures.ForEach([&](RGTextureHandle handle, const RGTextureResource& texture) { textureNames[handle.raw_value] = texture.name; });
         for (const RGPassHandle handle : m_sortedPasses)
         {
             const RGPass* pass = m_passes.Get(handle);
@@ -676,6 +681,12 @@ namespace ChikaEngine::Render
             info.gpuTimeMs = gpuTimes[pass->name];
             for (const RGPassHandle dependency : pass->dependencies)
                 info.dependencies.push_back(passNames[dependency.raw_value]);
+            for (const RGTextureUsage& read : pass->textureReads)
+                info.textureReads.push_back({ textureNames[read.handle.raw_value], read.state, read.loadOp });
+            for (const RGTextureUsage& write : pass->colorWrites)
+                info.colorWrites.push_back({ textureNames[write.handle.raw_value], write.state, write.loadOp });
+            if (pass->hasDepth)
+                info.depthAttachment = textureNames[pass->depthWrite.handle.raw_value];
             m_debugSnapshot.passes.push_back(std::move(info));
         }
         m_textures.ForEach([&](RGTextureHandle, const RGTextureResource& resource) { m_debugSnapshot.resources.push_back({ resource.name, "Texture", resource.firstUsePassIdx, resource.lastUsePassIdx, resource.isImported }); });
@@ -689,6 +700,12 @@ namespace ChikaEngine::Render
             for (const std::string& dependency : pass.dependencies)
                 dump << ' ' << dependency;
             dump << '\n';
+            for (const RenderGraphTextureAccessDebugInfo& read : pass.textureReads)
+                dump << "    read " << read.resource << " state=" << static_cast<uint32_t>(read.state) << '\n';
+            for (const RenderGraphTextureAccessDebugInfo& write : pass.colorWrites)
+                dump << "    color " << write.resource << " load=" << static_cast<uint32_t>(write.loadOp) << '\n';
+            if (!pass.depthAttachment.empty())
+                dump << "    depth " << pass.depthAttachment << '\n';
         }
         dump << "Resources\n";
         for (const RenderGraphResourceDebugInfo& resource : m_debugSnapshot.resources)

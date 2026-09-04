@@ -20,5 +20,7 @@ namespace ChikaEngine::Render
         bool drawIndirectCount = false;
         uint32_t maxDrawIndirectCount = 1;
         uint32_t maxComputeWorkGroupInvocations = 0;
+        uint32_t maxTexture2DSize = 0;
+        uint32_t maxTextureCubeSize = 0;
     };
 } // namespace ChikaEngine::Render
