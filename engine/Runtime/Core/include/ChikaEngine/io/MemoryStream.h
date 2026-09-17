@@ -13,6 +13,7 @@
 #include "ChikaEngine/io/IStream.h"
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 namespace ChikaEngine::IO
 {
@@ -31,7 +32,8 @@ namespace ChikaEngine::IO
         bool IsReadingMode() const override;
         std::size_t GetLength() const override;
         void FlipToRead();
-        const std::vector<std::byte>& GetRawData();
+        [[nodiscard]]
+        std::span<const std::byte> GetRawData() const;
 
       private:
         std::vector<std::byte> _buffer;

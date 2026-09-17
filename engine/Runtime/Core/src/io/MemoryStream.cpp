@@ -46,7 +46,7 @@ namespace ChikaEngine::IO
     {
         return _buffer.size();
     }
-    const std::vector<std::byte>& MemoryStream::GetRawData()
+    std::span<const std::byte> MemoryStream::GetRawData() const
     {
         return _buffer;
     }
