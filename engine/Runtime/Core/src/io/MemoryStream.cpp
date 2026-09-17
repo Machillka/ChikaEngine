@@ -1,12 +1,13 @@
 #include "ChikaEngine/io/MemoryStream.h"
 #include "ChikaEngine/debug/log_macros.h"
+#include <cstddef>
 namespace ChikaEngine::IO
 {
     MemoryStream::MemoryStream() : _isReadingMode(false), _pos(0) {}
 
     MemoryStream::MemoryStream(const void* data, size_t size) : _isReadingMode(true), _pos(0)
     {
-        _buffer.assign(static_cast<const uint8_t*>(data), static_cast<const uint8_t*>(data) + size);
+        _buffer.assign(static_cast<const std::byte*>(data), static_cast<const std::byte*>(data) + size);
     }
 
     void MemoryStream::Read(void* data, size_t size)
@@ -45,7 +46,7 @@ namespace ChikaEngine::IO
     {
         return _buffer.size();
     }
-    const std::vector<uint8_t>& MemoryStream::GetRawData()
+    const std::vector<std::byte>& MemoryStream::GetRawData()
     {
         return _buffer;
     }

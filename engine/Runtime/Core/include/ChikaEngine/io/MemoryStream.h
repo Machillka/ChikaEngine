@@ -11,6 +11,7 @@
 #pragma once
 
 #include "ChikaEngine/io/IStream.h"
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 namespace ChikaEngine::IO
@@ -30,10 +31,10 @@ namespace ChikaEngine::IO
         bool IsReadingMode() const override;
         std::size_t GetLength() const override;
         void FlipToRead();
-        const std::vector<uint8_t>& GetRawData();
+        const std::vector<std::byte>& GetRawData();
 
       private:
-        std::vector<uint8_t> _buffer;
+        std::vector<std::byte> _buffer;
         size_t _pos;
         bool _isReadingMode;
     };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChikaEngine/base/UIDGenerator.h"
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -33,7 +34,7 @@ namespace ChikaEngine::Framework
         }
 
       private:
-        std::vector<std::uint8_t> _data;
+        std::vector<std::byte> _data;
         Core::GameObjectID _rootSourceId = Core::InvalidGameObjectID;
     };
 } // namespace ChikaEngine::Framework

@@ -170,7 +170,7 @@ namespace ChikaEngine::Framework
         bool _isTicking = false;
         bool _isClearing = false;
 
-        std::vector<uint8_t> _playBackup;
+        std::vector<std::byte> _playBackup;
         Core::FixedStepAccumulator _physicsStepper;
         EventBus _eventBus;
     };
