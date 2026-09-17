@@ -53,8 +53,8 @@ namespace ChikaEngine::Framework
             archive.LeaveArray();
             archive.LeaveNode();
         }
-
-        _data = stream.GetRawData();
+        const auto bytes = stream.GetRawData();
+        _data.assign(bytes.begin(), bytes.end());
         _rootSourceId = rootId;
         return true;
     }

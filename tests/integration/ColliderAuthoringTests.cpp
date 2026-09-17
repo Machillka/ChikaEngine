@@ -176,7 +176,7 @@ namespace
 
         ChikaEngine::IO::MemoryStream saveStream;
         authored.SaveToStream(saveStream);
-        const auto& bytes = saveStream.GetRawData();
+        const auto bytes = saveStream.GetRawData();
         nlohmann::json legacyJson = nlohmann::json::parse(bytes.begin(), bytes.end());
         auto& components = legacyJson["Scene"]["GameObjects"][0]["GameObject"]["Components"];
         for (auto& component : components)
@@ -213,7 +213,7 @@ namespace
 
         ChikaEngine::IO::MemoryStream migratedSave;
         migrated.SaveToStream(migratedSave);
-        const auto& migratedBytes = migratedSave.GetRawData();
+        const auto migratedBytes = migratedSave.GetRawData();
         const nlohmann::json newSchema = nlohmann::json::parse(migratedBytes.begin(), migratedBytes.end());
         const auto& newComponents = newSchema["Scene"]["GameObjects"][0]["GameObject"]["Components"];
         int colliderCount = 0;

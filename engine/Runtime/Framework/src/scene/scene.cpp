@@ -395,7 +395,9 @@ namespace ChikaEngine::Framework
 
         IO::MemoryStream mem;
         SaveToStream(mem);
-        _playBackup = mem.GetRawData();
+        // _playBackup = mem.GetRawData();
+        const auto bytes = mem.GetRawData();
+        _playBackup.assign(bytes.begin(), bytes.end());
 
         if (_physicsSubsystem)
             _physicsSubsystem->ResetSceneState();
